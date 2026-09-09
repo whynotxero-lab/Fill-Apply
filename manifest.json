@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.0.0",
-  "description": "Automate job-application form fill using your saved applicant profile.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "version": "1.1.0",
+  "description": "Queue-driven job-application filler with ATS adapters and a generic fallback.",
+  "permissions": ["storage", "activeTab", "scripting", "tabs", "alarms"],
+  "host_permissions": ["http://*/*", "https://*/*", "file:///*"],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Fill & Apply",
@@ -20,6 +21,12 @@
   "background": {
     "service_worker": "background/service-worker.js"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["demo/sample-application.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

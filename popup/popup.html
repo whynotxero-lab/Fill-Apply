@@ -9,23 +9,46 @@
   <body>
     <header>
       <h1>Fill &amp; Apply</h1>
-      <p id="summary" class="summary">Loading profile…</p>
+      <p id="summary" class="summary">Loading…</p>
     </header>
 
-    <main>
+    <section class="panel">
+      <div class="row">
+        <label class="grow">Delay (sec)
+          <input type="number" id="delaySec" min="0" step="1" value="3" />
+        </label>
+        <label class="check tight">
+          <input type="checkbox" id="autoSubmit" />
+          Auto-submit
+        </label>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" id="btnStart" class="primary">Start</button>
+        <button type="button" id="btnStop" class="danger">Stop</button>
+      </div>
+
+      <p id="runState" class="run-state">Idle</p>
+      <p id="queueStatus" class="muted">Queue: —</p>
+      <p id="lastError" class="err-line" hidden></p>
+    </section>
+
+    <section class="panel">
       <label class="row check">
         <input type="checkbox" id="highlightUnmatched" />
         Highlight unmatched fields
       </label>
-
-      <button type="button" id="btnFill" class="primary">Fill current page</button>
-      <button type="button" id="btnOptions">Open options</button>
+      <button type="button" id="btnFill">Fill current page</button>
+      <button type="button" id="btnResetMock" class="secondary">Reset mock queue</button>
       <button type="button" id="btnSeed" class="secondary">Seed sample profile</button>
-    </main>
+      <button type="button" id="btnOptions">Open options</button>
+    </section>
 
     <p id="status" class="status" role="status"></p>
 
+    <script src="../lib/types.js"></script>
     <script src="../lib/profile.js"></script>
+    <script src="../lib/storage.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

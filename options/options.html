@@ -3,15 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Fill &amp; Apply — Profile</title>
+    <title>Fill &amp; Apply — Options</title>
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
     <div class="wrap">
       <header>
-        <h1>Applicant profile</h1>
-        <p class="lede">Stored locally in <code>chrome.storage.local</code> under key <code>fillApply.profile</code>.</p>
+        <h1>Fill &amp; Apply settings</h1>
+        <p class="lede">Profile, documents, and backend queue config (stored in <code>chrome.storage.local</code>).</p>
       </header>
+
+      <form id="configForm">
+        <section>
+          <h2>Backend / runner</h2>
+          <div class="grid">
+            <label class="span2">Backend base URL
+              <input name="backendBaseUrl" id="backendBaseUrl" type="url" placeholder="https://api.example.com" />
+            </label>
+            <label class="check span2">
+              <input type="checkbox" id="mockMode" checked />
+              Mock mode (demo queue → extension sample form)
+            </label>
+            <label>Default delay (sec)
+              <input type="number" id="delaySec" min="0" step="1" value="3" />
+            </label>
+            <label class="check">
+              <input type="checkbox" id="autoSubmit" />
+              Auto-submit when runner fills
+            </label>
+          </div>
+          <p class="hint">When mock mode is on (or base URL empty), <code>getNextJob()</code> serves a local demo queue. Live mode calls <code>GET /queue/next</code>, <code>POST /applied/:id</code>, <code>GET /profile</code>, <code>GET /documents</code>.</p>
+          <button type="button" id="btnSaveConfig" class="primary">Save runner config</button>
+          <span id="configStatus" class="status" role="status"></span>
+        </section>
+      </form>
+
+      <section>
+        <h2>Documents (resume / cover)</h2>
+        <p class="hint">Stored as base64 in <code>fillApply.documents</code> for DataTransfer attach to <code>input[type=file]</code>. Prefer small PDFs.</p>
+        <div class="grid">
+          <label>Resume file
+            <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,application/pdf" />
+          </label>
+          <label>Cover letter file
+            <input type="file" id="coverFile" accept=".pdf,.doc,.docx,application/pdf,.txt" />
+          </label>
+        </div>
+        <p id="docsMeta" class="hint"></p>
+        <div class="actions">
+          <button type="button" id="btnSaveDocs" class="primary">Save documents</button>
+          <button type="button" id="btnClearDocs" class="ghost">Clear documents</button>
+          <span id="docsStatus" class="status" role="status"></span>
+        </div>
+      </section>
 
       <form id="profileForm">
         <section>
@@ -79,7 +123,10 @@
       </form>
     </div>
 
+    <script src="../lib/types.js"></script>
     <script src="../lib/profile.js"></script>
+    <script src="../lib/storage.js"></script>
+    <script src="../lib/files.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

@@ -83,7 +83,7 @@
       <div class="banner">
         Local demo fixture for the <strong>Fill &amp; Apply</strong> extension. Open this file via
         <code>file://</code> or a static server, load the unpacked extension, seed a sample profile,
-        then click <em>Fill current page</em> in the popup.
+        then click <em>Fill current page</em> or run the mock queue with <em>Start</em> in the popup.
         <br />
         Note: Chrome may require “Allow access to file URLs” on the extension details page to inject into
         <code>file://</code> pages.
@@ -182,6 +182,12 @@
           <option>Yes</option>
           <option>No</option>
         </select>
+
+        <label for="resume_file">Resume (PDF)</label>
+        <input id="resume_file" name="resume" type="file" accept=".pdf,application/pdf" />
+
+        <label for="cover_file">Cover letter (PDF)</label>
+        <input id="cover_file" name="cover_letter_file" type="file" accept=".pdf,application/pdf,.txt" />
 
         <button type="submit">Submit application (demo)</button>
       </form>

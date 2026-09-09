@@ -174,3 +174,11 @@ button.icon {
     grid-column: span 1;
   }
 }
+
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+label.check input { width: auto; }
