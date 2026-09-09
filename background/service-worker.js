@@ -1,5 +1,6 @@
 /**
  * MV3 service worker — owns the runner state machine and message API.
+ * Also configures chrome.sidePanel so the toolbar action opens the right sidebar.
  */
 /* global importScripts, FillApplyTypes, FillApplyStorage, FillApplyProfile, FillApplyBackend, FillApplyRunner */
 
@@ -11,10 +12,30 @@ importScripts(
   '../runner/runner.js'
 );
 
+var SIDE_PANEL_PATH = 'sidepanel/sidepanel.html';
+
+function configureSidePanel() {
+  if (!chrome.sidePanel) return;
+  try {
+    chrome.sidePanel.setOptions({ enabled: true, path: SIDE_PANEL_PATH });
+  } catch (e) {
+    console.warn('[Fill & Apply] sidePanel.setOptions failed:', e);
+  }
+  try {
+    // Toolbar click opens the Chrome right sidebar (no tiny popup).
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch (e) {
+    console.warn('[Fill & Apply] sidePanel.setPanelBehavior failed:', e);
+  }
+}
+
+configureSidePanel();
+
 chrome.runtime.onInstalled.addListener(function (details) {
+  configureSidePanel();
   if (details.reason === 'install') {
     console.log(
-      '[Fill & Apply] Installed. Add https job apply URLs in Options (Mock queue), then Start from the popup.'
+      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Add https job apply URLs in Options (Mock queue), then Start.'
     );
   }
   FillApplyStorage.getRunConfig().then(function (cfg) {
@@ -36,6 +57,10 @@ chrome.runtime.onInstalled.addListener(function (details) {
   if (FillApplyBackend && FillApplyBackend.getQueued) {
     FillApplyBackend.getQueued().catch(function () {});
   }
+});
+
+chrome.runtime.onStartup.addListener(function () {
+  configureSidePanel();
 });
 
 chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {

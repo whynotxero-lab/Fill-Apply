@@ -4,7 +4,7 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
-**Version 1.3.1** — run modes (fill / ready / submit), structured queue buckets, form inspection, hardened Greenhouse file + dropdown fill.
+**Version 1.4.0** — Chrome **right sidebar** via MV3 Side Panel API (`chrome.sidePanel`), plus run modes, structured queue buckets, and hardened Greenhouse fill.
 
 ## Load unpacked
 
@@ -13,12 +13,31 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 3. Enable **Developer mode**.
 4. **Load unpacked** → select this folder (contains `manifest.json`).
 5. Open **Options**: seed/edit profile, paste **Mock queue** apply URLs, optionally upload resume/cover.
+6. Click the **Fill & Apply** toolbar icon — the UI opens in Chrome’s **right sidebar** (not a tiny popup).
+
+## Side panel (Chrome right sidebar)
+
+Toolbar clicks open the **side panel** (`sidepanel/sidepanel.html`) via `chrome.sidePanel` with `openPanelOnActionClick: true`. There is no `action.default_popup`.
+
+**How to open**
+
+- Click the **Fill & Apply** extension icon in the toolbar → right sidebar opens.
+- Or use Chrome’s **side panel** menu (toolbar / view) and choose **Fill & Apply**.
+
+**Options**
+
+- Inside the panel: **Open options**
+- Or right-click the extension icon → **Options**
+
+Shared controls live in `ui/panel-app.js` (used by the side panel; `popup/` HTML remains as a fallback layout reference).
 
 ## Architecture
 
 ```
-popup/          Start / Stop, delay, run mode, auto-close tab, bucket counts, one-off Fill
-background/     Service worker — runner state machine + message API
+sidepanel/      Primary UI — full-height right sidebar (sticky header, scrollable body)
+ui/panel-app.js Shared panel logic (profile, modes, Start/Stop, buckets, fill/seed)
+popup/          Same markup/CSS width reference (not opened by toolbar; no default_popup)
+background/     Service worker — runner + sidePanel.setOptions / setPanelBehavior
 runner/         Queue loop: next queued job → tab → detect → fill → applied/failed → close? → delay
 adapters/
   registry.js   register / detect
@@ -71,7 +90,7 @@ Each job: `{ id, title, company, url, status, attempts, lastError?, result?, upd
 
 **Saving mock URLs** rebuilds **queued** from `http`/`https` URLs only (`chrome-extension:`, `about:`, empty filtered out). **Reset mock** rebuilds queued from the saved URL list and **keeps** applied history (use **Clear history** to wipe applied / failed / cancelled).
 
-Popup shows counts: **Queued / Applied / Failed / Cancelled**.
+Side panel shows counts: **Queued / Applied / Failed / Cancelled**.
 
 ## Start / Stop with real apply URLs
 
@@ -79,9 +98,9 @@ The runner **never** opens `chrome-extension://…/demo/…` (executeScript cann
 
 1. Options → enable **Mock mode** (default) → paste one apply URL per line under **Mock queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save mock URLs & rebuild queued**.
 2. Confirm **Auto-close applied tab** is ON (default) if you want each finished job tab closed after the status move.
-3. Popup → **Seed sample profile** (once) — includes work auth / sponsorship Yes/No.
+3. Side panel → **Seed sample profile** (once) — includes work auth / sponsorship Yes/No.
 4. Optional: Options → upload a small PDF resume/cover → **Save documents**.
-5. Popup → set **Delay (sec)** → choose **Auto Fill / Auto Ready / Auto Submit**.
+5. Side panel → set **Delay (sec)** → choose **Auto Fill / Auto Ready / Auto Submit**.
 6. Click **Start**. The runner opens each queued `https` URL, detects the adapter, fills (and optionally advances / submits), moves the job to applied or failed, optionally closes the tab, waits `delayMs`, then opens the next.
 7. Click **Stop** between jobs to halt (current → cancelled; remaining stay queued). **Reset mock queue** rebuilds queued from saved URLs.
 
@@ -147,8 +166,9 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 |------------|-----|
 | `storage` | Profile, run config, documents, session log, queue buckets, mock URLs |
 | `tabs` / `scripting` | Runner opens job URLs and injects adapters |
-| `activeTab` | One-off fill from the popup |
+| `activeTab` | One-off fill from the side panel |
 | `alarms` | Reserved for durable delays |
+| `sidePanel` | Open Fill & Apply in Chrome’s right sidebar |
 | host_permissions | Inject into http(s) / file job pages |
 
 ## Notes
@@ -165,7 +185,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 1. `chrome://extensions` → **Reload** Fill & Apply.
 2. Options → paste a real `https://boards.greenhouse.io/…` (or `job-boards.greenhouse.io`) apply URL → Save → confirm Queued count ≥ 1 (no `chrome-extension:` lines).
 3. Upload resume/cover → Save documents. Seed sample profile.
-4. Popup → **Auto Fill** → Start. Confirm: text/selects filled, work-auth dropdowns leave “Select…”, resume/cover no longer “No file chosen”, job moves Queued → Applied (or Failed with an error), tab closes if auto-close ON, URL does not loop.
+4. Click the toolbar icon → side panel → **Auto Fill** → Start. Confirm: text/selects filled, work-auth dropdowns leave “Select…”, resume/cover no longer “No file chosen”, job moves Queued → Applied (or Failed with an error), tab closes if auto-close ON, URL does not loop.
 5. Optional: try **Auto Ready** / **Auto Submit** on a second URL.
 
 
@@ -176,7 +196,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 | `brand/` | Master assets: `icon-master.png`, `banner.png`, `favicon.ico`, and sized `icon16` / `32` / `48` / `128` / `256.png` |
 | `icons/` | Extension toolbar / store icons used by `manifest.json` (`icon16.png`, `icon32.png`, `icon48.png`, `icon128.png`, `icon256.png`) |
 
-Popup and Options headers use the wordmark **Fill & Apply** with tagline **Queue. Fill. Apply.** and the mint accent `#22c55e` on a dark navy / blue palette.
+Side panel and Options headers use the wordmark **Fill & Apply** with tagline **Queue. Fill. Apply.** and the mint accent `#22c55e` on a dark navy / blue palette. The side panel is full-height with a sticky brand header and scrollable body (~320–360px wide).
 
 ## Development
 

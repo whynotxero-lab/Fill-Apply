@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fill &amp; Apply</title>
+    <link rel="icon" href="../brand/favicon.ico" />
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="brand-header sticky-header">
+        <img class="brand-logo" src="../icons/icon48.png" width="40" height="40" alt="" />
+        <div class="brand-text">
+          <h1>Fill &amp; Apply</h1>
+          <p class="tagline">Queue. Fill. Apply.</p>
+        </div>
+      </header>
+
+      <div class="scroll-body">
+        <p id="summary" class="summary">Loading…</p>
+
+        <section class="panel">
+          <div class="row">
+            <label class="grow">Delay (sec)
+              <input type="number" id="delaySec" min="0" step="1" value="3" />
+            </label>
+          </div>
+
+          <fieldset class="mode-fieldset">
+            <legend>Run mode</legend>
+            <div class="mode-seg" role="radiogroup" aria-label="Run mode">
+              <label class="mode-seg-item">
+                <input type="radio" name="runMode" value="fill" checked />
+                <span class="mode-seg-label">
+                  <strong>Fill</strong>
+                  <small>Fields only</small>
+                </span>
+              </label>
+              <label class="mode-seg-item">
+                <input type="radio" name="runMode" value="ready" />
+                <span class="mode-seg-label">
+                  <strong>Ready</strong>
+                  <small>Fill + Next</small>
+                </span>
+              </label>
+              <label class="mode-seg-item">
+                <input type="radio" name="runMode" value="submit" />
+                <span class="mode-seg-label">
+                  <strong>Submit</strong>
+                  <small>End-to-end</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          <label class="row check auto-close">
+            <input type="checkbox" id="autoCloseAppliedTab" checked />
+            <span>
+              <strong>Auto-close applied tab</strong>
+              <span class="sub">Close after status move (applied/failed), before next job</span>
+            </span>
+          </label>
+
+          <div class="btn-row">
+            <button type="button" id="btnStart" class="primary">Start</button>
+            <button type="button" id="btnStop" class="danger">Stop</button>
+          </div>
+
+          <p id="runState" class="run-state">Idle</p>
+          <div id="queueStatus" class="bucket-pills" aria-live="polite">
+            <span class="pill pill-queued"><span class="pill-label">Queued</span> <strong id="countQueued">—</strong></span>
+            <span class="pill pill-applied"><span class="pill-label">Applied</span> <strong id="countApplied">—</strong></span>
+            <span class="pill pill-failed"><span class="pill-label">Failed</span> <strong id="countFailed">—</strong></span>
+            <span class="pill pill-cancelled"><span class="pill-label">Cancelled</span> <strong id="countCancelled">—</strong></span>
+          </div>
+          <p id="lastJobTitle" class="muted last-job" hidden></p>
+          <p id="lastError" class="err-line" hidden></p>
+        </section>
+
+        <section class="panel">
+          <label class="row check">
+            <input type="checkbox" id="highlightUnmatched" />
+            Highlight unmatched fields
+          </label>
+          <button type="button" id="btnFill">Fill current page</button>
+          <button type="button" id="btnResetMock" class="secondary">Reset mock queue</button>
+          <button type="button" id="btnSeed" class="secondary">Seed sample profile</button>
+          <button type="button" id="btnOptions">Open options</button>
+          <p class="hint-mini">
+            Paste real https apply URLs in Options → Mock queue, then Start.
+            Demo page is manual-only (never queued).
+            Options also via right-click the extension icon → <strong>Options</strong>.
+          </p>
+        </section>
+
+        <p id="status" class="status" role="status"></p>
+      </div>
+    </div>
+
+    <script src="../lib/types.js"></script>
+    <script src="../lib/profile.js"></script>
+    <script src="../lib/storage.js"></script>
+    <script src="../ui/panel-app.js"></script>
+  </body>
+</html>

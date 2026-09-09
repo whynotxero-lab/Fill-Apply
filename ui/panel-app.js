@@ -1,3 +1,7 @@
+/**
+ * Shared panel UI logic for sidepanel/ (and popup/ markup).
+ * Loaded by sidepanel/sidepanel.html and popup/popup.html.
+ */
 (function () {
   'use strict';
 
@@ -260,7 +264,11 @@
   });
 
   async function getActiveTab() {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    // Side panel: prefer lastFocusedWindow so we hit the browsing window, not an empty set.
+    let tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tabs || !tabs.length) {
+      tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    }
     return tabs && tabs[0] ? tabs[0] : null;
   }
 
