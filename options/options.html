@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fill &amp; Apply — Profile</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Applicant profile</h1>
+        <p class="lede">Stored locally in <code>chrome.storage.local</code> under key <code>fillApply.profile</code>.</p>
+      </header>
+
+      <form id="profileForm">
+        <section>
+          <h2>Identity</h2>
+          <div class="grid">
+            <label>First name <input name="firstName" autocomplete="given-name" /></label>
+            <label>Last name <input name="lastName" autocomplete="family-name" /></label>
+            <label class="span2">Full name <input name="fullName" autocomplete="name" /></label>
+            <label>Email <input name="email" type="email" autocomplete="email" /></label>
+            <label>Phone <input name="phone" type="tel" autocomplete="tel" /></label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Location</h2>
+          <div class="grid">
+            <label class="span2">Location (free text) <input name="location" /></label>
+            <label>City <input name="city" autocomplete="address-level2" /></label>
+            <label>State <input name="state" autocomplete="address-level1" /></label>
+            <label>Country <input name="country" autocomplete="country-name" /></label>
+            <label>ZIP / Postal <input name="zip" autocomplete="postal-code" /></label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Links</h2>
+          <div class="grid">
+            <label class="span2">LinkedIn <input name="linkedin" type="url" placeholder="https://linkedin.com/in/…" /></label>
+            <label class="span2">Portfolio <input name="portfolio" type="url" /></label>
+            <label class="span2">Website <input name="website" type="url" /></label>
+            <label class="span2">GitHub <input name="github" type="url" /></label>
+            <label class="span2">Resume URL <input name="resumeUrl" type="url" /></label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Summaries</h2>
+          <label>Resume / professional summary
+            <textarea name="resumeSummary" rows="3"></textarea>
+          </label>
+          <label>Work history summary
+            <textarea name="workHistory" rows="4"></textarea>
+          </label>
+          <label>Education
+            <textarea name="education" rows="2"></textarea>
+          </label>
+          <label>Cover letter / default message
+            <textarea name="coverLetter" rows="4"></textarea>
+          </label>
+        </section>
+
+        <section>
+          <h2>Custom Q&amp;A</h2>
+          <p class="hint">Matched against question labels on application forms (e.g. “Years of experience”).</p>
+          <div id="qaList"></div>
+          <button type="button" id="btnAddQA" class="ghost">+ Add Q&amp;A</button>
+        </section>
+
+        <footer class="actions">
+          <button type="submit" class="primary">Save profile</button>
+          <button type="button" id="btnSeed" class="ghost">Load sample</button>
+          <button type="button" id="btnReset" class="danger">Clear all</button>
+          <span id="status" class="status" role="status"></span>
+        </footer>
+      </form>
+    </div>
+
+    <script src="../lib/profile.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

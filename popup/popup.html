@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fill &amp; Apply</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Fill &amp; Apply</h1>
+      <p id="summary" class="summary">Loading profile…</p>
+    </header>
+
+    <main>
+      <label class="row check">
+        <input type="checkbox" id="highlightUnmatched" />
+        Highlight unmatched fields
+      </label>
+
+      <button type="button" id="btnFill" class="primary">Fill current page</button>
+      <button type="button" id="btnOptions">Open options</button>
+      <button type="button" id="btnSeed" class="secondary">Seed sample profile</button>
+    </main>
+
+    <p id="status" class="status" role="status"></p>
+
+    <script src="../lib/profile.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
