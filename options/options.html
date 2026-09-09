@@ -27,16 +27,25 @@
             <label>Default delay (sec)
               <input type="number" id="delaySec" min="0" step="1" value="3" />
             </label>
-            <label class="check">
-              <input type="checkbox" id="autoSubmit" />
-              Auto-submit when runner fills
+            <label>Default run mode
+              <select id="runMode">
+                <option value="fill">Auto Fill — text/selects/files only</option>
+                <option value="ready">Auto Ready — fill + Next/Continue</option>
+                <option value="submit">Auto Submit — full end-to-end</option>
+              </select>
             </label>
             <label class="check span2">
               <input type="checkbox" id="autoCloseAppliedTab" checked />
-              <span><strong>Auto-close applied tab</strong> — close the old job page after fill before opening the next (default ON)</span>
+              <span><strong>Auto-close applied tab</strong> — close after status move (applied/failed), before next job (default ON)</span>
             </label>
           </div>
-          <p class="hint">When mock mode is on (or base URL empty), <code>getNextJob()</code> serves jobs from the <strong>Mock queue</strong> URL list below (real <code>https://</code> apply links). Live mode calls <code>GET /queue/next</code>, <code>POST /applied/:id</code>, <code>GET /profile</code>, <code>GET /documents</code>.</p>
+          <p class="hint">
+            <strong>Modes:</strong> <em>fill</em> never clicks Next/Submit;
+            <em>ready</em> advances multi-step forms but never final Submit/Apply;
+            <em>submit</em> includes final Submit when confidently found.
+            Queues: <code>queued</code> → <code>applied</code> / <code>failed</code> / <code>cancelled</code>.
+            On Stop, the current incomplete job moves to cancelled; remaining stay queued.
+          </p>
           <button type="button" id="btnSaveConfig" class="primary">Save runner config</button>
           <span id="configStatus" class="status" role="status"></span>
         </section>
@@ -47,28 +56,29 @@
         <p class="hint">
           Paste one real job apply URL per line (Greenhouse, Lever, etc.).
           Example: <code>https://boards.greenhouse.io/company/jobs/123</code>.
-          <strong>Start</strong> opens these URLs — never the extension demo page.
-          JSON array of URL strings is also accepted. Lines starting with <code>#</code> are ignored.
+          <strong>Only http/https URLs are queued</strong> — <code>chrome-extension:</code>, <code>about:</code>, and empty lines are filtered out.
+          Saving rebuilds the <strong>queued</strong> list. Applied history is kept unless you Clear history.
         </p>
         <label class="span2">Job apply URLs
           <textarea id="mockQueueUrls" rows="8" placeholder="https://boards.greenhouse.io/acme/jobs/123&#10;https://boards.greenhouse.io/acme/jobs/456"></textarea>
         </label>
         <div class="actions">
-          <button type="button" id="btnSaveMockUrls" class="primary">Save mock URLs &amp; rebuild queue</button>
-          <button type="button" id="btnResetMock" class="ghost">Reset queue from saved URLs</button>
+          <button type="button" id="btnSaveMockUrls" class="primary">Save mock URLs &amp; rebuild queued</button>
+          <button type="button" id="btnResetMock" class="ghost">Reset queued from saved URLs</button>
+          <button type="button" id="btnClearHistory" class="ghost">Clear history (applied/failed/cancelled)</button>
           <span id="mockUrlsStatus" class="status" role="status"></span>
         </div>
         <p class="hint" id="mockUrlsMeta"></p>
+        <p class="hint" id="bucketCounts"></p>
         <p class="hint">
           Manual demo form: open <code>demo/sample-application.html</code> via Live Server or <code>file://</code>,
-          then use <strong>Fill current page</strong>. Do not use it as a Start queue target
-          (<code>chrome-extension://</code> pages cannot be injected into).
+          then use <strong>Fill current page</strong>. Demo is manual-only — it can <strong>never</strong> enter the mock queue.
         </p>
       </section>
 
       <section>
         <h2>Documents (resume / cover)</h2>
-        <p class="hint">Stored as base64 in <code>fillApply.documents</code> for DataTransfer attach to <code>input[type=file]</code>. Prefer small PDFs.</p>
+        <p class="hint">Stored as base64 in <code>fillApply.documents</code> for DataTransfer attach to <code>input[type=file]</code> (including Greenhouse hidden inputs / Attach buttons). Prefer small PDFs.</p>
         <div class="grid">
           <label>Resume file
             <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,application/pdf" />
@@ -106,6 +116,19 @@
             <label>Country <input name="country" autocomplete="country-name" /></label>
             <label>ZIP / Postal <input name="zip" autocomplete="postal-code" /></label>
           </div>
+        </section>
+
+        <section>
+          <h2>Work authorization</h2>
+          <div class="grid">
+            <label>Authorized to work (Yes/No)
+              <input name="authorizedToWork" placeholder="Yes" />
+            </label>
+            <label>Requires sponsorship (Yes/No)
+              <input name="requiresSponsorship" placeholder="No" />
+            </label>
+          </div>
+          <p class="hint">Mapped to Greenhouse / ATS work-auth and sponsorship dropdowns (native select + custom listboxes).</p>
         </section>
 
         <section>

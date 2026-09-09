@@ -16,7 +16,7 @@
 
 body {
   margin: 0;
-  width: 320px;
+  width: 340px;
   padding: 14px;
   background: var(--bg);
   color: var(--text);
@@ -73,7 +73,38 @@ header h1 { margin: 0 0 4px; font-size: 16px; font-weight: 700; }
   user-select: none;
 }
 
-.check.tight { margin-top: 14px; white-space: nowrap; }
+.mode-fieldset {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0b1220;
+}
+
+.mode-fieldset legend {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 6px 0;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.mode-option strong {
+  color: var(--text);
+}
+
+.mode-option input {
+  margin-top: 2px;
+}
 
 .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
@@ -99,7 +130,7 @@ button.danger { background: #7f1d1d; color: #fecaca; }
 .run-state { margin: 0; font-size: 12px; font-weight: 600; }
 .run-state.running { color: var(--ok); }
 .run-state.idle { color: var(--muted); }
-.muted { margin: 0; font-size: 12px; color: var(--muted); }
+.muted { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.4; }
 .err-line { margin: 0; font-size: 11px; color: var(--danger); word-break: break-word; }
 
 .status { min-height: 1.2em; margin: 4px 0 0; font-size: 12px; color: var(--muted); }

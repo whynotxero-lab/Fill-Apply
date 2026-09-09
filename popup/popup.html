@@ -17,17 +17,29 @@
         <label class="grow">Delay (sec)
           <input type="number" id="delaySec" min="0" step="1" value="3" />
         </label>
-        <label class="check tight">
-          <input type="checkbox" id="autoSubmit" />
-          Auto-submit
-        </label>
       </div>
+
+      <fieldset class="mode-fieldset">
+        <legend>Run mode</legend>
+        <label class="mode-option">
+          <input type="radio" name="runMode" value="fill" checked />
+          <span><strong>Auto Fill</strong> — text/selects/files only; no Next/Submit</span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="runMode" value="ready" />
+          <span><strong>Auto Ready</strong> — fill + Next/Continue; never final Submit</span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="runMode" value="submit" />
+          <span><strong>Auto Submit</strong> — full end-to-end including Submit/Apply</span>
+        </label>
+      </fieldset>
 
       <label class="row check auto-close">
         <input type="checkbox" id="autoCloseAppliedTab" checked />
         <span>
           <strong>Auto-close applied tab</strong>
-          <span class="sub">Close the old job page after fill before opening the next (default ON)</span>
+          <span class="sub">Close after status move (applied/failed), before next job</span>
         </span>
       </label>
 
@@ -37,7 +49,7 @@
       </div>
 
       <p id="runState" class="run-state">Idle</p>
-      <p id="queueStatus" class="muted">Queue: —</p>
+      <p id="queueStatus" class="muted">Queued: — · Applied: — · Failed: — · Cancelled: —</p>
       <p id="lastError" class="err-line" hidden></p>
     </section>
 
@@ -50,7 +62,7 @@
       <button type="button" id="btnResetMock" class="secondary">Reset mock queue</button>
       <button type="button" id="btnSeed" class="secondary">Seed sample profile</button>
       <button type="button" id="btnOptions">Open options</button>
-      <p class="hint-mini">Paste real https apply URLs in Options → Mock queue, then Start.</p>
+      <p class="hint-mini">Paste real https apply URLs in Options → Mock queue, then Start. Demo page is manual-only (never queued).</p>
     </section>
 
     <p id="status" class="status" role="status"></p>

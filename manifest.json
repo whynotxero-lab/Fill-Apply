@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.2.0",
-  "description": "Queue-driven job-application filler: real apply URLs, ATS adapters, auto-close applied tabs.",
+  "version": "1.3.0",
+  "description": "Queue-driven job-application filler: fill/ready/submit modes, ATS adapters, structured queue buckets.",
   "permissions": [
     "storage",
     "activeTab",

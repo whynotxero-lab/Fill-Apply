@@ -16,14 +16,17 @@
   const btnClearDocs = document.getElementById('btnClearDocs');
   const btnSaveMockUrls = document.getElementById('btnSaveMockUrls');
   const btnResetMock = document.getElementById('btnResetMock');
+  const btnClearHistory = document.getElementById('btnClearHistory');
   const mockUrlsStatus = document.getElementById('mockUrlsStatus');
   const mockUrlsMeta = document.getElementById('mockUrlsMeta');
   const mockQueueUrlsEl = document.getElementById('mockQueueUrls');
+  const bucketCountsEl = document.getElementById('bucketCounts');
 
   const TEXT_FIELDS = [
     'firstName', 'lastName', 'fullName', 'email', 'phone', 'location', 'city', 'state',
     'country', 'zip', 'linkedin', 'portfolio', 'website', 'github', 'resumeUrl',
-    'resumeSummary', 'workHistory', 'education', 'coverLetter'
+    'resumeSummary', 'workHistory', 'education', 'coverLetter',
+    'authorizedToWork', 'requiresSponsorship'
   ];
 
   function setStatus(el, text, kind) {
@@ -125,7 +128,8 @@
     document.getElementById('backendBaseUrl').value = cfg.backendBaseUrl || '';
     document.getElementById('mockMode').checked = !!cfg.mockMode;
     document.getElementById('delaySec').value = String(Math.round((cfg.delayMs || 0) / 1000));
-    document.getElementById('autoSubmit').checked = !!cfg.autoSubmit;
+    const mode = cfg.runMode || (cfg.autoSubmit ? 'submit' : 'fill');
+    document.getElementById('runMode').value = mode;
     document.getElementById('autoCloseAppliedTab').checked = cfg.autoCloseAppliedTab !== false;
   }
 
@@ -133,23 +137,45 @@
     const urls = await FillApplyStorage.getMockQueueUrls();
     mockQueueUrlsEl.value = urls.join('\n');
     mockUrlsMeta.textContent = urls.length
-      ? urls.length + ' URL(s) configured — Start will open these real pages.'
+      ? urls.length + ' https URL(s) configured — Start serves these into Queued (demo URLs filtered out).'
       : 'No URLs yet — Start will fail until you add https apply links.';
+  }
+
+  async function refreshBucketCounts() {
+    try {
+      const data = await send('FILL_APPLY_GET_BUCKETS');
+      const c = data.counts || {};
+      bucketCountsEl.textContent =
+        'Buckets — Queued: ' +
+        (c.queued || 0) +
+        ' · Applied: ' +
+        (c.applied || 0) +
+        ' · Failed: ' +
+        (c.failed || 0) +
+        ' · Cancelled: ' +
+        (c.cancelled || 0);
+    } catch (_e) {
+      bucketCountsEl.textContent = '';
+    }
   }
 
   btnSaveConfig.addEventListener('click', async function () {
     try {
       const sec = Number(document.getElementById('delaySec').value);
+      const runMode = document.getElementById('runMode').value || 'fill';
       const next = await FillApplyStorage.saveRunConfig({
         backendBaseUrl: document.getElementById('backendBaseUrl').value.trim(),
         mockMode: document.getElementById('mockMode').checked,
         delayMs: (Number.isFinite(sec) && sec >= 0 ? sec : 3) * 1000,
-        autoSubmit: document.getElementById('autoSubmit').checked,
+        runMode: runMode,
+        autoSubmit: runMode === 'submit',
         autoCloseAppliedTab: document.getElementById('autoCloseAppliedTab').checked
       });
       setStatus(
         configStatus,
-        'Config saved (delay ' +
+        'Config saved (mode ' +
+          next.runMode +
+          '; delay ' +
           next.delayMs +
           'ms; auto-close ' +
           (next.autoCloseAppliedTab ? 'ON' : 'OFF') +
@@ -168,15 +194,16 @@
       });
       mockQueueUrlsEl.value = (data.urls || []).join('\n');
       mockUrlsMeta.textContent = data.remaining
-        ? data.remaining + ' job(s) in queue from saved URLs.'
+        ? data.remaining + ' job(s) in queued from saved https URLs.'
         : 'No valid https URLs — Start will show: Add job apply URLs in Options (Mock queue)';
       setStatus(
         mockUrlsStatus,
         data.remaining
-          ? 'Saved ' + data.urls.length + ' URL(s); queue rebuilt.'
-          : 'Saved, but queue is empty (need https:// URLs).',
+          ? 'Saved ' + data.urls.length + ' URL(s); queued rebuilt (chrome-extension filtered).'
+          : 'Saved, but queued is empty (need https:// URLs).',
         data.remaining ? 'ok' : 'err'
       );
+      await refreshBucketCounts();
     } catch (e) {
       setStatus(mockUrlsStatus, e.message, 'err');
     }
@@ -188,13 +215,25 @@
       setStatus(
         mockUrlsStatus,
         data.remaining
-          ? 'Queue reset (' + data.remaining + ' jobs).'
-          : 'Queue empty — save https URLs first.',
+          ? 'Queued reset (' + data.remaining + ' jobs). Applied history kept.'
+          : 'Queued empty — save https URLs first.',
         data.remaining ? 'ok' : 'err'
       );
       mockUrlsMeta.textContent = data.remaining
-        ? data.remaining + ' job(s) ready.'
+        ? data.remaining + ' job(s) ready in queued.'
         : 'No URLs configured.';
+      await refreshBucketCounts();
+    } catch (e) {
+      setStatus(mockUrlsStatus, e.message, 'err');
+    }
+  });
+
+  btnClearHistory.addEventListener('click', async function () {
+    if (!confirm('Clear applied / failed / cancelled history? Queued is unchanged.')) return;
+    try {
+      const data = await send('FILL_APPLY_CLEAR_HISTORY');
+      setStatus(mockUrlsStatus, 'History cleared.', 'ok');
+      await refreshBucketCounts();
     } catch (e) {
       setStatus(mockUrlsStatus, e.message, 'err');
     }
@@ -257,4 +296,5 @@
   loadConfig().catch(function (e) { setStatus(configStatus, e.message, 'err'); });
   loadMockUrls().catch(function (e) { setStatus(mockUrlsStatus, e.message, 'err'); });
   refreshDocsMeta().catch(function () {});
+  refreshBucketCounts().catch(function () {});
 })();

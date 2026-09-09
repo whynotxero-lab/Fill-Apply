@@ -4,6 +4,8 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
+**Version 1.3.0** — run modes (fill / ready / submit), structured queue buckets, form inspection, hardened Greenhouse file + dropdown fill.
+
 ## Load unpacked
 
 1. Clone or download this repo.
@@ -15,46 +17,95 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 ## Architecture
 
 ```
-popup/          Start / Stop, delay, auto-submit, auto-close tab, queue status, one-off Fill
+popup/          Start / Stop, delay, run mode, auto-close tab, bucket counts, one-off Fill
 background/     Service worker — runner state machine + message API
-runner/         Queue loop: next job → tab → detect adapter → fill → files → markApplied → close tab? → delay
+runner/         Queue loop: next queued job → tab → detect → fill → applied/failed → close? → delay
 adapters/
   registry.js   register / detect
-  fallback.js   label/name/autocomplete heuristics (+ file attach + optional submit)
+  fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
-  ats/          deeper stubs (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Workable, iCIMS)
+  ats/          Greenhouse (hardened), Lever, Ashby, Workday, SmartRecruiters, Workable, iCIMS
   boards/       LinkedIn, Indeed, Wellfound, Remote OK, …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
-  types.js      shapes + storage keys + message constants
-  storage.js    run config, running flag, session log, documents, mock URL list
-  profile.js    applicant profile
+  types.js      shapes + storage keys + message constants + runMode
+  storage.js    run config, buckets, documents, mock URL list
+  profile.js    applicant profile (incl. authorizedToWork / requiresSponsorship)
   field-map.js  field heuristics
-  files.js      base64 ↔ File + DataTransfer assign to input[type=file]
-  backend.js    getNextJob / markApplied / getDocuments (+ mock queue from saved URLs)
-content/fill.js fill engine used by fallback
-demo/           sample application form (manual testing only — not used by Start)
+  files.js      base64 ↔ File + DataTransfer; Attach/Upload button discovery
+  backend.js    getNextJob / markApplied / markFailed / markCancelled + buckets
+content/fill.js fill engine, inspectForm, native + custom dropdowns
+demo/           sample application form (manual testing only — never enters the queue)
 ```
 
 **Boards often redirect into an ATS host at apply time.** Detection runs on the apply URL, so a LinkedIn Easy Apply or “Apply on company site” flow that lands on `boards.greenhouse.io` is handled by the Greenhouse adapter (not the LinkedIn stub).
 
-## Start / Stop with real apply URLs (mock queue)
+## Run modes
 
-The runner **never** opens `chrome-extension://…/demo/…` (executeScript cannot inject into extension pages). Mock mode uses **your** https job/apply URLs.
+Replace the old auto-submit checkbox with a three-way control:
 
-1. Options → enable **Mock mode** (default) → paste one apply URL per line under **Mock queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save mock URLs & rebuild queue**.
-2. Confirm **Auto-close applied tab** is ON (default) if you want each finished job tab closed before the next opens.
-3. Popup → **Seed sample profile** (once).
+| Mode | Behavior |
+|------|----------|
+| **Auto Fill** (`fill`) | Fill text / selects / files only. Do **not** click Continue / Next / Submit. |
+| **Auto Ready** (`ready`) | Fill + navigate multi-step forms (Next / Continue) as far as possible. **Never** click final Submit / Apply. |
+| **Auto Submit** (`submit`) | Full end-to-end, including final Submit / Apply when confidently found. |
+
+Legacy `autoSubmit: true` migrates to `runMode: 'submit'`; otherwise `fill`.
+
+## Queue buckets
+
+Structured lists in `chrome.storage.local` (not a single looping mock queue):
+
+| Bucket | Meaning |
+|--------|---------|
+| `queued` | Waiting to process |
+| `applied` | Successfully processed for the current mode (fill / ready / submit completed ok) |
+| `failed` | Error / inject failure / no adapter / critical file failure |
+| `cancelled` | User Stop aborted the current job (incomplete) |
+
+Each job: `{ id, title, company, url, status, attempts, lastError?, result?, updatedAt }`.
+
+**Flow:** `getNextJob` reads from **queued** only → process → move to **applied** or **failed** (never leave looping in queued). The same URL will not reappear until the user re-queues it.
+
+**Stop behavior:** current incomplete job → **cancelled**; remaining jobs stay in **queued**.
+
+**Saving mock URLs** rebuilds **queued** from `http`/`https` URLs only (`chrome-extension:`, `about:`, empty filtered out). **Reset mock** rebuilds queued from the saved URL list and **keeps** applied history (use **Clear history** to wipe applied / failed / cancelled).
+
+Popup shows counts: **Queued / Applied / Failed / Cancelled**.
+
+## Start / Stop with real apply URLs
+
+The runner **never** opens `chrome-extension://…/demo/…` (executeScript cannot inject into extension pages). Demo URLs can **never** enter the mock queue.
+
+1. Options → enable **Mock mode** (default) → paste one apply URL per line under **Mock queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save mock URLs & rebuild queued**.
+2. Confirm **Auto-close applied tab** is ON (default) if you want each finished job tab closed after the status move.
+3. Popup → **Seed sample profile** (once) — includes work auth / sponsorship Yes/No.
 4. Optional: Options → upload a small PDF resume/cover → **Save documents**.
-5. Popup → set **Delay (sec)** (e.g. `2`) → leave **Auto-submit** off for a dry run → leave **Auto-close applied tab** ON (or turn OFF to keep tabs).
-6. Click **Start**. The runner opens each **real** `job.url`, detects the adapter (Greenhouse on `boards.greenhouse.io` / `greenhouse.io`), fills, `markApplied`, optionally **closes that tab**, waits `delayMs`, then opens the next.
-7. Click **Stop** between jobs to halt. **Reset mock queue** rebuilds from the saved URL list (not a demo page).
+5. Popup → set **Delay (sec)** → choose **Auto Fill / Auto Ready / Auto Submit**.
+6. Click **Start**. The runner opens each queued `https` URL, detects the adapter, fills (and optionally advances / submits), moves the job to applied or failed, optionally closes the tab, waits `delayMs`, then opens the next.
+7. Click **Stop** between jobs to halt (current → cancelled; remaining stay queued). **Reset mock queue** rebuilds queued from saved URLs.
 
 If no URLs are configured, Start fails with: **Add job apply URLs in Options (Mock queue)**.
 
 ### Manual demo form (optional)
 
-`demo/sample-application.html` is for **manual** testing only. Open it via Live Server or `file://`, then use **Fill current page**. Do not rely on it as a Start queue target.
+`demo/sample-application.html` is for **manual** testing only. Open it via Live Server or `file://`, then use **Fill current page**. Do **not** paste it into the mock queue.
+
+## Greenhouse / file uploads
+
+Greenhouse “Attach” is often a visible button + hidden `input[type=file]`, or a dropzone.
+
+- Find file inputs (including **hidden**) near Resume / CV / Cover Letter labels.
+- Find buttons/links with text Attach / Upload / Resume / CV.
+- Prefer assigning a `DataTransfer` to the underlying file input; if only a button is visible, click to reveal then assign.
+- Match resume vs cover by label / accept / name.
+- Fill result reports `resumeAttached` / `coverAttached` booleans.
+
+Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhouse.io` apply forms.
+
+## Form inspection
+
+Before filling, `inspectForm(document)` catalogs inputs, textareas, select options, contenteditables, file inputs, Attach buttons, and custom dropdown triggers. A summary (`field count by type`) is returned in the fill result and used to drive select / listbox matching (fuzzy Yes/No, country lists, etc.).
 
 ## Backend contract (live mode)
 
@@ -64,11 +115,11 @@ Set **Backend base URL** and turn **Mock mode** off.
 |--------|------|---------|
 | GET | `/queue` | List jobs `{ id, title, company, url, ats? }[]` |
 | GET | `/queue/next` | Next job or empty |
-| POST | `/applied/:id` | Body: fill result / submitted flags |
+| POST | `/applied/:id` | Body: fill result / submitted / runMode flags |
 | GET | `/profile` | Optional remote profile |
 | GET | `/documents` | `{ resume, cover }` each `{ name, mime, base64 }` or URL |
 
-With mock mode (or empty base URL), `lib/backend.js` serves the in-extension queue built from **Options → Mock queue** URLs.
+With mock mode (or empty base URL), `lib/backend.js` serves the in-extension **queued** bucket built from **Options → Mock queue** URLs.
 
 ## File attach method
 
@@ -79,7 +130,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 1. Pick a slug (`myats`) and category (`ats` | `board` | `agency`).
 2. Add hostname patterns to `adapters/catalog.js` **or** add `adapters/<category>/<slug>.js` that calls `FillApplyRegistry.register({ id, name, detect, submitSelector, fileInputHints, fill })`.
 3. For deeper ATS behavior, put an override in `adapters/ats/<slug>.js` with better `detect` / selectors; load it **after** `catalog.js` in the inject list (`runner/runner.js` + popup) so it replaces the thin entry.
-4. `fill` may delegate to `FillApplyFallbackAdapter.fill(ctx)` with overrides.
+4. `fill` may delegate to `FillApplyFallbackAdapter.fill(ctx)` with overrides. Honor `ctx.runMode`.
 5. Reload the extension and open a matching URL → **Fill current page**; status shows `adapterId`.
 
 ### Supported platforms (catalog)
@@ -94,7 +145,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 | Permission | Why |
 |------------|-----|
-| `storage` | Profile, run config, documents, session log, mock URLs |
+| `storage` | Profile, run config, documents, session log, queue buckets, mock URLs |
 | `tabs` / `scripting` | Runner opens job URLs and injects adapters |
 | `activeTab` | One-off fill from the popup |
 | `alarms` | Reserved for durable delays |
@@ -105,9 +156,18 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 - Heuristics will not cover every form; extend field-map or add adapter overrides.
 - Password fields are skipped.
 - Review every application before submitting. Do not misrepresent yourself.
-- Auto-submit is off by default for safety.
-- **Auto-close applied tab** defaults ON so only the active job tab stays open while the queue runs.
+- **Auto Fill** is the default mode for safety.
+- **Auto-close applied tab** defaults ON; tabs close only **after** the job is moved to applied/failed so failure info is captured.
+- Paste **real https apply URLs**; the demo page is manual-only and can never enter the mock queue.
+
+## Reload test (Greenhouse)
+
+1. `chrome://extensions` → **Reload** Fill & Apply.
+2. Options → paste a real `https://boards.greenhouse.io/…` (or `job-boards.greenhouse.io`) apply URL → Save → confirm Queued count ≥ 1 (no `chrome-extension:` lines).
+3. Upload resume/cover → Save documents. Seed sample profile.
+4. Popup → **Auto Fill** → Start. Confirm: text/selects filled, work-auth dropdowns leave “Select…”, resume/cover no longer “No file chosen”, job moves Queued → Applied (or Failed with an error), tab closes if auto-close ON, URL does not loop.
+5. Optional: try **Auto Ready** / **Auto Submit** on a second URL.
 
 ## Development
 
-No bundler. After edits: **Reload** on `chrome://extensions`, then paste 2 Greenhouse apply URLs into Options → Mock queue → Start / Stop.
+No bundler. After edits: **Reload** on `chrome://extensions`, then paste Greenhouse apply URLs into Options → Mock queue → Start / Stop.

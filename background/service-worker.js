@@ -18,12 +18,24 @@ chrome.runtime.onInstalled.addListener(function (details) {
     );
   }
   FillApplyStorage.getRunConfig().then(function (cfg) {
-    // Ensure autoCloseAppliedTab default is persisted for upgrades
+    // Migrate autoSubmit → runMode; ensure defaults
+    const patch = {};
     if (typeof cfg.autoCloseAppliedTab === 'undefined') {
-      cfg.autoCloseAppliedTab = true;
+      patch.autoCloseAppliedTab = true;
     }
-    return FillApplyStorage.saveRunConfig(cfg);
+    if (!cfg.runMode || ['fill', 'ready', 'submit'].indexOf(cfg.runMode) === -1) {
+      patch.runMode = cfg.autoSubmit ? 'submit' : 'fill';
+    }
+    if (Object.keys(patch).length) {
+      return FillApplyStorage.saveRunConfig(Object.assign({}, cfg, patch));
+    }
+    return cfg;
   });
+
+  // Scrub any chrome-extension URLs from legacy mock queue on upgrade
+  if (FillApplyBackend && FillApplyBackend.getQueued) {
+    FillApplyBackend.getQueued().catch(function () {});
+  }
 });
 
 chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
@@ -74,16 +86,30 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
 
   if (message.type === 'FILL_APPLY_RESET_MOCK') {
     return reply(
-      FillApplyBackend.resetMockQueue().then(async function (jobs) {
-        await FillApplyStorage.setQueueStatus({
-          remaining: jobs.length,
-          lastError: jobs.length
-            ? null
-            : FillApplyBackend.NO_URLS_ERROR ||
-              'Add job apply URLs in Options (Mock queue)'
-        });
-        return { remaining: jobs.length, jobs: jobs };
-      })
+      FillApplyBackend.resetMockQueue({ clearFailed: false, clearCancelled: false }).then(
+        async function (jobs) {
+          const counts = await FillApplyBackend.refreshCounts();
+          await FillApplyStorage.setQueueStatus({
+            remaining: jobs.length,
+            counts: counts,
+            lastError: jobs.length
+              ? null
+              : FillApplyBackend.NO_URLS_ERROR ||
+                'Add job apply URLs in Options (Mock queue)'
+          });
+          return { remaining: jobs.length, jobs: jobs, counts: counts };
+        }
+      )
+    );
+  }
+
+  if (message.type === 'FILL_APPLY_CLEAR_HISTORY') {
+    return reply(
+      (async function () {
+        await FillApplyStorage.clearHistory();
+        const counts = await FillApplyBackend.refreshCounts();
+        return { counts: counts };
+      })()
     );
   }
 
@@ -94,15 +120,21 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
   if (message.type === 'FILL_APPLY_SAVE_MOCK_URLS') {
     return reply(
       (async function () {
-        const urls = await FillApplyStorage.saveMockQueueUrls(
+        const result = await FillApplyBackend.rebuildQueuedFromUrls(
           message.urlsText != null ? message.urlsText : message.urls || []
         );
-        const jobs = await FillApplyBackend.resetMockQueue();
+        const counts = await FillApplyBackend.refreshCounts();
         await FillApplyStorage.setQueueStatus({
-          remaining: jobs.length,
-          lastError: jobs.length ? null : FillApplyBackend.NO_URLS_ERROR
+          remaining: result.jobs.length,
+          counts: counts,
+          lastError: result.jobs.length ? null : FillApplyBackend.NO_URLS_ERROR
         });
-        return { urls: urls, remaining: jobs.length, jobs: jobs };
+        return {
+          urls: result.urls,
+          remaining: result.jobs.length,
+          jobs: result.jobs,
+          counts: counts
+        };
       })()
     );
   }
@@ -113,6 +145,10 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
         return { urls: urls, text: urls.join('\n') };
       })
     );
+  }
+
+  if (message.type === 'FILL_APPLY_GET_BUCKETS') {
+    return reply(FillApplyBackend.getBucketsSnapshot());
   }
 
   return false;

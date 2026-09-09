@@ -11,7 +11,6 @@
   const btnResetMock = document.getElementById('btnResetMock');
   const highlightEl = document.getElementById('highlightUnmatched');
   const delaySecEl = document.getElementById('delaySec');
-  const autoSubmitEl = document.getElementById('autoSubmit');
   const autoCloseEl = document.getElementById('autoCloseAppliedTab');
   const runStateEl = document.getElementById('runState');
   const queueStatusEl = document.getElementById('queueStatus');
@@ -60,6 +59,17 @@
     });
   }
 
+  function getSelectedRunMode() {
+    const el = document.querySelector('input[name="runMode"]:checked');
+    return el && el.value ? el.value : 'fill';
+  }
+
+  function setSelectedRunMode(mode) {
+    const m = mode === 'ready' || mode === 'submit' ? mode : 'fill';
+    const el = document.querySelector('input[name="runMode"][value="' + m + '"]');
+    if (el) el.checked = true;
+  }
+
   async function refreshSummary() {
     const profile = await FillApplyProfile.getProfile();
     summaryEl.textContent = FillApplyProfile.profileSummary(profile);
@@ -73,16 +83,34 @@
     btnStart.disabled = running;
     btnStop.disabled = !running;
 
-    const qs = data.queueStatus || {};
-    const title = qs.lastJobTitle ? ' · ' + qs.lastJobTitle : '';
+    const counts =
+      (data.counts) ||
+      (data.queueStatus && data.queueStatus.counts) || {
+        queued: data.queueStatus && typeof data.queueStatus.remaining === 'number'
+          ? data.queueStatus.remaining
+          : 0,
+        applied: 0,
+        failed: 0,
+        cancelled: 0
+      };
+    const title =
+      data.queueStatus && data.queueStatus.lastJobTitle
+        ? ' · ' + data.queueStatus.lastJobTitle
+        : '';
     queueStatusEl.textContent =
-      'Queue remaining: ' +
-      (typeof qs.remaining === 'number' ? qs.remaining : '—') +
+      'Queued: ' +
+      (counts.queued || 0) +
+      ' · Applied: ' +
+      (counts.applied || 0) +
+      ' · Failed: ' +
+      (counts.failed || 0) +
+      ' · Cancelled: ' +
+      (counts.cancelled || 0) +
       title;
 
-    if (qs.lastError) {
+    if (data.queueStatus && data.queueStatus.lastError) {
       lastErrorEl.hidden = false;
-      lastErrorEl.textContent = 'Last error: ' + qs.lastError;
+      lastErrorEl.textContent = 'Last error: ' + data.queueStatus.lastError;
     } else {
       lastErrorEl.hidden = true;
       lastErrorEl.textContent = '';
@@ -90,7 +118,10 @@
 
     if (data.config) {
       delaySecEl.value = String(Math.round((data.config.delayMs || 0) / 1000));
-      autoSubmitEl.checked = !!data.config.autoSubmit;
+      const mode =
+        data.config.runMode ||
+        (data.config.autoSubmit ? 'submit' : 'fill');
+      setSelectedRunMode(mode);
       autoCloseEl.checked = data.config.autoCloseAppliedTab !== false;
     }
   }
@@ -106,9 +137,11 @@
 
   function readConfigPartial() {
     const sec = Number(delaySecEl.value);
+    const runMode = getSelectedRunMode();
     return {
       delayMs: (Number.isFinite(sec) && sec >= 0 ? sec : 3) * 1000,
-      autoSubmit: !!autoSubmitEl.checked,
+      runMode: runMode,
+      autoSubmit: runMode === 'submit',
       autoCloseAppliedTab: !!autoCloseEl.checked
     };
   }
@@ -121,7 +154,7 @@
     try {
       await FillApplyProfile.seedSampleProfile();
       await refreshSummary();
-      setStatus('Sample profile saved.', 'ok');
+      setStatus('Sample profile saved (includes work auth / sponsorship).', 'ok');
     } catch (e) {
       setStatus('Failed to seed profile: ' + e.message, 'err');
     }
@@ -132,7 +165,13 @@
     try {
       const data = await send(MSG.START, { config: readConfigPartial(), resetMock: false });
       applyStatus(data);
-      setStatus('Runner started — opening real job URLs from the queue.', 'ok');
+      const mode = getSelectedRunMode();
+      setStatus(
+        'Runner started (' +
+          mode +
+          ') — opening https URLs from Queued. Demo URLs are never queued.',
+        'ok'
+      );
     } catch (e) {
       setStatus('Start failed: ' + e.message, 'err');
     }
@@ -143,7 +182,7 @@
     try {
       const data = await send(MSG.STOP);
       applyStatus(data);
-      setStatus('Stopped.', 'ok');
+      setStatus('Stopped — current job cancelled if incomplete; remaining stay queued.', 'ok');
     } catch (e) {
       setStatus('Stop failed: ' + e.message, 'err');
     }
@@ -154,11 +193,14 @@
       const data = await send('FILL_APPLY_RESET_MOCK');
       if (!data.remaining) {
         setStatus(
-          'Mock queue empty — add https apply URLs in Options (Mock queue).',
+          'Queued empty — add https apply URLs in Options (Mock queue).',
           'warn'
         );
       } else {
-        setStatus('Mock queue reset (' + data.remaining + ' jobs from saved URLs).', 'ok');
+        setStatus(
+          'Queued rebuilt (' + data.remaining + ' jobs from saved https URLs). Applied history kept.',
+          'ok'
+        );
       }
       await refreshStatus();
     } catch (e) {
@@ -167,11 +209,21 @@
   });
 
   delaySecEl.addEventListener('change', async function () {
-    try { await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() }); } catch (_e) {}
+    try {
+      await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() });
+    } catch (_e) {}
   });
-  autoSubmitEl.addEventListener('change', async function () {
-    try { await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() }); } catch (_e) {}
+
+  document.querySelectorAll('input[name="runMode"]').forEach(function (radio) {
+    radio.addEventListener('change', async function () {
+      try {
+        const cfg = readConfigPartial();
+        await send('FILL_APPLY_SAVE_CONFIG', { config: cfg });
+        setStatus('Run mode: ' + cfg.runMode, 'ok');
+      } catch (_e) {}
+    });
   });
+
   autoCloseEl.addEventListener('change', async function () {
     try {
       await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() });
@@ -191,7 +243,6 @@
 
   function isRestrictedUrl(url) {
     if (!url) return true;
-    // Extension pages (including demo) cannot be injected into via executeScript
     if (/^chrome-extension:\/\//i.test(url)) return true;
     return /^(chrome|edge|about|devtools|view-source):/i.test(url);
   }
@@ -201,10 +252,13 @@
     btnFill.disabled = true;
     try {
       const tab = await getActiveTab();
-      if (!tab || tab.id == null) { setStatus('No active tab.', 'err'); return; }
+      if (!tab || tab.id == null) {
+        setStatus('No active tab.', 'err');
+        return;
+      }
       if (isRestrictedUrl(tab.url)) {
         setStatus(
-          'Cannot fill this page. Open a real https apply form (or serve demo via Live Server / file://).',
+          'Cannot fill this page. Open a real https apply form (demo is manual via Live Server / file://).',
           'warn'
         );
         return;
@@ -218,6 +272,7 @@
 
       const documents = await FillApplyStorage.getDocuments();
       const highlightUnmatched = highlightEl.checked;
+      const runMode = getSelectedRunMode();
 
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
 
@@ -233,7 +288,8 @@
           return adapter.fill({
             profile: profileArg,
             documents: documentsArg,
-            autoSubmit: false,
+            runMode: opts.runMode || 'fill',
+            autoSubmit: opts.runMode === 'submit',
             options: opts,
             adapterId: adapter.id,
             submitSelector: adapter.submitSelector,
@@ -241,7 +297,11 @@
             fieldMaps: adapter.fieldMaps
           });
         },
-        args: [profile, documents, { highlightUnmatched: highlightUnmatched }]
+        args: [
+          profile,
+          documents,
+          { highlightUnmatched: highlightUnmatched, runMode: runMode }
+        ]
       });
 
       const result = results && results[0] && results[0].result;
@@ -249,13 +309,34 @@
         setStatus((result && result.error) || 'Fill failed.', 'err');
         return;
       }
-      const filesN = result.filesAttached && result.filesAttached.attached
-        ? result.filesAttached.attached.length : 0;
+      const filesN =
+        result.filesAttached && result.filesAttached.attached
+          ? result.filesAttached.attached.length
+          : 0;
+      const attachBits = [];
+      if (result.resumeAttached) attachBits.push('resume');
+      if (result.coverAttached) attachBits.push('cover');
+      const insp = result.inspection && result.inspection.counts
+        ? ' · fields in:' +
+          result.inspection.counts.input +
+          ' sel:' +
+          result.inspection.counts.select +
+          ' file:' +
+          result.inspection.counts.file
+        : '';
       setStatus(
-        'Filled ' + result.filled + ' / ' + result.total + ' via ' + (result.adapterId || 'unknown') +
+        'Filled ' +
+          result.filled +
+          ' / ' +
+          result.total +
+          ' via ' +
+          (result.adapterId || 'unknown') +
           (filesN ? '; files: ' + filesN : '') +
-          (result.unmatched ? ' (' + result.unmatched + ' unmatched)' : '') + '.',
-        result.filled ? 'ok' : 'warn'
+          (attachBits.length ? ' (' + attachBits.join('+') + ')' : '') +
+          (result.unmatched ? ' (' + result.unmatched + ' unmatched)' : '') +
+          insp +
+          '.',
+        result.filled || filesN ? 'ok' : 'warn'
       );
     } catch (e) {
       setStatus('Error: ' + (e && e.message ? e.message : String(e)), 'err');

@@ -1,6 +1,6 @@
 /**
  * Generic heuristic fill adapter — wraps content/fill.js (__fillApply) + file attach.
- * Always detects (last resort). Other ATS stubs can override selectors then delegate here.
+ * Supports runMode: fill | ready | submit.
  */
 (function (global) {
   'use strict';
@@ -17,7 +17,12 @@
     const fieldMaps = ctx.fieldMaps || null;
     const fileInputHints = ctx.fileInputHints || [];
     const submitSelector = ctx.submitSelector || null;
-    const autoSubmit = !!ctx.autoSubmit;
+    // Prefer runMode; migrate legacy autoSubmit
+    let runMode = ctx.runMode || options.runMode;
+    if (!runMode) {
+      runMode = ctx.autoSubmit || options.autoSubmit ? 'submit' : 'fill';
+    }
+    if (['fill', 'ready', 'submit'].indexOf(runMode) === -1) runMode = 'fill';
 
     if (!global.__fillApply || typeof global.__fillApply.run !== 'function') {
       return {
@@ -30,7 +35,6 @@
       };
     }
 
-    // Optional field-map overrides from a thin ATS adapter
     if (fieldMaps && global.FillApplyFieldMap && Array.isArray(fieldMaps)) {
       try {
         fieldMaps.forEach(function (entry) {
@@ -45,20 +49,40 @@
       highlightUnmatched: !!options.highlightUnmatched
     });
 
-    let filesAttached = { ok: true, attached: [], inputCount: 0 };
+    let filesAttached = {
+      ok: true,
+      attached: [],
+      inputCount: 0,
+      resumeAttached: false,
+      coverAttached: false
+    };
     if (global.FillApplyFiles && typeof global.FillApplyFiles.attachDocuments === 'function') {
       filesAttached = global.FillApplyFiles.attachDocuments(documents, fileInputHints);
     }
 
+    let advanced = false;
     let submitted = false;
-    if (autoSubmit) {
-      const sel =
-        submitSelector ||
-        'button[type="submit"], input[type="submit"], button[data-qa="btn-submit"], [data-testid="submit"]';
-      const btn = document.querySelector(sel);
-      if (btn) {
-        btn.click();
-        submitted = true;
+
+    if (runMode === 'ready' || runMode === 'submit') {
+      // Navigate multi-step as far as possible (Next/Continue), never final submit in ready
+      if (global.__fillApply.clickContinueButtons) {
+        const clicked = global.__fillApply.clickContinueButtons();
+        advanced = !!(clicked && clicked.length);
+      }
+    }
+
+    if (runMode === 'submit') {
+      if (global.__fillApply.clickSubmitButtons) {
+        submitted = !!global.__fillApply.clickSubmitButtons(submitSelector);
+      } else {
+        const sel =
+          submitSelector ||
+          'button[type="submit"], input[type="submit"], button[data-qa="btn-submit"], [data-testid="submit"]';
+        const btn = document.querySelector(sel);
+        if (btn) {
+          btn.click();
+          submitted = true;
+        }
       }
     }
 
@@ -70,6 +94,12 @@
       total: fillResult.total || 0,
       details: fillResult.details || [],
       filesAttached: filesAttached,
+      resumeAttached: !!(filesAttached && filesAttached.resumeAttached),
+      coverAttached: !!(filesAttached && filesAttached.coverAttached),
+      inspection: fillResult.inspection || null,
+      customDropdownsFilled: fillResult.customDropdownsFilled || [],
+      runMode: runMode,
+      advanced: advanced,
       submitted: submitted,
       error: fillResult.error || null
     };
