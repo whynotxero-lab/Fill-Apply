@@ -1,7 +1,8 @@
 /**
  * Queue-driven runner (service-worker side).
- * Loop: getNextJob (queued only) → open tab → detect → fill → move to applied/failed →
- * close tab? → delay. Honors STOP (current → cancelled; remaining stay queued).
+ * Loop: getNextJob (queued only) → open tab → detect challenge? → fill →
+ * move to applied/failed OR pause for human → close tab? → delay.
+ * Honors STOP and RESUME (after Cloudflare/CAPTCHA / form drift).
  *
  * runMode: fill | ready | submit
  */
@@ -11,6 +12,7 @@
   const INJECT_FILES = [
     'lib/field-map.js',
     'lib/files.js',
+    'lib/challenges.js',
     'content/fill.js',
     'adapters/registry.js',
     'adapters/fallback.js',
@@ -21,12 +23,15 @@
     'adapters/ats/workday.js',
     'adapters/ats/smartrecruiters.js',
     'adapters/ats/workable.js',
-    'adapters/ats/icims.js'
+    'adapters/ats/icims.js',
+    'adapters/boards/indeed.js'
   ];
 
   let loopActive = false;
   let delayTimer = null;
   let currentJobId = null;
+  let pausedTabId = null;
+  let resumeTabId = null;
 
   function sleep(ms) {
     return new Promise(function (resolve) {
@@ -51,6 +56,13 @@
     if (config && config.runMode) return config.runMode;
     if (config && config.autoSubmit) return 'submit';
     return 'fill';
+  }
+
+  /** Human-like delay: base delayMs ± small jitter. */
+  function jitteredDelay(delayMs) {
+    const base = Math.max(0, Number(delayMs) || 0);
+    const jitter = Math.floor(Math.random() * Math.min(900, Math.max(200, base * 0.25 + 150)));
+    return base + jitter;
   }
 
   function waitTabComplete(tabId, timeoutMs) {
@@ -107,8 +119,17 @@
     }
     const tab = await chrome.tabs.create({ url: job.url, active: true });
     await waitTabComplete(tab.id);
-    await sleep(800);
+    await sleep(800 + Math.floor(Math.random() * 400));
     return tab;
+  }
+
+  async function focusTab(tabId) {
+    if (tabId == null) return;
+    try {
+      await chrome.tabs.update(tabId, { active: true });
+    } catch (_e) {
+      /* ignore */
+    }
   }
 
   async function closeAppliedTab(tabId, config) {
@@ -121,7 +142,168 @@
     }
   }
 
+  function notifyActionNeeded(job, detail) {
+    if (!chrome.notifications || !chrome.notifications.create) return;
+    let host = '';
+    try {
+      host = job && job.url ? new URL(job.url).host : '';
+    } catch (_e) {
+      host = '';
+    }
+    const title = (job && job.title) || 'Job';
+    const message =
+      (title.length > 60 ? title.slice(0, 57) + '…' : title) +
+      (host ? ' · ' + host : '') +
+      (detail ? ' — ' + String(detail).slice(0, 80) : '');
+    try {
+      chrome.notifications.create('fill-apply-human-' + Date.now(), {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Fill & Apply — action needed',
+        message: message,
+        priority: 2
+      });
+    } catch (_e2) {
+      /* notifications may be unavailable */
+    }
+  }
+
+  async function detectChallengeInTab(tabId) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['lib/challenges.js']
+      });
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: function () {
+          const C = globalThis.FillApplyChallenges;
+          if (!C || !C.detectChallenge) {
+            return { challenged: false, kind: null, detail: '', markers: [] };
+          }
+          return C.detectChallenge(document);
+        }
+      });
+      return (
+        (results && results[0] && results[0].result) || {
+          challenged: false,
+          kind: null,
+          detail: '',
+          markers: []
+        }
+      );
+    } catch (_e) {
+      return { challenged: false, kind: null, detail: '', markers: [] };
+    }
+  }
+
+  /**
+   * Pause run for human (Cloudflare / CAPTCHA / Indeed structure drift).
+   * Keeps job in queued with needsAttention; does not auto-click challenges.
+   */
+  async function pauseForHuman(job, tabId, reason, extra) {
+    const S = global.FillApplyStorage;
+    const B = global.FillApplyBackend;
+    clearDelay();
+    await S.setRunning(false);
+    loopActive = false;
+    pausedTabId = tabId;
+
+    // Keep tab focused for the human
+    await focusTab(tabId);
+
+    const pauseInfo = Object.assign(
+      {
+        paused: true,
+        reason: reason || 'challenge',
+        message: (extra && extra.message) || reason || 'Paused — verify Cloudflare/CAPTCHA',
+        jobId: job && job.id,
+        jobTitle: job && job.title,
+        jobUrl: job && job.url,
+        tabId: tabId,
+        at: Date.now()
+      },
+      extra || {}
+    );
+    await S.setPausedForHuman(pauseInfo);
+
+    // Flag job in queued bucket; leave it queued for Resume
+    if (job && job.id && B.getQueued && B.setQueued) {
+      try {
+        const queued = await B.getQueued();
+        const next = queued.map(function (j) {
+          if (j.id !== job.id) return j;
+          return Object.assign({}, j, {
+            needsAttention: true,
+            status: 'queued',
+            lastError: pauseInfo.message,
+            meta: Object.assign({}, j.meta || {}, {
+              waitingHuman: true,
+              pauseReason: pauseInfo.reason
+            })
+          });
+        });
+        // If job was already popped from queued, put it back at front
+        if (!next.some(function (j) { return j.id === job.id; })) {
+          next.unshift(
+            Object.assign({}, job, {
+              needsAttention: true,
+              status: 'queued',
+              lastError: pauseInfo.message,
+              meta: Object.assign({}, job.meta || {}, {
+                waitingHuman: true,
+                pauseReason: pauseInfo.reason
+              })
+            })
+          );
+        }
+        await B.setQueued(next);
+      } catch (_e) {
+        /* best-effort */
+      }
+    } else if (job && S.getBucket && S.setBucket) {
+      try {
+        let queued = await S.getBucket('queued');
+        if (!queued.some(function (j) { return j.id === job.id; })) {
+          queued = [
+            Object.assign({}, job, { needsAttention: true, status: 'queued' })
+          ].concat(queued);
+        } else {
+          queued = queued.map(function (j) {
+            return j.id === job.id
+              ? Object.assign({}, j, { needsAttention: true })
+              : j;
+          });
+        }
+        await S.setBucket('queued', queued);
+      } catch (_e2) {
+        /* ignore */
+      }
+    }
+
+    await S.setQueueStatus({
+      currentJobId: job && job.id,
+      lastJobTitle: (job && job.company ? job.company + ' — ' : '') + ((job && job.title) || (job && job.id) || ''),
+      lastError: pauseInfo.message,
+      pausedForHuman: true
+    });
+
+    await S.appendSessionLog({
+      type: 'paused_human',
+      jobId: job && job.id,
+      reason: pauseInfo.reason,
+      message: pauseInfo.message
+    });
+
+    notifyActionNeeded(job, pauseInfo.message);
+    currentJobId = null;
+    return getStatusSnapshot();
+  }
+
   async function injectAndFill(tabId, profile, documents, runMode) {
+    await focusTab(tabId);
+    await sleep(150 + Math.floor(Math.random() * 200));
+
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
       files: INJECT_FILES
@@ -193,6 +375,7 @@
     const config = await S.getRunConfig();
     const queueStatus = await S.getQueueStatus();
     const log = await S.getSessionLog();
+    const paused = S.isPausedForHuman ? await S.isPausedForHuman() : null;
     let counts = queueStatus.counts || {
       queued: 0,
       applied: 0,
@@ -211,11 +394,14 @@
     }
     return {
       running: running,
+      pausedForHuman: !!(paused && paused.paused),
+      pauseInfo: paused && paused.paused ? paused : null,
       config: config,
       queueStatus: Object.assign({}, queueStatus, {
         remaining: counts.queued,
         counts: counts,
-        currentJobId: currentJobId || queueStatus.currentJobId
+        currentJobId: currentJobId || queueStatus.currentJobId,
+        pausedForHuman: !!(paused && paused.paused)
       }),
       counts: counts,
       lastErrors: log
@@ -234,9 +420,10 @@
     const B = global.FillApplyBackend;
     const jobId = currentJobId;
     await S.setRunning(false);
+    if (S.clearPausedForHuman) await S.clearPausedForHuman();
     loopActive = false;
+    pausedTabId = null;
 
-    // On Stop: current incomplete job → cancelled; remaining stay queued
     if (jobId && B.markCancelled) {
       try {
         await B.markCancelled(jobId, 'Stopped by user');
@@ -249,14 +436,15 @@
       type: 'stop',
       note: 'Current job cancelled if incomplete; remaining stay queued'
     });
+    await S.setQueueStatus({ pausedForHuman: false, lastError: null });
     return getStatusSnapshot();
   }
 
   function isCriticalFailure(fillResult) {
     if (!fillResult) return true;
+    if (fillResult.needsHuman) return false; // handled as pause, not failed
     if (fillResult.ok === false) return true;
     if (fillResult.error) {
-      // Soft errors (partial fill) may still be ok
       if (/no adapter|registry missing|not loaded|inject/i.test(fillResult.error)) return true;
     }
     return false;
@@ -270,6 +458,7 @@
     const P = global.FillApplyProfile;
 
     try {
+      if (S.clearPausedForHuman) await S.clearPausedForHuman();
       await S.setRunning(true);
       await S.appendSessionLog({ type: 'start' });
 
@@ -301,7 +490,8 @@
         await S.setQueueStatus({
           currentJobId: job.id,
           lastJobTitle: (job.company ? job.company + ' — ' : '') + (job.title || job.id),
-          lastError: null
+          lastError: null,
+          pausedForHuman: false
         });
         await S.appendSessionLog({
           type: 'job_start',
@@ -317,12 +507,79 @@
         let fillResult = null;
         let moved = false;
         try {
-          tab = await openJobTab(job);
+          // Reuse tab left open from a human pause when URL still matches
+          if (resumeTabId != null) {
+            try {
+              const existing = await chrome.tabs.get(resumeTabId);
+              if (existing && existing.id != null) {
+                let same = false;
+                try {
+                  same =
+                    existing.url &&
+                    job.url &&
+                    (existing.url === job.url ||
+                      existing.url.indexOf(new URL(job.url).hostname) !== -1);
+                } catch (_u) {
+                  same = true; // prefer reuse after challenge pages
+                }
+                if (same) {
+                  tab = existing;
+                  await focusTab(tab.id);
+                  await sleep(400 + Math.floor(Math.random() * 300));
+                }
+              }
+            } catch (_e) {
+              tab = null;
+            }
+            resumeTabId = null;
+          }
+          if (!tab) {
+            tab = await openJobTab(job);
+          }
           if (!(await S.isRunning())) break;
+
+          await focusTab(tab.id);
+
+          // Platform-wide challenge check before fill (do not auto-click)
+          const challenge = await detectChallengeInTab(tab.id);
+          if (challenge && challenge.challenged) {
+            await pauseForHuman(job, tab.id, 'challenge', {
+              message:
+                challenge.kind === 'cloudflare'
+                  ? 'Paused — verify Cloudflare/CAPTCHA'
+                  : 'Paused — verify Cloudflare/CAPTCHA',
+              challenge: challenge
+            });
+            return getStatusSnapshot();
+          }
 
           const profile = P ? await P.getProfile() : await B.getProfile();
           const documents = await B.getDocuments();
           fillResult = await injectAndFill(tab.id, profile, documents, runMode);
+
+          // Adapter asked for human (structure drift / challenge mid-flow)
+          if (fillResult && fillResult.needsHuman) {
+            const msg =
+              fillResult.pauseReason === 'structure_drift'
+                ? 'Indeed form changed — review required'
+                : fillResult.error || 'Paused — verify Cloudflare/CAPTCHA';
+            await pauseForHuman(job, tab.id, fillResult.pauseReason || 'challenge', {
+              message: msg,
+              challenge: fillResult.challenge || null,
+              driftLabel: fillResult.driftLabel || null
+            });
+            return getStatusSnapshot();
+          }
+
+          // Re-check challenge after fill (interstitial may have appeared)
+          const challengeAfter = await detectChallengeInTab(tab.id);
+          if (challengeAfter && challengeAfter.challenged) {
+            await pauseForHuman(job, tab.id, 'challenge', {
+              message: 'Paused — verify Cloudflare/CAPTCHA',
+              challenge: challengeAfter
+            });
+            return getStatusSnapshot();
+          }
 
           await S.appendSessionLog({
             type: 'fill',
@@ -343,21 +600,17 @@
             error: fillResult.error || null
           });
 
-          // If Stop already cancelled this job, do not move to applied/failed
           if (!(await S.isRunning()) || currentJobId !== job.id) {
-            moved = true; // stop path owns the bucket move
+            moved = true;
             break;
           }
 
           const failed = isCriticalFailure(fillResult);
           await S.setQueueStatus({
             lastResult: fillResult,
-            lastError: failed
-              ? fillResult.error || 'Fill failed'
-              : null
+            lastError: failed ? fillResult.error || 'Fill failed' : null
           });
 
-          // Move out of queued BEFORE closing tab (capture failure info first)
           if (failed) {
             await B.markApplied(job.id, {
               failed: true,
@@ -387,7 +640,6 @@
             counts: counts
           });
 
-          // Close only after status move
           if (tab && tab.id != null) {
             await closeAppliedTab(tab.id, config);
             tab = null;
@@ -397,7 +649,6 @@
           await S.appendSessionLog({ type: 'error', jobId: job.id, error: msg });
           await S.setQueueStatus({ lastError: msg });
 
-          // Move to failed with error — never leave looping in queued
           if (!moved) {
             try {
               await B.markApplied(job.id, {
@@ -413,7 +664,6 @@
           }
           currentJobId = null;
 
-          // Close after status move
           if (tab && tab.id != null) {
             await closeAppliedTab(tab.id, config);
             tab = null;
@@ -422,7 +672,7 @@
 
         if (!(await S.isRunning())) break;
 
-        const delay = Math.max(0, Number(config.delayMs) || 0);
+        const delay = jitteredDelay(config.delayMs);
         if (delay > 0) {
           await S.appendSessionLog({ type: 'delay', ms: delay });
           await sleep(delay);
@@ -431,17 +681,22 @@
     } finally {
       clearDelay();
       loopActive = false;
-      // If we exited while a job was still current (e.g. break after stop mid-open),
-      // stopRunner may already have cancelled it; clear the pointer.
       if (!(await S.isRunning()) && currentJobId && B.markCancelled) {
-        try {
-          await B.markCancelled(currentJobId, 'Stopped by user');
-        } catch (_e) {
-          /* ignore */
+        const paused = S.isPausedForHuman ? await S.isPausedForHuman() : null;
+        // Do not cancel when paused for human — job stays queued
+        if (!(paused && paused.paused)) {
+          try {
+            await B.markCancelled(currentJobId, 'Stopped by user');
+          } catch (_e) {
+            /* ignore */
+          }
         }
       }
       currentJobId = null;
-      await S.setRunning(false);
+      const stillPaused = S.isPausedForHuman ? await S.isPausedForHuman() : null;
+      if (!(stillPaused && stillPaused.paused)) {
+        await S.setRunning(false);
+      }
       await S.appendSessionLog({ type: 'idle' });
     }
 
@@ -454,12 +709,15 @@
       else return getStatusSnapshot();
     }
 
+    if (global.FillApplyStorage.clearPausedForHuman) {
+      await global.FillApplyStorage.clearPausedForHuman();
+    }
+
     const cfg = await global.FillApplyStorage.getRunConfig();
     if (cfg.mockMode || !cfg.backendBaseUrl) {
       if (global.FillApplyBackend && global.FillApplyBackend.assertMockUrlsConfigured) {
         await global.FillApplyBackend.assertMockUrlsConfigured();
       }
-      // Ensure queued is populated from saved URLs if empty
       const B = global.FillApplyBackend;
       if (B.getQueued && B.resetMockQueue) {
         const q = await B.getQueued();
@@ -480,9 +738,55 @@
     return getStatusSnapshot();
   }
 
+  /**
+   * Resume after human verified Cloudflare/CAPTCHA / reviewed Indeed form.
+   * Clears pause flag and continues the queue (job remains queued with needsAttention cleared on next success).
+   */
+  async function resumeRunner() {
+    const S = global.FillApplyStorage;
+    const paused = S.isPausedForHuman ? await S.isPausedForHuman() : null;
+    if (paused && paused.tabId != null) {
+      resumeTabId = paused.tabId;
+      await focusTab(paused.tabId);
+    } else if (pausedTabId != null) {
+      resumeTabId = pausedTabId;
+      await focusTab(pausedTabId);
+    }
+    if (S.clearPausedForHuman) await S.clearPausedForHuman();
+    await S.setQueueStatus({ pausedForHuman: false, lastError: null });
+    await S.appendSessionLog({ type: 'resume_human' });
+    pausedTabId = null;
+
+    // Clear needsAttention on queued jobs (best-effort)
+    const B = global.FillApplyBackend;
+    if (B && B.getQueued && B.setQueued) {
+      try {
+        const queued = await B.getQueued();
+        await B.setQueued(
+          queued.map(function (j) {
+            if (!j.needsAttention) return j;
+            const meta = Object.assign({}, j.meta || {});
+            delete meta.waitingHuman;
+            delete meta.pauseReason;
+            return Object.assign({}, j, {
+              needsAttention: false,
+              lastError: null,
+              meta: meta
+            });
+          })
+        );
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+
+    return startRunner();
+  }
+
   global.FillApplyRunner = {
     start: startRunner,
     stop: stopRunner,
+    resume: resumeRunner,
     getStatus: getStatusSnapshot,
     injectAndFill: injectAndFill,
     INJECT_FILES: INJECT_FILES

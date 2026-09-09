@@ -105,6 +105,10 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
     return reply(FillApplyRunner.stop());
   }
 
+  if (message.type === MSG.RESUME || message.type === 'FILL_APPLY_RESUME') {
+    return reply(FillApplyRunner.resume());
+  }
+
   if (message.type === MSG.STATUS) {
     return reply(FillApplyRunner.getStatus());
   }

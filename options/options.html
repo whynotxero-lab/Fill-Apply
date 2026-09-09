@@ -112,6 +112,7 @@
             <label class="span2">Full name <input name="fullName" autocomplete="name" /></label>
             <label>Email <input name="email" type="email" autocomplete="email" /></label>
             <label>Phone <input name="phone" type="tel" autocomplete="tel" /></label>
+            <label>Phone country code <input name="phoneCountry" placeholder="+971" autocomplete="tel-country-code" /></label>
           </div>
         </section>
 
@@ -119,10 +120,12 @@
           <h2>Location</h2>
           <div class="grid">
             <label class="span2">Location (free text) <input name="location" /></label>
+            <label class="span2">Street address <input name="street" autocomplete="street-address" /></label>
             <label>City <input name="city" autocomplete="address-level2" /></label>
-            <label>State <input name="state" autocomplete="address-level1" /></label>
+            <label>State / province / territory <input name="state" autocomplete="address-level1" /></label>
             <label>Country <input name="country" autocomplete="country-name" /></label>
             <label>ZIP / Postal <input name="zip" autocomplete="postal-code" /></label>
+            <label>Postcode <input name="postcode" autocomplete="postal-code" placeholder="Same as ZIP if unused" /></label>
           </div>
         </section>
 
@@ -167,8 +170,11 @@
         </section>
 
         <section>
-          <h2>Custom Q&amp;A</h2>
-          <p class="hint">Matched against question labels on application forms (e.g. “Years of experience”).</p>
+          <h2>Custom Q&amp;A / employer answers</h2>
+          <p class="hint">
+            Matched against question labels (e.g. “Years of experience”, “Driving License”, “own car”, “UAE Contracting”).
+            Also stored as <code>customAnswers</code> map for Indeed employer questions (fuzzy label match).
+          </p>
           <div id="qaList"></div>
           <button type="button" id="btnAddQA" class="ghost">+ Add Q&amp;A</button>
         </section>

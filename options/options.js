@@ -23,8 +23,9 @@
   const bucketCountsEl = document.getElementById('bucketCounts');
 
   const TEXT_FIELDS = [
-    'firstName', 'lastName', 'fullName', 'email', 'phone', 'location', 'city', 'state',
-    'country', 'zip', 'linkedin', 'portfolio', 'website', 'github', 'resumeUrl',
+    'firstName', 'lastName', 'fullName', 'email', 'phone', 'phoneCountry',
+    'location', 'street', 'city', 'state',
+    'country', 'zip', 'postcode', 'linkedin', 'portfolio', 'website', 'github', 'resumeUrl',
     'resumeSummary', 'workHistory', 'education', 'coverLetter',
     'authorizedToWork', 'requiresSponsorship'
   ];
@@ -92,6 +93,13 @@
       profile[name] = el ? el.value.trim() : '';
     });
     profile.customQA = readQA();
+    const answers = {};
+    profile.customQA.forEach(function (qa) {
+      if (qa.question) answers[qa.question] = qa.answer;
+    });
+    profile.customAnswers = answers;
+    if (profile.postcode && !profile.zip) profile.zip = profile.postcode;
+    if (profile.zip && !profile.postcode) profile.postcode = profile.zip;
     return profile;
   }
 

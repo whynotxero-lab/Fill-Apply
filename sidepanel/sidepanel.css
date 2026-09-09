@@ -310,3 +310,23 @@ button.danger { background: #7f1d1d; color: #fecaca; }
   color: var(--muted);
   line-height: 1.35;
 }
+
+.pause-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #422006;
+  border: 1px solid #f59e0b88;
+}
+.pause-banner[hidden] { display: none !important; }
+.pause-message {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fbbf24;
+  line-height: 1.35;
+}
+.resume-btn { width: 100%; }
+.run-state.paused { color: var(--warn); }

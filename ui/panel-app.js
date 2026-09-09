@@ -24,16 +24,21 @@
   const countCancelledEl = document.getElementById('countCancelled');
   const lastJobTitleEl = document.getElementById('lastJobTitle');
   const lastErrorEl = document.getElementById('lastError');
+  const pauseBannerEl = document.getElementById('pauseBanner');
+  const pauseMessageEl = document.getElementById('pauseMessage');
+  const btnResume = document.getElementById('btnResume');
 
   const MSG = (globalThis.FillApplyTypes && globalThis.FillApplyTypes.MSG) || {
     START: 'FILL_APPLY_START',
     STOP: 'FILL_APPLY_STOP',
+    RESUME: 'FILL_APPLY_RESUME',
     STATUS: 'FILL_APPLY_STATUS'
   };
 
   const INJECT_FILES = [
     'lib/field-map.js',
     'lib/files.js',
+    'lib/challenges.js',
     'content/fill.js',
     'adapters/registry.js',
     'adapters/fallback.js',
@@ -44,7 +49,8 @@
     'adapters/ats/workday.js',
     'adapters/ats/smartrecruiters.js',
     'adapters/ats/workable.js',
-    'adapters/ats/icims.js'
+    'adapters/ats/icims.js',
+    'adapters/boards/indeed.js'
   ];
 
   function setStatus(text, kind) {
@@ -87,10 +93,31 @@
   function applyStatus(data) {
     if (!data) return;
     const running = !!data.running;
-    runStateEl.textContent = running ? 'Running…' : 'Idle';
-    runStateEl.className = 'run-state ' + (running ? 'running' : 'idle');
-    btnStart.disabled = running;
-    btnStop.disabled = !running;
+    const paused = !!(data.pausedForHuman || (data.pauseInfo && data.pauseInfo.paused));
+    if (paused) {
+      runStateEl.textContent = 'Paused — verify Cloudflare/CAPTCHA';
+      runStateEl.className = 'run-state paused';
+    } else {
+      runStateEl.textContent = running ? 'Running…' : 'Idle';
+      runStateEl.className = 'run-state ' + (running ? 'running' : 'idle');
+    }
+    btnStart.disabled = running || paused;
+    btnStop.disabled = !running && !paused;
+    if (pauseBannerEl) {
+      if (paused) {
+        pauseBannerEl.hidden = false;
+        if (pauseMessageEl) {
+          const info = data.pauseInfo || {};
+          pauseMessageEl.textContent =
+            info.message ||
+            (data.queueStatus && data.queueStatus.lastError) ||
+            'Paused — verify Cloudflare/CAPTCHA';
+        }
+      } else {
+        pauseBannerEl.hidden = true;
+      }
+    }
+    if (btnResume) btnResume.disabled = !paused;
 
     const counts =
       (data.counts) ||
@@ -214,6 +241,19 @@
       setStatus('Stop failed: ' + e.message, 'err');
     }
   });
+
+  if (btnResume) {
+    btnResume.addEventListener('click', async function () {
+      setStatus('Resuming…');
+      try {
+        const data = await send(MSG.RESUME || 'FILL_APPLY_RESUME');
+        applyStatus(data);
+        setStatus('Resumed — continuing queue after human verification.', 'ok');
+      } catch (e) {
+        setStatus('Resume failed: ' + e.message, 'err');
+      }
+    });
+  }
 
   btnResetMock.addEventListener('click', async function () {
     try {

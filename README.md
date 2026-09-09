@@ -4,7 +4,7 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
-**Version 1.4.0** — Chrome **right sidebar** via MV3 Side Panel API (`chrome.sidePanel`), plus run modes, structured queue buckets, and hardened Greenhouse fill.
+**Version 1.5.0** — Indeed multi-step apply (pk/ae/www), platform-wide Cloudflare/CAPTCHA human gate with side-panel **Resume**, notifications, plus side panel UI, run modes, and Greenhouse harden.
 
 ## Load unpacked
 
@@ -44,14 +44,15 @@ adapters/
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
   ats/          Greenhouse (hardened), Lever, Ashby, Workday, SmartRecruiters, Workable, iCIMS
-  boards/       LinkedIn, Indeed, Wellfound, Remote OK, …
+  boards/       Indeed (multi-step), LinkedIn, Wellfound, Remote OK, …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
-  types.js      shapes + storage keys + message constants + runMode
-  storage.js    run config, buckets, documents, mock URL list
-  profile.js    applicant profile (incl. authorizedToWork / requiresSponsorship)
+  types.js      shapes + storage keys + message constants + runMode + pause flags
+  storage.js    run config, buckets, documents, mock URL list, pausedForHuman
+  profile.js    applicant profile (phoneCountry, postcode, street, customAnswers, work auth)
   field-map.js  field heuristics
   files.js      base64 ↔ File + DataTransfer; Attach/Upload button discovery
+  challenges.js Cloudflare / Turnstile / interactable CAPTCHA detection (no auto-click)
   backend.js    getNextJob / markApplied / markFailed / markCancelled + buckets
 content/fill.js fill engine, inspectForm, native + custom dropdowns
 demo/           sample application form (manual testing only — never enters the queue)
@@ -109,6 +110,38 @@ If no URLs are configured, Start fails with: **Add job apply URLs in Options (Mo
 ### Manual demo form (optional)
 
 `demo/sample-application.html` is for **manual** testing only. Open it via Live Server or `file://`, then use **Fill current page**. Do **not** paste it into the mock queue.
+
+
+## Indeed apply flow
+
+Hosts: `indeed.com`, `pk.indeed.com`, `ae.indeed.com`, and other `*.indeed.com` locales.
+
+1. Job page with **Apply with Indeed** → adapter clicks it (ready/submit; fill may also enter the form).
+2. Multi-step progress (~%):
+   - **Contact (~10%)** — First / Last name, Email, Phone (+ country code from `phoneCountry`)
+   - **Location (~30%)** — Country, Postcode, City / province / territory, Street
+   - **Work auth (~40%)** — “Authorized to work … without visa sponsorship?” → **Yes** when `authorizedToWork` is Yes-like, or default **Yes** if the job was queued (pre-screened)
+   - **Resume (~50%)** — if Indeed already shows an uploaded filename, leave as-is (no forced re-upload)
+   - **Employer questions (~60%)** — Driving License, own car, years UAE Contracting, etc. from `profile.customAnswers` / `customQA` (fuzzy label match)
+   - **Review (~100%)** — **Submit** only in `submit` mode
+3. **Structure drift** — unknown new required questions → pause + notify “Indeed form changed — review required” (no guessing).
+
+Profile fields used: `phoneCountry`, `postcode` (alias `zip`), `street`, `city`, `state`, `country`, `customAnswers` map.
+
+## Cloudflare / CAPTCHA human gate
+
+Dashboard or apply URLs may hit Cloudflare (“Additional Verification Required”, “Verify you are human”, Turnstile, Ray ID, tab title **Just a moment…**) or an interactable reCAPTCHA/hCaptcha checkbox/iframe.
+
+**Behavior (platform-wide via `lib/challenges.js`):**
+
+- Detect and **pause** the run (`pausedForHuman`); keep the apply tab focused
+- Desktop notification: **Fill & Apply — action needed** (job title + URL host)
+- Job stays **queued** with `needsAttention: true`
+- Side panel shows **Paused — verify Cloudflare/CAPTCHA** with a **Resume** button
+- Footer-only “protected by reCAPTCHA” text does **not** pause; only interactable challenges / Cloudflare interstitials do
+- **Never** auto-click Cloudflare or CAPTCHA — complete them yourself, then **Resume**
+
+Human-like: slight delay jitter between jobs; tab is focused (`chrome.tabs.update(tabId, { active: true })`) before fill.
 
 ## Greenhouse / file uploads
 
@@ -169,6 +202,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 | `activeTab` | One-off fill from the side panel |
 | `alarms` | Reserved for durable delays |
 | `sidePanel` | Open Fill & Apply in Chrome’s right sidebar |
+| `notifications` | Alert when Cloudflare/CAPTCHA / Indeed drift needs a human |
 | host_permissions | Inject into http(s) / file job pages |
 
 ## Notes
@@ -179,6 +213,16 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 - **Auto Fill** is the default mode for safety.
 - **Auto-close applied tab** defaults ON; tabs close only **after** the job is moved to applied/failed so failure info is captured.
 - Paste **real https apply URLs**; the demo page is manual-only and can never enter the mock queue.
+
+## Reload test (Indeed + Cloudflare)
+
+1. `chrome://extensions` → **Reload** Fill & Apply (v1.5.0).
+2. Options → seed sample profile (includes `phoneCountry`, UAE location, Driving License / car / contracting `customAnswers`) → Save.
+3. Paste an `https://ae.indeed.com/…` or `https://pk.indeed.com/…` (or www) job URL into Mock queue → Save.
+4. Side panel → **Auto Ready** or **Auto Submit** → Start.
+5. If Cloudflare / Turnstile appears: run pauses, notification fires, side panel shows **Paused — verify Cloudflare/CAPTCHA** — solve it in the tab (do not expect the extension to click it) → **Resume**.
+6. Confirm steps: Apply with Indeed → contact/location/work-auth/resume/employer Qs → review; Submit only in submit mode; resume file left alone if already shown.
+7. Unknown required employer question → pause with “Indeed form changed — review required”.
 
 ## Reload test (Greenhouse)
 

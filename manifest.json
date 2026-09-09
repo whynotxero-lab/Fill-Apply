@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.4.0",
-  "description": "Queue-driven job-application filler: fill/ready/submit modes, ATS adapters, Chrome side panel UI.",
+  "version": "1.5.0",
+  "description": "Queue-driven job-application filler: Indeed multi-step, Cloudflare/CAPTCHA pause, fill/ready/submit modes, ATS adapters, side panel.",
   "permissions": [
     "storage",
     "activeTab",
     "scripting",
     "tabs",
     "alarms",
-    "sidePanel"
+    "sidePanel",
+    "notifications"
   ],
   "host_permissions": [
     "http://*/*",

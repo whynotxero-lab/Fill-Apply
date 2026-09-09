@@ -68,6 +68,10 @@
           </div>
 
           <p id="runState" class="run-state">Idle</p>
+          <div id="pauseBanner" class="pause-banner" hidden>
+            <p id="pauseMessage" class="pause-message">Paused — verify Cloudflare/CAPTCHA</p>
+            <button type="button" id="btnResume" class="primary resume-btn">Resume</button>
+          </div>
           <div id="queueStatus" class="bucket-pills" aria-live="polite">
             <span class="pill pill-queued"><span class="pill-label">Queued</span> <strong id="countQueued">—</strong></span>
             <span class="pill pill-applied"><span class="pill-label">Applied</span> <strong id="countApplied">—</strong></span>
