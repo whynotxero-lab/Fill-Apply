@@ -14,6 +14,11 @@
   const autoCloseEl = document.getElementById('autoCloseAppliedTab');
   const runStateEl = document.getElementById('runState');
   const queueStatusEl = document.getElementById('queueStatus');
+  const countQueuedEl = document.getElementById('countQueued');
+  const countAppliedEl = document.getElementById('countApplied');
+  const countFailedEl = document.getElementById('countFailed');
+  const countCancelledEl = document.getElementById('countCancelled');
+  const lastJobTitleEl = document.getElementById('lastJobTitle');
   const lastErrorEl = document.getElementById('lastError');
 
   const MSG = (globalThis.FillApplyTypes && globalThis.FillApplyTypes.MSG) || {
@@ -93,20 +98,38 @@
         failed: 0,
         cancelled: 0
       };
-    const title =
-      data.queueStatus && data.queueStatus.lastJobTitle
-        ? ' · ' + data.queueStatus.lastJobTitle
-        : '';
-    queueStatusEl.textContent =
-      'Queued: ' +
-      (counts.queued || 0) +
-      ' · Applied: ' +
-      (counts.applied || 0) +
-      ' · Failed: ' +
-      (counts.failed || 0) +
-      ' · Cancelled: ' +
-      (counts.cancelled || 0) +
-      title;
+    if (countQueuedEl) countQueuedEl.textContent = String(counts.queued || 0);
+    if (countAppliedEl) countAppliedEl.textContent = String(counts.applied || 0);
+    if (countFailedEl) countFailedEl.textContent = String(counts.failed || 0);
+    if (countCancelledEl) countCancelledEl.textContent = String(counts.cancelled || 0);
+    if (lastJobTitleEl) {
+      const title =
+        data.queueStatus && data.queueStatus.lastJobTitle
+          ? data.queueStatus.lastJobTitle
+          : '';
+      if (title) {
+        lastJobTitleEl.hidden = false;
+        lastJobTitleEl.textContent = 'Last: ' + title;
+      } else {
+        lastJobTitleEl.hidden = true;
+        lastJobTitleEl.textContent = '';
+      }
+    } else if (queueStatusEl && !countQueuedEl) {
+      const title =
+        data.queueStatus && data.queueStatus.lastJobTitle
+          ? ' · ' + data.queueStatus.lastJobTitle
+          : '';
+      queueStatusEl.textContent =
+        'Queued: ' +
+        (counts.queued || 0) +
+        ' · Applied: ' +
+        (counts.applied || 0) +
+        ' · Failed: ' +
+        (counts.failed || 0) +
+        ' · Cancelled: ' +
+        (counts.cancelled || 0) +
+        title;
+    }
 
     if (data.queueStatus && data.queueStatus.lastError) {
       lastErrorEl.hidden = false;

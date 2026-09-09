@@ -4,13 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Fill &amp; Apply</title>
+    <link rel="icon" href="../brand/favicon.ico" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <h1>Fill &amp; Apply</h1>
-      <p id="summary" class="summary">Loading…</p>
+    <header class="brand-header">
+      <img class="brand-logo" src="../icons/icon48.png" width="36" height="36" alt="" />
+      <div class="brand-text">
+        <h1>Fill &amp; Apply</h1>
+        <p class="tagline">Queue. Fill. Apply.</p>
+      </div>
     </header>
+    <p id="summary" class="summary">Loading…</p>
 
     <section class="panel">
       <div class="row">
@@ -21,18 +26,29 @@
 
       <fieldset class="mode-fieldset">
         <legend>Run mode</legend>
-        <label class="mode-option">
-          <input type="radio" name="runMode" value="fill" checked />
-          <span><strong>Auto Fill</strong> — text/selects/files only; no Next/Submit</span>
-        </label>
-        <label class="mode-option">
-          <input type="radio" name="runMode" value="ready" />
-          <span><strong>Auto Ready</strong> — fill + Next/Continue; never final Submit</span>
-        </label>
-        <label class="mode-option">
-          <input type="radio" name="runMode" value="submit" />
-          <span><strong>Auto Submit</strong> — full end-to-end including Submit/Apply</span>
-        </label>
+        <div class="mode-seg" role="radiogroup" aria-label="Run mode">
+          <label class="mode-seg-item">
+            <input type="radio" name="runMode" value="fill" checked />
+            <span class="mode-seg-label">
+              <strong>Fill</strong>
+              <small>Fields only</small>
+            </span>
+          </label>
+          <label class="mode-seg-item">
+            <input type="radio" name="runMode" value="ready" />
+            <span class="mode-seg-label">
+              <strong>Ready</strong>
+              <small>Fill + Next</small>
+            </span>
+          </label>
+          <label class="mode-seg-item">
+            <input type="radio" name="runMode" value="submit" />
+            <span class="mode-seg-label">
+              <strong>Submit</strong>
+              <small>End-to-end</small>
+            </span>
+          </label>
+        </div>
       </fieldset>
 
       <label class="row check auto-close">
@@ -49,7 +65,13 @@
       </div>
 
       <p id="runState" class="run-state">Idle</p>
-      <p id="queueStatus" class="muted">Queued: — · Applied: — · Failed: — · Cancelled: —</p>
+      <div id="queueStatus" class="bucket-pills" aria-live="polite">
+        <span class="pill pill-queued"><span class="pill-label">Queued</span> <strong id="countQueued">—</strong></span>
+        <span class="pill pill-applied"><span class="pill-label">Applied</span> <strong id="countApplied">—</strong></span>
+        <span class="pill pill-failed"><span class="pill-label">Failed</span> <strong id="countFailed">—</strong></span>
+        <span class="pill pill-cancelled"><span class="pill-label">Cancelled</span> <strong id="countCancelled">—</strong></span>
+      </div>
+      <p id="lastJobTitle" class="muted last-job" hidden></p>
       <p id="lastError" class="err-line" hidden></p>
     </section>
 

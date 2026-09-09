@@ -4,7 +4,7 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
-**Version 1.3.0** — run modes (fill / ready / submit), structured queue buckets, form inspection, hardened Greenhouse file + dropdown fill.
+**Version 1.3.1** — run modes (fill / ready / submit), structured queue buckets, form inspection, hardened Greenhouse file + dropdown fill.
 
 ## Load unpacked
 
@@ -167,6 +167,16 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 3. Upload resume/cover → Save documents. Seed sample profile.
 4. Popup → **Auto Fill** → Start. Confirm: text/selects filled, work-auth dropdowns leave “Select…”, resume/cover no longer “No file chosen”, job moves Queued → Applied (or Failed with an error), tab closes if auto-close ON, URL does not loop.
 5. Optional: try **Auto Ready** / **Auto Submit** on a second URL.
+
+
+## Branding
+
+| Path | Contents |
+|------|----------|
+| `brand/` | Master assets: `icon-master.png`, `banner.png`, `favicon.ico`, and sized `icon16` / `32` / `48` / `128` / `256.png` |
+| `icons/` | Extension toolbar / store icons used by `manifest.json` (`icon16.png`, `icon32.png`, `icon48.png`, `icon128.png`, `icon256.png`) |
+
+Popup and Options headers use the wordmark **Fill & Apply** with tagline **Queue. Fill. Apply.** and the mint accent `#22c55e` on a dark navy / blue palette.
 
 ## Development
 
