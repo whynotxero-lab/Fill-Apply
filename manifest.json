@@ -1,10 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.1.0",
-  "description": "Queue-driven job-application filler with ATS adapters and a generic fallback.",
-  "permissions": ["storage", "activeTab", "scripting", "tabs", "alarms"],
-  "host_permissions": ["http://*/*", "https://*/*", "file:///*"],
+  "version": "1.2.0",
+  "description": "Queue-driven job-application filler: real apply URLs, ATS adapters, auto-close applied tabs.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "file:///*"
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Fill & Apply",
@@ -23,8 +33,13 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["demo/sample-application.html"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "demo/sample-application.html",
+        "demo/sample-application.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "icons": {

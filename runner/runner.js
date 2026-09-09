@@ -85,11 +85,29 @@
   }
 
   async function openJobTab(job) {
+    if (!job || !job.url) {
+      throw new Error('Job is missing a url');
+    }
+    if (/^chrome-extension:\/\//i.test(job.url)) {
+      throw new Error(
+        'Cannot open chrome-extension:// pages in the runner. Add https job apply URLs in Options (Mock queue).'
+      );
+    }
     const tab = await chrome.tabs.create({ url: job.url, active: true });
     await waitTabComplete(tab.id);
     // Brief settle for SPA forms
     await sleep(800);
     return tab;
+  }
+
+  async function closeAppliedTab(tabId, config) {
+    if (!config || !config.autoCloseAppliedTab) return;
+    if (tabId == null) return;
+    try {
+      await chrome.tabs.remove(tabId);
+    } catch (_e) {
+      /* tab may already be closed */
+    }
   }
 
   async function injectAndFill(tabId, profile, documents, autoSubmit) {
@@ -258,15 +276,25 @@
               ? mark.remaining
               : (await B.getQueue()).length;
           await S.setQueueStatus({ remaining: remaining, currentJobId: null });
+
+          // Close the applied tab before delay / next open (keeps only the active job tab)
+          if (tab && tab.id != null) {
+            await closeAppliedTab(tab.id, config);
+            tab = null;
+          }
         } catch (e) {
           const msg = String(e && e.message ? e.message : e);
           await S.appendSessionLog({ type: 'error', jobId: job.id, error: msg });
           await S.setQueueStatus({ lastError: msg });
-          // Still consume mock job so the loop can progress in demo mode
+          // Still consume mock job so the loop can progress
           try {
             await B.markApplied(job.id, { error: msg, failed: true });
           } catch (_e2) {
             /* ignore */
+          }
+          if (tab && tab.id != null) {
+            await closeAppliedTab(tab.id, config);
+            tab = null;
           }
         }
 
@@ -294,6 +322,15 @@
       if (!loopActive) await global.FillApplyStorage.setRunning(false);
       else return getStatusSnapshot();
     }
+
+    // Fail fast in mock mode when no real apply URLs are configured
+    const cfg = await global.FillApplyStorage.getRunConfig();
+    if (cfg.mockMode || !cfg.backendBaseUrl) {
+      if (global.FillApplyBackend && global.FillApplyBackend.assertMockUrlsConfigured) {
+        await global.FillApplyBackend.assertMockUrlsConfigured();
+      }
+    }
+
     // Fire-and-forget loop; status polled via getStatus
     runLoop().catch(async function (e) {
       await global.FillApplyStorage.setRunning(false);

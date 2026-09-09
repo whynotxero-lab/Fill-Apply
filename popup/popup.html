@@ -23,6 +23,14 @@
         </label>
       </div>
 
+      <label class="row check auto-close">
+        <input type="checkbox" id="autoCloseAppliedTab" checked />
+        <span>
+          <strong>Auto-close applied tab</strong>
+          <span class="sub">Close the old job page after fill before opening the next (default ON)</span>
+        </span>
+      </label>
+
       <div class="btn-row">
         <button type="button" id="btnStart" class="primary">Start</button>
         <button type="button" id="btnStop" class="danger">Stop</button>
@@ -42,6 +50,7 @@
       <button type="button" id="btnResetMock" class="secondary">Reset mock queue</button>
       <button type="button" id="btnSeed" class="secondary">Seed sample profile</button>
       <button type="button" id="btnOptions">Open options</button>
+      <p class="hint-mini">Paste real https apply URLs in Options → Mock queue, then Start.</p>
     </section>
 
     <p id="status" class="status" role="status"></p>

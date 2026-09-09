@@ -13,9 +13,15 @@ importScripts(
 
 chrome.runtime.onInstalled.addListener(function (details) {
   if (details.reason === 'install') {
-    console.log('[Fill & Apply] Installed. Open Options to edit profile; popup Start runs the mock queue.');
+    console.log(
+      '[Fill & Apply] Installed. Add https job apply URLs in Options (Mock queue), then Start from the popup.'
+    );
   }
   FillApplyStorage.getRunConfig().then(function (cfg) {
+    // Ensure autoCloseAppliedTab default is persisted for upgrades
+    if (typeof cfg.autoCloseAppliedTab === 'undefined') {
+      cfg.autoCloseAppliedTab = true;
+    }
     return FillApplyStorage.saveRunConfig(cfg);
   });
 });
@@ -69,7 +75,13 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
   if (message.type === 'FILL_APPLY_RESET_MOCK') {
     return reply(
       FillApplyBackend.resetMockQueue().then(async function (jobs) {
-        await FillApplyStorage.setQueueStatus({ remaining: jobs.length, lastError: null });
+        await FillApplyStorage.setQueueStatus({
+          remaining: jobs.length,
+          lastError: jobs.length
+            ? null
+            : FillApplyBackend.NO_URLS_ERROR ||
+              'Add job apply URLs in Options (Mock queue)'
+        });
         return { remaining: jobs.length, jobs: jobs };
       })
     );
@@ -77,6 +89,30 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
 
   if (message.type === 'FILL_APPLY_SAVE_CONFIG') {
     return reply(FillApplyStorage.saveRunConfig(message.config || {}));
+  }
+
+  if (message.type === 'FILL_APPLY_SAVE_MOCK_URLS') {
+    return reply(
+      (async function () {
+        const urls = await FillApplyStorage.saveMockQueueUrls(
+          message.urlsText != null ? message.urlsText : message.urls || []
+        );
+        const jobs = await FillApplyBackend.resetMockQueue();
+        await FillApplyStorage.setQueueStatus({
+          remaining: jobs.length,
+          lastError: jobs.length ? null : FillApplyBackend.NO_URLS_ERROR
+        });
+        return { urls: urls, remaining: jobs.length, jobs: jobs };
+      })()
+    );
+  }
+
+  if (message.type === 'FILL_APPLY_GET_MOCK_URLS') {
+    return reply(
+      FillApplyStorage.getMockQueueUrls().then(function (urls) {
+        return { urls: urls, text: urls.join('\n') };
+      })
+    );
   }
 
   return false;

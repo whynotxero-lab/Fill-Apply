@@ -106,3 +106,32 @@ button.danger { background: #7f1d1d; color: #fecaca; }
 .status.ok { color: var(--ok); }
 .status.err { color: var(--danger); }
 .status.warn { color: var(--warn); }
+
+.auto-close {
+  align-items: flex-start;
+  padding: 8px;
+  border-radius: 8px;
+  background: #0b1220;
+  border: 1px solid #334155;
+}
+
+.auto-close strong {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.auto-close .sub {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.hint-mini {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}

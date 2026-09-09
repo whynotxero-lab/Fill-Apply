@@ -10,14 +10,14 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 2. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
 3. Enable **Developer mode**.
 4. **Load unpacked** → select this folder (contains `manifest.json`).
-5. Open **Options**: seed/edit profile, optionally upload resume/cover, confirm **Mock mode** is on.
+5. Open **Options**: seed/edit profile, paste **Mock queue** apply URLs, optionally upload resume/cover.
 
 ## Architecture
 
 ```
-popup/          Start / Stop, delay, auto-submit, queue status, one-off Fill
+popup/          Start / Stop, delay, auto-submit, auto-close tab, queue status, one-off Fill
 background/     Service worker — runner state machine + message API
-runner/         Queue loop: next job → tab → detect adapter → fill → files → markApplied → delay
+runner/         Queue loop: next job → tab → detect adapter → fill → files → markApplied → close tab? → delay
 adapters/
   registry.js   register / detect
   fallback.js   label/name/autocomplete heuristics (+ file attach + optional submit)
@@ -27,27 +27,34 @@ adapters/
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
   types.js      shapes + storage keys + message constants
-  storage.js    run config, running flag, session log, documents
+  storage.js    run config, running flag, session log, documents, mock URL list
   profile.js    applicant profile
   field-map.js  field heuristics
   files.js      base64 ↔ File + DataTransfer assign to input[type=file]
-  backend.js    getNextJob / markApplied / getDocuments (+ mock queue)
+  backend.js    getNextJob / markApplied / getDocuments (+ mock queue from saved URLs)
 content/fill.js fill engine used by fallback
-demo/           sample application form (mock queue target)
+demo/           sample application form (manual testing only — not used by Start)
 ```
 
 **Boards often redirect into an ATS host at apply time.** Detection runs on the apply URL, so a LinkedIn Easy Apply or “Apply on company site” flow that lands on `boards.greenhouse.io` is handled by the Greenhouse adapter (not the LinkedIn stub).
 
-## Start / Stop with the mock queue
+## Start / Stop with real apply URLs (mock queue)
 
-1. Options → enable **Mock mode** (default) → **Save runner config**.
-2. Popup → **Seed sample profile** (once).
-3. Optional: Options → upload a small PDF resume/cover → **Save documents**.
-4. Popup → set **Delay (sec)** (e.g. `2`) → leave **Auto-submit** off for a dry run.
-5. Click **Start**. The runner opens `demo/sample-application.html` for each mock job, detects the **fallback** adapter, fills fields, attaches files when inputs exist, then `markApplied` and waits `delayMs`.
-6. Click **Stop** between jobs to halt. **Reset mock queue** restores three demo jobs.
+The runner **never** opens `chrome-extension://…/demo/…` (executeScript cannot inject into extension pages). Mock mode uses **your** https job/apply URLs.
 
-Manual one-off: open the demo page → **Fill current page**.
+1. Options → enable **Mock mode** (default) → paste one apply URL per line under **Mock queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save mock URLs & rebuild queue**.
+2. Confirm **Auto-close applied tab** is ON (default) if you want each finished job tab closed before the next opens.
+3. Popup → **Seed sample profile** (once).
+4. Optional: Options → upload a small PDF resume/cover → **Save documents**.
+5. Popup → set **Delay (sec)** (e.g. `2`) → leave **Auto-submit** off for a dry run → leave **Auto-close applied tab** ON (or turn OFF to keep tabs).
+6. Click **Start**. The runner opens each **real** `job.url`, detects the adapter (Greenhouse on `boards.greenhouse.io` / `greenhouse.io`), fills, `markApplied`, optionally **closes that tab**, waits `delayMs`, then opens the next.
+7. Click **Stop** between jobs to halt. **Reset mock queue** rebuilds from the saved URL list (not a demo page).
+
+If no URLs are configured, Start fails with: **Add job apply URLs in Options (Mock queue)**.
+
+### Manual demo form (optional)
+
+`demo/sample-application.html` is for **manual** testing only. Open it via Live Server or `file://`, then use **Fill current page**. Do not rely on it as a Start queue target.
 
 ## Backend contract (live mode)
 
@@ -61,7 +68,7 @@ Set **Backend base URL** and turn **Mock mode** off.
 | GET | `/profile` | Optional remote profile |
 | GET | `/documents` | `{ resume, cover }` each `{ name, mime, base64 }` or URL |
 
-With mock mode (or empty base URL), `lib/backend.js` serves an in-extension demo queue.
+With mock mode (or empty base URL), `lib/backend.js` serves the in-extension queue built from **Options → Mock queue** URLs.
 
 ## File attach method
 
@@ -87,7 +94,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 | Permission | Why |
 |------------|-----|
-| `storage` | Profile, run config, documents, session log |
+| `storage` | Profile, run config, documents, session log, mock URLs |
 | `tabs` / `scripting` | Runner opens job URLs and injects adapters |
 | `activeTab` | One-off fill from the popup |
 | `alarms` | Reserved for durable delays |
@@ -99,7 +106,8 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 - Password fields are skipped.
 - Review every application before submitting. Do not misrepresent yourself.
 - Auto-submit is off by default for safety.
+- **Auto-close applied tab** defaults ON so only the active job tab stays open while the queue runs.
 
 ## Development
 
-No bundler. After edits: **Reload** on `chrome://extensions`, then re-test mock **Start** / **Stop**.
+No bundler. After edits: **Reload** on `chrome://extensions`, then paste 2 Greenhouse apply URLs into Options → Mock queue → Start / Stop.

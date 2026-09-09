@@ -12,6 +12,7 @@
   const highlightEl = document.getElementById('highlightUnmatched');
   const delaySecEl = document.getElementById('delaySec');
   const autoSubmitEl = document.getElementById('autoSubmit');
+  const autoCloseEl = document.getElementById('autoCloseAppliedTab');
   const runStateEl = document.getElementById('runState');
   const queueStatusEl = document.getElementById('queueStatus');
   const lastErrorEl = document.getElementById('lastError');
@@ -90,6 +91,7 @@
     if (data.config) {
       delaySecEl.value = String(Math.round((data.config.delayMs || 0) / 1000));
       autoSubmitEl.checked = !!data.config.autoSubmit;
+      autoCloseEl.checked = data.config.autoCloseAppliedTab !== false;
     }
   }
 
@@ -106,7 +108,8 @@
     const sec = Number(delaySecEl.value);
     return {
       delayMs: (Number.isFinite(sec) && sec >= 0 ? sec : 3) * 1000,
-      autoSubmit: !!autoSubmitEl.checked
+      autoSubmit: !!autoSubmitEl.checked,
+      autoCloseAppliedTab: !!autoCloseEl.checked
     };
   }
 
@@ -129,7 +132,7 @@
     try {
       const data = await send(MSG.START, { config: readConfigPartial(), resetMock: false });
       applyStatus(data);
-      setStatus('Runner started (mock queue if enabled).', 'ok');
+      setStatus('Runner started — opening real job URLs from the queue.', 'ok');
     } catch (e) {
       setStatus('Start failed: ' + e.message, 'err');
     }
@@ -149,7 +152,14 @@
   btnResetMock.addEventListener('click', async function () {
     try {
       const data = await send('FILL_APPLY_RESET_MOCK');
-      setStatus('Mock queue reset (' + (data.remaining || 0) + ' jobs).', 'ok');
+      if (!data.remaining) {
+        setStatus(
+          'Mock queue empty — add https apply URLs in Options (Mock queue).',
+          'warn'
+        );
+      } else {
+        setStatus('Mock queue reset (' + data.remaining + ' jobs from saved URLs).', 'ok');
+      }
       await refreshStatus();
     } catch (e) {
       setStatus('Reset failed: ' + e.message, 'err');
@@ -162,6 +172,17 @@
   autoSubmitEl.addEventListener('change', async function () {
     try { await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() }); } catch (_e) {}
   });
+  autoCloseEl.addEventListener('change', async function () {
+    try {
+      await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() });
+      setStatus(
+        autoCloseEl.checked
+          ? 'Auto-close applied tab: ON'
+          : 'Auto-close applied tab: OFF (tabs stay open)',
+        'ok'
+      );
+    } catch (_e) {}
+  });
 
   async function getActiveTab() {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -170,7 +191,8 @@
 
   function isRestrictedUrl(url) {
     if (!url) return true;
-    if (/^chrome-extension:\/\//i.test(url)) return false;
+    // Extension pages (including demo) cannot be injected into via executeScript
+    if (/^chrome-extension:\/\//i.test(url)) return true;
     return /^(chrome|edge|about|devtools|view-source):/i.test(url);
   }
 
@@ -181,7 +203,10 @@
       const tab = await getActiveTab();
       if (!tab || tab.id == null) { setStatus('No active tab.', 'err'); return; }
       if (isRestrictedUrl(tab.url)) {
-        setStatus('Cannot fill this page (browser UI). Open a form or the demo.', 'warn');
+        setStatus(
+          'Cannot fill this page. Open a real https apply form (or serve demo via Live Server / file://).',
+          'warn'
+        );
         return;
       }
 

@@ -81,13 +81,19 @@
     <div class="wrap">
       <h1>Acme Corp — Software Engineer</h1>
       <div class="banner">
-        Local demo fixture for the <strong>Fill &amp; Apply</strong> extension. Open this file via
-        <code>file://</code> or a static server, load the unpacked extension, seed a sample profile,
-        then click <em>Fill current page</em> or run the mock queue with <em>Start</em> in the popup.
+        Local demo fixture for the <strong>Fill &amp; Apply</strong> extension (manual testing only).
+        Open this file via <code>file://</code> or Live Server, load the unpacked extension, seed a sample
+        profile, then click <em>Fill current page</em> in the popup.
         <br />
         Note: Chrome may require “Allow access to file URLs” on the extension details page to inject into
-        <code>file://</code> pages.
+        <code>file://</code> pages. Do <strong>not</strong> use this page as a Start queue target.
       </div>
+      <div class="banner" style="margin-top:12px;background:#fef3c7;border-color:#fcd34d;color:#92400e;">
+        <strong>Manual test only.</strong> Open this file via Live Server or <code>file://</code>, then use
+        <em>Fill current page</em>. Do not use it as a Start queue target — the runner needs real
+        <code>https://</code> apply URLs from Options → Mock queue (extension pages cannot be injected into).
+      </div>
+
 
       <form id="appForm">
         <div class="row">
@@ -194,17 +200,6 @@
 
       <div id="log"></div>
     </div>
-    <script>
-      document.getElementById('appForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        const data = new FormData(e.target);
-        const obj = {};
-        data.forEach(function (v, k) {
-          obj[k] = v;
-        });
-        document.getElementById('log').textContent =
-          'Demo submit captured (not sent):\n' + JSON.stringify(obj, null, 2);
-      });
-    </script>
+    <script src="sample-application.js"></script>
   </body>
 </html>

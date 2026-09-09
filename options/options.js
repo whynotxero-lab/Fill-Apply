@@ -14,6 +14,11 @@
   const btnSaveConfig = document.getElementById('btnSaveConfig');
   const btnSaveDocs = document.getElementById('btnSaveDocs');
   const btnClearDocs = document.getElementById('btnClearDocs');
+  const btnSaveMockUrls = document.getElementById('btnSaveMockUrls');
+  const btnResetMock = document.getElementById('btnResetMock');
+  const mockUrlsStatus = document.getElementById('mockUrlsStatus');
+  const mockUrlsMeta = document.getElementById('mockUrlsMeta');
+  const mockQueueUrlsEl = document.getElementById('mockQueueUrls');
 
   const TEXT_FIELDS = [
     'firstName', 'lastName', 'fullName', 'email', 'phone', 'location', 'city', 'state',
@@ -24,6 +29,22 @@
   function setStatus(el, text, kind) {
     el.textContent = text || '';
     el.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function send(type, extra) {
+    return new Promise(function (resolve, reject) {
+      chrome.runtime.sendMessage(Object.assign({ type: type }, extra || {}), function (res) {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!res || res.ok === false) {
+          reject(new Error((res && res.error) || 'Request failed'));
+          return;
+        }
+        resolve(res.data !== undefined ? res.data : res);
+      });
+    });
   }
 
   function addQARow(question, answer) {
@@ -105,6 +126,15 @@
     document.getElementById('mockMode').checked = !!cfg.mockMode;
     document.getElementById('delaySec').value = String(Math.round((cfg.delayMs || 0) / 1000));
     document.getElementById('autoSubmit').checked = !!cfg.autoSubmit;
+    document.getElementById('autoCloseAppliedTab').checked = cfg.autoCloseAppliedTab !== false;
+  }
+
+  async function loadMockUrls() {
+    const urls = await FillApplyStorage.getMockQueueUrls();
+    mockQueueUrlsEl.value = urls.join('\n');
+    mockUrlsMeta.textContent = urls.length
+      ? urls.length + ' URL(s) configured — Start will open these real pages.'
+      : 'No URLs yet — Start will fail until you add https apply links.';
   }
 
   btnSaveConfig.addEventListener('click', async function () {
@@ -114,11 +144,59 @@
         backendBaseUrl: document.getElementById('backendBaseUrl').value.trim(),
         mockMode: document.getElementById('mockMode').checked,
         delayMs: (Number.isFinite(sec) && sec >= 0 ? sec : 3) * 1000,
-        autoSubmit: document.getElementById('autoSubmit').checked
+        autoSubmit: document.getElementById('autoSubmit').checked,
+        autoCloseAppliedTab: document.getElementById('autoCloseAppliedTab').checked
       });
-      setStatus(configStatus, 'Config saved (delay ' + next.delayMs + 'ms).', 'ok');
+      setStatus(
+        configStatus,
+        'Config saved (delay ' +
+          next.delayMs +
+          'ms; auto-close ' +
+          (next.autoCloseAppliedTab ? 'ON' : 'OFF') +
+          ').',
+        'ok'
+      );
     } catch (e) {
       setStatus(configStatus, e.message, 'err');
+    }
+  });
+
+  btnSaveMockUrls.addEventListener('click', async function () {
+    try {
+      const data = await send('FILL_APPLY_SAVE_MOCK_URLS', {
+        urlsText: mockQueueUrlsEl.value
+      });
+      mockQueueUrlsEl.value = (data.urls || []).join('\n');
+      mockUrlsMeta.textContent = data.remaining
+        ? data.remaining + ' job(s) in queue from saved URLs.'
+        : 'No valid https URLs — Start will show: Add job apply URLs in Options (Mock queue)';
+      setStatus(
+        mockUrlsStatus,
+        data.remaining
+          ? 'Saved ' + data.urls.length + ' URL(s); queue rebuilt.'
+          : 'Saved, but queue is empty (need https:// URLs).',
+        data.remaining ? 'ok' : 'err'
+      );
+    } catch (e) {
+      setStatus(mockUrlsStatus, e.message, 'err');
+    }
+  });
+
+  btnResetMock.addEventListener('click', async function () {
+    try {
+      const data = await send('FILL_APPLY_RESET_MOCK');
+      setStatus(
+        mockUrlsStatus,
+        data.remaining
+          ? 'Queue reset (' + data.remaining + ' jobs).'
+          : 'Queue empty — save https URLs first.',
+        data.remaining ? 'ok' : 'err'
+      );
+      mockUrlsMeta.textContent = data.remaining
+        ? data.remaining + ' job(s) ready.'
+        : 'No URLs configured.';
+    } catch (e) {
+      setStatus(mockUrlsStatus, e.message, 'err');
     }
   });
 
@@ -169,7 +247,6 @@
     setStatus(docsStatus, 'Documents cleared.', 'ok');
   });
 
-  // CSS for checkbox labels inside options
   FillApplyProfile.getProfile()
     .then(fillForm)
     .catch(function (err) {
@@ -178,5 +255,6 @@
     });
 
   loadConfig().catch(function (e) { setStatus(configStatus, e.message, 'err'); });
+  loadMockUrls().catch(function (e) { setStatus(mockUrlsStatus, e.message, 'err'); });
   refreshDocsMeta().catch(function () {});
 })();
