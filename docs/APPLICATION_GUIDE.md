@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** employer-published limits and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -69,6 +69,32 @@ Across adapters (including Ashby), demographic / EEO / diversity questions are *
 | Auto Fill | No |
 | Auto Ready | No |
 | Auto Submit (successful submit) | **Yes** |
+
+## NaukriGulf — profile completeness (required)
+
+**Before** queueing NaukriGulf / Naukrigulf jobs in Fill & Apply, confirm your **NaukriGulf profile is 100% complete** on the platform (logged-in web profile).
+
+### Why
+
+If the profile is incomplete, NaukriGulf often **redirects to the profile completion flow** instead of opening the job / apply page. The runner then sees a profile form (not an apply form), which looks like a failed or drifted application and wastes queue slots.
+
+### Checklist for operators
+
+1. Sign in at NaukriGulf (e.g. `naukrigulf.com` / regional hosts).
+2. Open **My Profile** and ensure completeness shows **100%** (or the platform’s “complete” state — no mandatory missing sections).
+3. Typical gaps that block apply: resume upload, personal details, experience, education, key skills, preferred location.
+4. Only then paste job / apply URLs into the Fill & Apply mock queue (or JobPool).
+
+### Extension behavior
+
+- Documented prerequisite for source **naukrigulf**.
+- If the adapter detects a **profile completion redirect** (URL/path or page copy about completing profile), it should **pause** with a human notification rather than filling the profile as a job apply — do not treat profile pages as applications.
+- Successful **Submit** counts still respect per-source caps (default 2, max 3).
+
+### Related
+
+- Adapter stub / host patterns: `adapters/boards/naukrigulf.js`
+- Paste-library: when hardening this source, capture both a complete-profile apply path and an incomplete-profile redirect for regression notes.
 
 ## Related docs
 

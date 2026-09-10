@@ -4,9 +4,9 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
-**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, per-source caps, Options configuration, diversity survey policy.
+**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile prerequisite, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.7.0** — Hardened Ashby adapter, per-source apply caps (default 2 / hard max 3), Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
+**Version 1.7.1** — Hardened Ashby adapter, per-source apply caps (default 2 / hard max 3), Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
 
 ## Load unpacked
 
@@ -178,6 +178,11 @@ Greenhouse “Attach” is often a visible button + hidden `input[type=file]`, o
 - Fill result reports `resumeAttached` / `coverAttached` booleans.
 
 Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhouse.io` apply forms.
+
+
+## NaukriGulf prerequisite
+
+Before queueing NaukriGulf jobs, your **NaukriGulf profile must be 100% complete**. Incomplete profiles redirect to profile completion instead of the job/apply page. Details: [docs/APPLICATION_GUIDE.md](docs/APPLICATION_GUIDE.md#naukrigulf--profile-completeness-required).
 
 ## Ashby apply flow
 

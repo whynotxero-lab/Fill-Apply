@@ -1,5 +1,11 @@
 /**
- * NaukriGulf adapter (board) — Thin detect stub — fill delegates to fallback heuristics. Boards often redirect into an ATS adapter at apply time.
+ * NaukriGulf / Naukrigulf board adapter.
+ *
+ * PREREQUISITE: User must have a 100% complete NaukriGulf profile on the platform.
+ * Incomplete profiles redirect to profile completion instead of the job/apply page.
+ * See docs/APPLICATION_GUIDE.md → "NaukriGulf — profile completeness".
+ *
+ * If a profile-completion redirect is detected, pause for human (do not fill as apply).
  */
 (function (global) {
   'use strict';
@@ -34,6 +40,31 @@
       { kind: 'cover', match: 'cover' }
     ],
     fill: function (ctx) {
+      var doc = (ctx && ctx.document) || (typeof document !== 'undefined' ? document : null);
+      var href = '';
+      try {
+        href = String((ctx && ctx.url) || (typeof location !== 'undefined' ? location.href : '') || '');
+      } catch (_e) {}
+      var bodyText = '';
+      try {
+        bodyText = doc && doc.body ? String(doc.body.innerText || '').slice(0, 8000) : '';
+      } catch (_e2) {}
+      var profileRedirect =
+        /\/profile|completeness|complete-your-profile|updateprofile|myprofile/i.test(href) ||
+        /complete your profile|profile completeness|complete profile|profile is incomplete|make your profile/i.test(bodyText);
+      if (profileRedirect) {
+        return {
+          ok: false,
+          adapterId: 'naukrigulf',
+          needsHuman: true,
+          pauseReason: 'challenge',
+          error:
+            'NaukriGulf redirected to profile completion — finish profile to 100% on the platform, then Resume. See APPLICATION_GUIDE.',
+          filled: 0,
+          unmatched: 0,
+          total: 0
+        };
+      }
       var fb = global.FillApplyFallbackAdapter;
       if (!fb) {
         return { ok: false, adapterId: 'naukrigulf', error: 'Fallback adapter missing', filled: 0, unmatched: 0, total: 0 };
