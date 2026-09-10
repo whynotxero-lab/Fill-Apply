@@ -107,9 +107,35 @@
 
   function setNativeValue(el, value) {
     if (!el) return false;
+    // Prefer shared sanitizer (number inputs reject "25000 AED")
+    if (global.__fillApply && typeof global.__fillApply.sanitizeForInput === 'function') {
+      var san = global.__fillApply.sanitizeForInput(el, value);
+      if (san.skip) return false;
+      value = san.value;
+    } else {
+      var type0 = String(el.type || '').toLowerCase();
+      var im0 = (el.getAttribute && el.getAttribute('inputmode')) || '';
+      if (type0 === 'number' || type0 === 'range' || im0 === 'numeric' || im0 === 'decimal') {
+        var num0 = '';
+        if (global.FillApplyProfile && global.FillApplyProfile.numericAmount) {
+          num0 = global.FillApplyProfile.numericAmount(value);
+        } else {
+          num0 = String(value == null ? '' : value)
+            .replace(/(AED|SAR|USD|EUR|GBP|PKR|INR)\b/gi, '')
+            .replace(/[£$€¥₹,\s]/g, '');
+          var mm = num0.match(/-?\d+(?:\.\d+)?/);
+          num0 = mm ? mm[0] : '';
+        }
+        if (!num0) return false;
+        value = num0;
+      }
+    }
     var str = value == null ? '' : String(value);
     var tag = el.tagName;
     var type = String(el.type || '').toLowerCase();
+    if (global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
+      global.FillApplyFocusHud.mark(el, { scroll: true });
+    }
     if (type === 'checkbox') {
       var want = /^(yes|y|true|1|on)$/i.test(str);
       if (el.checked !== want) {
@@ -349,7 +375,7 @@
     return String(v).trim();
   }
 
-  function salaryValue(profile) {
+  function salaryValue(profile, forNumberInput) {
     var keys = [
       'currentSalary',
       'salary',
@@ -358,14 +384,35 @@
       'current salary',
       'Expected Salary / salary expectation'
     ];
+    var raw = null;
     for (var i = 0; i < keys.length; i++) {
       if (Object.prototype.hasOwnProperty.call(profile, keys[i]) && !isBlank(profile[keys[i]])) {
-        return String(profile[keys[i]]).trim();
+        raw = String(profile[keys[i]]).trim();
+        break;
       }
       var looked = answerForLabel(profile, keys[i]);
-      if (!looked.missing && !isBlank(looked.value)) return String(looked.value).trim();
+      if (!looked.missing && !isBlank(looked.value)) {
+        raw = String(looked.value).trim();
+        break;
+      }
     }
-    return null;
+    if (raw == null) return null;
+    if (forNumberInput) {
+      var n = '';
+      if (global.FillApplyProfile && global.FillApplyProfile.numericAmount) {
+        n = global.FillApplyProfile.numericAmount(raw);
+      } else if (global.__fillApply && global.__fillApply.numericAmount) {
+        n = global.__fillApply.numericAmount(raw);
+      } else {
+        n = String(raw)
+          .replace(/(AED|SAR|USD|EUR|GBP|PKR|INR)\b/gi, '')
+          .replace(/[£$€¥₹,\s]/g, '');
+        var m2 = n.match(/-?\d+(?:\.\d+)?/);
+        n = m2 ? m2[0] : '';
+      }
+      return n || null;
+    }
+    return raw;
   }
 
   function clickChoiceByLabel(root, questionRe, optionReOrText) {
@@ -647,7 +694,13 @@
               if (/current salary/i.test(buttonText(labels[li]))) {
                 var id = labels[li].htmlFor;
                 var inp = id ? document.getElementById(id) : null;
-                if (inp) return setNativeValue(inp, sal);
+                if (inp) {
+                  var salForInp =
+                    String(inp.type || '').toLowerCase() === 'number'
+                      ? salaryValue(profile, true) || sal
+                      : sal;
+                  return setNativeValue(inp, salForInp);
+                }
               }
             }
             return false;

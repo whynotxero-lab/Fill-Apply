@@ -13,7 +13,7 @@
         <img class="brand-logo" src="../icons/icon48.png" width="28" height="28" alt="" />
         <div class="brand-text">
           <h1>Fill &amp; Apply</h1>
-          <p class="tagline" id="extVersionTag">v1.11.1</p>
+          <p class="tagline" id="extVersionTag">v1.12.0</p>
         </div>
       </header>
 
@@ -114,6 +114,21 @@
           </div>
           <p class="hint-mini">Delay, caps, keep-tabs, documents, and queue URLs live in Options.</p>
         </section>
+
+
+      <!-- Missing profile fields modal -->
+      <div id="missingFieldsModal" class="mf-modal" hidden>
+        <div class="mf-card" role="dialog" aria-modal="true" aria-labelledby="mfTitle">
+          <h2 id="mfTitle">Profile fields needed</h2>
+          <p id="missingFieldsMessage" class="mf-msg">Enter values to save into your active profile, then continue.</p>
+          <div id="missingFieldsList" class="mf-list"></div>
+          <div class="btn-row mf-actions">
+            <button type="button" id="btnSaveContinue" class="primary">Save &amp; continue</button>
+            <button type="button" id="btnMissingCancel" class="secondary">Cancel</button>
+          </div>
+          <p class="hint-mini">Values write to customAnswers / customQA and known keys (nationality, notice period, salary…).</p>
+        </div>
+      </div>
 
         <p id="status" class="status" role="status"></p>
 

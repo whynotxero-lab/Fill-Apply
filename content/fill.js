@@ -107,9 +107,46 @@
     return false;
   }
 
+  /**
+   * Coerce profile values for the target input type.
+   * number/range/tel(numeric): strip currency → digits only; empty → skip.
+   */
+  function sanitizeForInput(el, value) {
+    if (value == null) return { value: '', skip: true };
+    var str = String(value);
+    if (!el) return { value: str, skip: false };
+    var type = String(el.type || '').toLowerCase();
+    var inputMode = (el.getAttribute('inputmode') || '').toLowerCase();
+    var pattern = el.getAttribute('pattern') || '';
+    var wantsNumber =
+      type === 'number' ||
+      type === 'range' ||
+      (type === 'tel' && (/[0-9]/.test(pattern) || inputMode === 'numeric' || inputMode === 'decimal')) ||
+      inputMode === 'numeric' ||
+      inputMode === 'decimal';
+    if (!wantsNumber) return { value: str, skip: false };
+    var num = '';
+    if (global.FillApplyProfile && typeof global.FillApplyProfile.numericAmount === 'function') {
+      num = global.FillApplyProfile.numericAmount(str);
+    } else {
+      num = str
+        .replace(/(AED|SAR|USD|EUR|GBP|PKR|INR|CAD|AUD|CHF|JPY|CNY|QAR|KWD|BHD|OMR|EGP)\b/gi, '')
+        .replace(/[£$€¥₹]/g, '')
+        .replace(/,/g, '')
+        .replace(/\s+/g, '');
+      var m = num.match(/-?\d+(?:\.\d+)?/);
+      num = m ? m[0] : '';
+    }
+    if (!num) return { value: '', skip: true };
+    return { value: num, skip: false };
+  }
+
   function setNativeValue(el, value) {
     const tag = el.tagName;
     const type = (el.type || '').toLowerCase();
+    var sanitized = sanitizeForInput(el, value);
+    if (sanitized.skip) return false;
+    value = sanitized.value;
 
     if (tag === 'SELECT') {
       const matched = matchSelectOption(el, value);
@@ -146,7 +183,7 @@
             }
           }
         });
-        return;
+        return true;
       }
       el.checked = true;
     } else {
@@ -165,6 +202,7 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     el.dispatchEvent(new Event('blur', { bubbles: true }));
+    return true;
   }
 
   function clearHighlights() {
@@ -475,6 +513,9 @@
       minFields: options.minOpenFormFields
     });
     if (!open || !open.clicked) return null;
+    if (open.el && global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
+      global.FillApplyFocusHud.mark(open.el, { scroll: true });
+    }
 
     return {
       ok: true,
@@ -575,7 +616,16 @@
       }
 
       if (value) {
-        setNativeValue(el, value);
+        var setOk = setNativeValue(el, value);
+        if (setOk === false) {
+          unmatched += 1;
+          details.push({ ok: false, label: descriptor.label, key: key, reason: 'sanitize_skip' });
+          if (highlightUnmatched) highlight(el, 'unmatched');
+          return;
+        }
+        if (global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
+          global.FillApplyFocusHud.mark(el, { scroll: true });
+        }
         filled += 1;
         if (highlightUnmatched) highlight(el, 'filled');
         details.push({
@@ -752,6 +802,14 @@
     clickContinueButtons: clickContinueButtons,
     clickSubmitButtons: clickSubmitButtons,
     tryOpenApplication: tryOpenApplication,
-    getLabelText: getLabelText
+    getLabelText: getLabelText,
+    sanitizeForInput: sanitizeForInput,
+    setNativeValue: setNativeValue,
+    numericAmount: function (s) {
+      if (global.FillApplyProfile && global.FillApplyProfile.numericAmount) {
+        return global.FillApplyProfile.numericAmount(s);
+      }
+      return sanitizeForInput({ type: 'number' }, s).value;
+    }
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

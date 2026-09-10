@@ -535,6 +535,12 @@
     document.getElementById('backendBaseUrl').value = cfg.backendBaseUrl || '';
     document.getElementById('mockMode').checked = !!cfg.mockMode;
     document.getElementById('delaySec').value = String(Math.round((cfg.delayMs || 0) / 1000));
+    var aminEl = document.getElementById('actionDelayMinMs');
+    var amaxEl = document.getElementById('actionDelayMaxMs');
+    if (aminEl) aminEl.value = String(cfg.actionDelayMinMs != null ? cfg.actionDelayMinMs : 400);
+    if (amaxEl) amaxEl.value = String(cfg.actionDelayMaxMs != null ? cfg.actionDelayMaxMs : 900);
+    var fhEl = document.getElementById('focusHud');
+    if (fhEl) fhEl.checked = cfg.focusHud !== false;
     const mode = cfg.runMode || (cfg.autoSubmit ? 'submit' : 'fill');
     document.getElementById('runMode').value = mode;
     document.getElementById('autoCloseAppliedTab').checked = cfg.autoCloseAppliedTab !== false;
@@ -656,6 +662,12 @@
         lever: readCap('capLever'),
         default: readCap('capDefault')
       };
+      var aminRaw = Number((document.getElementById('actionDelayMinMs') || {}).value);
+      var amaxRaw = Number((document.getElementById('actionDelayMaxMs') || {}).value);
+      var amin = Number.isFinite(aminRaw) && aminRaw >= 0 ? Math.round(aminRaw) : 400;
+      var amax = Number.isFinite(amaxRaw) && amaxRaw >= 0 ? Math.round(amaxRaw) : 900;
+      if (amax < amin) { var sw = amin; amin = amax; amax = sw; }
+      var focusHudEl = document.getElementById('focusHud');
       const next = await FillApplyStorage.saveRunConfig({
         backendBaseUrl: document.getElementById('backendBaseUrl').value.trim(),
         mockMode: document.getElementById('mockMode').checked,
@@ -665,7 +677,10 @@
         autoCloseAppliedTab: document.getElementById('autoCloseAppliedTab').checked,
         keepRecentTabs: keep,
         autoPdfReport: document.getElementById('autoPdfReport').checked,
-        sourceApplyLimits: sourceApplyLimits
+        sourceApplyLimits: sourceApplyLimits,
+        actionDelayMinMs: amin,
+        actionDelayMaxMs: amax,
+        focusHud: focusHudEl ? !!focusHudEl.checked : true
       });
       document.getElementById('keepRecentTabs').value = String(next.keepRecentTabs);
       const L = next.sourceApplyLimits || sourceApplyLimits;

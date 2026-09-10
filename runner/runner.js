@@ -14,10 +14,12 @@
 
   const INJECT_FILES = [
     'lib/synonyms.js',
+    'lib/pace.js',
     'lib/field-map.js',
     'lib/files.js',
     'lib/auth-walls.js',
     'lib/challenges.js',
+    'content/focus-hud.js',
     'content/fill.js',
     'adapters/registry.js',
     'adapters/fallback.js',
@@ -66,6 +68,85 @@
       delayTimer = null;
     }
   }
+
+
+  async function waitPageSettle(tabId, settleMin, settleMax) {
+    settleMin = settleMin != null ? settleMin : 800;
+    settleMax = settleMax != null ? settleMax : 1500;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: function (minMs, maxMs) {
+          return new Promise(function (resolve) {
+            var done = false;
+            function finish() {
+              if (done) return;
+              done = true;
+              var span = Math.max(0, maxMs - minMs);
+              var ms = minMs + Math.floor(Math.random() * (span + 1));
+              setTimeout(resolve, ms);
+            }
+            try {
+              if (document.readyState === 'complete') finish();
+              else {
+                window.addEventListener('load', finish, { once: true });
+                document.addEventListener('readystatechange', function onRs() {
+                  if (document.readyState === 'complete') {
+                    document.removeEventListener('readystatechange', onRs);
+                    finish();
+                  }
+                });
+              }
+            } catch (_e) {
+              finish();
+            }
+            setTimeout(finish, 12000);
+          });
+        },
+        args: [settleMin, settleMax]
+      });
+    } catch (_e) {
+      await sleep(settleMin + Math.floor(Math.random() * Math.max(0, settleMax - settleMin)));
+    }
+  }
+
+  async function setMissingFieldsPauseState(payload) {
+    const S = global.FillApplyStorage;
+    const state = Object.assign(
+      {
+        jobId: null,
+        tabId: null,
+        missingProfileFields: [],
+        message: '',
+        at: Date.now(),
+        mode: 'batch'
+      },
+      payload || {}
+    );
+    try {
+      if (S.setPauseState) await S.setPauseState(state);
+      else await chrome.storage.local.set({ 'fillApply.pauseState': state });
+    } catch (_e) {}
+    try {
+      chrome.runtime.sendMessage({ type: 'FILL_APPLY_MISSING_FIELDS', data: state });
+    } catch (_e2) {}
+    try {
+      if (state.tabId != null && chrome.sidePanel && chrome.sidePanel.open) {
+        const tab = await chrome.tabs.get(state.tabId);
+        if (tab && tab.windowId != null) await chrome.sidePanel.open({ windowId: tab.windowId });
+      }
+    } catch (_e3) {}
+    return state;
+  }
+
+  async function clearMissingFieldsPauseState() {
+    const S = global.FillApplyStorage;
+    try {
+      if (S.clearPauseState) await S.clearPauseState();
+      else await chrome.storage.local.set({ 'fillApply.pauseState': null });
+    } catch (_e) {}
+  }
+
 
   function resolveRunMode(config) {
     if (global.FillApplyStorage && global.FillApplyStorage.normalizeRunMode) {
@@ -262,7 +343,7 @@
       (host ? ' · ' + host : '') +
       ' — ' +
       fieldText +
-      ' — fill in Options or on the page, then Resume';
+      ' — open Fill & Apply side panel to enter values, then Save & continue';
     try {
       chrome.notifications.create('fill-apply-missing-profile-' + Date.now(), {
         type: 'basic',
@@ -449,6 +530,15 @@
       null;
     if (looksLikeMissingProfile(pauseInfo.message, missingFields)) {
       notifyMissingProfileField(job, missingFields || [pauseInfo.message]);
+      await setMissingFieldsPauseState({
+        jobId: job && job.id,
+        tabId: tabId,
+        missingProfileFields: missingFields || [],
+        message: pauseInfo.message,
+        at: Date.now(),
+        mode: 'batch',
+        reason: 'missing_profile_field'
+      });
     } else {
       notifyActionNeeded(job, pauseInfo.message);
     }
@@ -458,7 +548,16 @@
 
   async function injectAndFill(tabId, profile, documents, runMode, config) {
     await focusTab(tabId);
-    await sleep(150 + Math.floor(Math.random() * 200));
+    await waitPageSettle(tabId, 800, 1500);
+    if (config) {
+      const amin = config.actionDelayMinMs != null ? config.actionDelayMinMs : 400;
+      const amax = config.actionDelayMaxMs != null ? config.actionDelayMaxMs : 900;
+      const lo = Math.min(amin, amax);
+      const hi = Math.max(amin, amax);
+      await sleep(lo + Math.floor(Math.random() * Math.max(0, hi - lo + 1)));
+    } else {
+      await sleep(150 + Math.floor(Math.random() * 200));
+    }
 
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
@@ -467,10 +566,18 @@
 
     const preferIndeedApply =
       config && typeof config.preferIndeedApply === 'boolean' ? config.preferIndeedApply : true;
+    const focusHud = !(config && config.focusHud === false);
+    const paceCfg = {
+      actionDelayMinMs: config && config.actionDelayMinMs != null ? config.actionDelayMinMs : 400,
+      actionDelayMaxMs: config && config.actionDelayMaxMs != null ? config.actionDelayMaxMs : 900
+    };
 
     const results = await chrome.scripting.executeScript({
       target: { tabId: tabId },
-      func: function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg) {
+      func: function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg, focusHudArg, paceArg) {
+        if (globalThis.FillApplyFocusHud && globalThis.FillApplyFocusHud.setEnabled) {
+          globalThis.FillApplyFocusHud.setEnabled(focusHudArg !== false);
+        }
         const registry = globalThis.FillApplyRegistry;
         if (!registry) {
           return {
@@ -501,9 +608,15 @@
             options: {
               highlightUnmatched: false,
               runMode: runModeArg || 'fill',
-              preferIndeedApply: preferIndeedApplyArg !== false
+              preferIndeedApply: preferIndeedApplyArg !== false,
+              pace: paceArg || null
             },
-            config: { preferIndeedApply: preferIndeedApplyArg !== false },
+            config: {
+              preferIndeedApply: preferIndeedApplyArg !== false,
+              focusHud: focusHudArg !== false,
+              actionDelayMinMs: paceArg && paceArg.actionDelayMinMs,
+              actionDelayMaxMs: paceArg && paceArg.actionDelayMaxMs
+            },
             adapterId: adapter.id,
             submitSelector: adapter.submitSelector,
             fileInputHints: adapter.fileInputHints,
@@ -519,7 +632,7 @@
           total: 0
         };
       },
-      args: [profile, documents, runMode || 'fill', preferIndeedApply]
+      args: [profile, documents, runMode || 'fill', preferIndeedApply, focusHud, paceCfg]
     });
 
     return (
@@ -586,6 +699,7 @@
     const jobId = currentJobId;
     await S.setRunning(false);
     if (S.clearPausedForHuman) await S.clearPausedForHuman();
+    await clearMissingFieldsPauseState();
     loopActive = false;
     pausedTabId = null;
 
@@ -914,6 +1028,17 @@
             }
           }
 
+          // Indeed "could not advance" without needsHuman — promote to pause
+          if (
+            fillResult &&
+            !fillResult.needsHuman &&
+            fillResult.error &&
+            /could not advance step/i.test(String(fillResult.error))
+          ) {
+            fillResult.needsHuman = true;
+            fillResult.pauseReason = fillResult.pauseReason || 'could_not_advance';
+          }
+
           // Adapter asked for human (structure drift / challenge mid-flow)
           if (fillResult && fillResult.needsHuman) {
             const missingFields = Array.isArray(fillResult.missingProfileFields)
@@ -1183,6 +1308,7 @@
       await focusTab(pausedTabId);
     }
     if (S.clearPausedForHuman) await S.clearPausedForHuman();
+    await clearMissingFieldsPauseState();
     await S.setQueueStatus({ pausedForHuman: false, lastError: null });
     await S.appendSessionLog({ type: 'resume_human' });
     pausedTabId = null;

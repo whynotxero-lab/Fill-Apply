@@ -475,3 +475,65 @@ button.danger { background: #7f1d1d; color: #fecaca; }
   font: inherit;
   font-size: 13px;
 }
+
+/* Missing-fields modal */
+.mf-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(2, 6, 23, 0.72);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 18px 12px;
+  overflow-y: auto;
+}
+.mf-modal[hidden] { display: none !important; }
+.mf-card {
+  width: 100%;
+  max-width: 420px;
+  background: #0f172a;
+  border: 1px solid #22c55e66;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.mf-card h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: #ecfdf5;
+}
+.mf-msg {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #fde68a;
+  line-height: 1.35;
+}
+.mf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.mf-field label {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 3px;
+}
+.mf-field input,
+.mf-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong, #334155);
+  background: #0b1220;
+  color: var(--text, #e2e8f0);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 13px;
+}
+.mf-field textarea { min-height: 56px; resize: vertical; }
+.mf-actions { margin-top: 4px; }

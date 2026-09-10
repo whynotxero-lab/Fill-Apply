@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.11.1** — **Mock** is a permanent locked demo profile (cannot delete; **Reset Mock** reseeds SAMPLE); switch to **Zahid General** for real applies. **Apply-start** hardened: form-open detection is container-scoped (not whole-page newsletter inputs), Teamtailor `showFormOverlay` / sticky CTA click + modal retries for Single + Batch. Prior **1.11.0** — Production UI (collapsible Options, Application queue, lean side panel Single/Batch). Prior **1.10.0** — Universal Apply-start + Teamtailor. Prior **1.9.9**: no invented profile fields + high-alert pause; **1.9.8** Zahid General.
+**Version 1.12.0** — **Missing-fields popup** in the side panel (Save & continue → active profile `customAnswers`/`customQA`/known keys, then Resume or re-run Single). **Single** waits for `document.readyState` + settle, paces actions (Options → Action delay ms), host-first adapters (never force Indeed), live-log lines. **Focus HUD** outlines the current field (`fillApply.config.focusHud`, default on). **Number inputs** sanitize salary (`25000 AED` → `25000`) via `numericAmount` / `sanitizeForInput` (Teamtailor Noon fix). Prior **1.11.1** — locked Mock + Teamtailor Apply-start; **1.11.0** production UI; **1.10.0** universal Apply-start.
 
 ## Load unpacked
 
@@ -31,16 +31,18 @@ Options → **Profiles** (collapsible; expanded by default):
 - Storage: `fillApply.profiles` + `fillApply.activeProfileId`. Legacy migrates to **"Mock"**. Section open-state: `fillApply.ui.sections`.
 - **Documents**: file upload + optional Resume/Cover Drive/URL (`resumeLink`/`coverLink` + profile `resumeUrl`/`coverUrl`). Fetch→blob is best-effort; Drive auth/CORS → pause + manual upload.
 - **Zahid General**: Create/Reset loads Chaudhary Zahid Ali’s KSA FP&A template (see `profiles/zahid-general.json`).
-- **Missing profile fields**: never invented — high-alert pause + Resume.
+- **Missing profile fields**: never invented — OS notification + **in-panel popup** to type values → Save & continue writes the active profile, then Resume (batch) or re-runs Single.
 
-## Single vs Batch (v1.11)
+## Single vs Batch (v1.12)
 
 | Runner mode | What **Start runner** does |
 |-------------|----------------------------|
-| **Single** | Fill & Apply on the **current page** (Apply-start + fill). Same as former Fill once. |
+| **Single** | Fill & Apply on the **current page**: wait ready + settle → detect adapter → Apply-start + 2–3 re-detect retries → fill. Live log shows detecting / clicked Apply / waiting / filling / missing fields. |
 | **Batch** | Processes **queued** URLs from Options → **Application queue**. If the queue is empty, prompts: run on current page? / open Options. |
 
-Never clicks paid **AI Auto-Apply** / **Upgrade** / **Subscribe**. LinkedIn **Easy Apply** stays on the LinkedIn board adapter.
+**Pacing:** random action delay (default 400–900ms) under Options → Backend (“Action delay ms” min/max), plus wait-for-load after navigations. **Focus HUD** (default on) outlines the field being filled/clicked and scrolls it into view.
+
+Never clicks paid **AI Auto-Apply** / **Upgrade** / **Subscribe**. LinkedIn **Easy Apply** stays on the LinkedIn board adapter. Host-unknown pages use **fallback + universal Apply-start** (e.g. Parsons “Apply Now” → Workday/SuccessFactors handoff + re-detect).
 
 ## Side panel (Chrome right sidebar)
 
@@ -177,6 +179,14 @@ Hosts: `indeed.com`, `pk.indeed.com`, `ae.indeed.com`, and other `*.indeed.com` 
 3. **Structure drift** — unknown new required questions → pause + notify “Indeed form changed — review required” (no guessing).
 
 Profile fields used: `phoneCountry`, `postcode` (alias `zip`), `street`, `city`, `state`, `country`, `customAnswers` map.
+
+## Missing-fields popup (v1.12)
+
+When fill pauses with `needsHuman` + `missingProfileFields`, the side panel opens a modal listing each field with an input. **Save & continue** persists into the active profile (`customAnswers` + `customQA` + mapped keys like nationality / noticePeriod / salary) via `FillApplyProfile.applyMissingFieldAnswers`, clears `fillApply.pauseState`, then **Resume** (batch) or re-runs **Single**. The OS notification remains a heads-up only.
+
+## Number / salary sanitize (v1.12)
+
+`input[type=number]` rejects values like `25000 AED`. Shared helpers: `FillApplyProfile.numericAmount` and `__fillApply.sanitizeForInput(el, value)` strip currency codes/symbols before setting. Text inputs keep the full string.
 
 ## Cloudflare / CAPTCHA human gate
 

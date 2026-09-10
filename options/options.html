@@ -131,12 +131,22 @@
               <label>Default delay (sec)
                 <input type="number" id="delaySec" min="0" step="1" value="3" />
               </label>
+              <label>Action delay min (ms)
+                <input type="number" id="actionDelayMinMs" min="0" step="50" value="400" />
+              </label>
+              <label>Action delay max (ms)
+                <input type="number" id="actionDelayMaxMs" min="0" step="50" value="900" />
+              </label>
               <label>Default run mode
                 <select id="runMode">
                   <option value="fill">Auto Fill — text/selects/files only</option>
                   <option value="ready">Auto Ready — fill + Next/Continue</option>
                   <option value="submit">Auto Submit — full end-to-end</option>
                 </select>
+              </label>
+              <label class="check span2">
+                <input type="checkbox" id="focusHud" checked />
+                <span>Focus HUD — outline + scroll current field (default on)</span>
               </label>
               <label class="check span2">
                 <input type="checkbox" id="autoCloseAppliedTab" checked />

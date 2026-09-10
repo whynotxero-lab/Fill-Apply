@@ -1,6 +1,6 @@
 /**
  * Shared panel UI logic for sidepanel/ (and popup/ markup).
- * v1.11 — lean runner console: profile select, Single vs Batch, live log.
+ * v1.12 — lean runner console + missing-fields modal, Single settle/pace, focus HUD.
  */
 (function () {
   'use strict';
@@ -53,10 +53,12 @@
 
   const INJECT_FILES = [
     'lib/synonyms.js',
+    'lib/pace.js',
     'lib/field-map.js',
     'lib/files.js',
     'lib/auth-walls.js',
     'lib/challenges.js',
+    'content/focus-hud.js',
     'content/fill.js',
     'adapters/registry.js',
     'adapters/fallback.js',
@@ -88,6 +90,16 @@
     if (!statusEl) return;
     statusEl.textContent = text || '';
     statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function liveLog(type, message, extra) {
+    var entry = Object.assign({ type: type || 'info', message: message || '' }, extra || {});
+    if (FillApplyStorage && FillApplyStorage.appendSessionLog) {
+      return FillApplyStorage.appendSessionLog(entry).then(function () {
+        return refreshLiveLog();
+      }).catch(function () {});
+    }
+    return Promise.resolve();
   }
 
   function send(type, extra) {
@@ -383,8 +395,208 @@
     return documents;
   }
 
+
+  const PAUSE_STATE_KEY = 'fillApply.pauseState';
+  let missingFieldsContext = null; // { mode, tabId, jobId, fields }
+
+  function getMissingModalEls() {
+    return {
+      modal: document.getElementById('missingFieldsModal'),
+      list: document.getElementById('missingFieldsList'),
+      msg: document.getElementById('missingFieldsMessage'),
+      save: document.getElementById('btnSaveContinue'),
+      cancel: document.getElementById('btnMissingCancel')
+    };
+  }
+
+  function hideMissingFieldsModal() {
+    var els = getMissingModalEls();
+    if (els.modal) els.modal.hidden = true;
+  }
+
+  function showMissingFieldsModal(payload) {
+    payload = payload || {};
+    var fields = Array.isArray(payload.missingProfileFields)
+      ? payload.missingProfileFields.filter(Boolean)
+      : [];
+    if (!fields.length && payload.message) fields = [payload.message];
+    if (!fields.length) fields = ['(required field)'];
+    missingFieldsContext = {
+      mode: payload.mode || (getRunnerMode() === 'batch' ? 'batch' : 'single'),
+      tabId: payload.tabId != null ? payload.tabId : null,
+      jobId: payload.jobId || null,
+      fields: fields,
+      message: payload.message || ''
+    };
+    var els = getMissingModalEls();
+    if (!els.modal || !els.list) {
+      setStatus(
+        'Missing profile field(s): ' + fields.join(', ') + ' — open Options or reload panel.',
+        'warn'
+      );
+      return;
+    }
+    if (els.msg) {
+      els.msg.textContent =
+        payload.message ||
+        'Enter values for the fields below. They save into your active profile, then fill continues.';
+    }
+    els.list.innerHTML = '';
+    fields.forEach(function (field, idx) {
+      var wrap = document.createElement('div');
+      wrap.className = 'mf-field';
+      var id = 'mfInput' + idx;
+      var long = /cover|summary|history|essay|why|describe|letter/i.test(String(field));
+      var label = document.createElement('label');
+      label.setAttribute('for', id);
+      label.textContent = String(field);
+      var input = document.createElement(long ? 'textarea' : 'input');
+      if (!long) input.type = 'text';
+      input.id = id;
+      input.dataset.field = String(field);
+      input.placeholder = 'Type value…';
+      input.autocomplete = 'off';
+      wrap.appendChild(label);
+      wrap.appendChild(input);
+      els.list.appendChild(wrap);
+    });
+    els.modal.hidden = false;
+    // Focus first input
+    var first = els.list.querySelector('input, textarea');
+    if (first) {
+      try { first.focus(); } catch (_e) {}
+    }
+    // Scroll modal card into view / highlight pause banner
+    if (pauseBannerEl) {
+      pauseBannerEl.hidden = false;
+      if (pauseMessageEl) {
+        pauseMessageEl.textContent =
+          payload.message ||
+          ('Paused — missing: ' + fields.join(', '));
+      }
+    }
+    setStatus('Paused — enter missing profile fields, then Save & continue.', 'warn');
+  }
+
+  async function clearPauseStateStorage() {
+    try {
+      if (FillApplyStorage && FillApplyStorage.clearPauseState) {
+        await FillApplyStorage.clearPauseState();
+      } else {
+        var o = {};
+        o[PAUSE_STATE_KEY] = null;
+        await chrome.storage.local.set(o);
+      }
+    } catch (_e) {}
+  }
+
+  async function readPauseStateStorage() {
+    try {
+      if (FillApplyStorage && FillApplyStorage.getPauseState) {
+        return await FillApplyStorage.getPauseState();
+      }
+      var res = await chrome.storage.local.get([PAUSE_STATE_KEY]);
+      return res && res[PAUSE_STATE_KEY] ? res[PAUSE_STATE_KEY] : null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  async function onSaveMissingContinue() {
+    var els = getMissingModalEls();
+    if (!els.list || !missingFieldsContext) return;
+    var values = {};
+    els.list.querySelectorAll('input, textarea').forEach(function (inp) {
+      var field = inp.dataset.field || '';
+      var val = (inp.value || '').trim();
+      if (field && val) values[field] = val;
+    });
+    var missing = (missingFieldsContext.fields || []).filter(function (f) {
+      return !values[f] || !String(values[f]).trim();
+    });
+    if (missing.length) {
+      setStatus('Please fill: ' + missing.join(', '), 'err');
+      return;
+    }
+    if (els.save) els.save.disabled = true;
+    try {
+      if (!FillApplyProfile || !FillApplyProfile.applyMissingFieldAnswers) {
+        // Fallback: merge into profile manually
+        var profile = await FillApplyProfile.getProfile();
+        Object.keys(values).forEach(function (k) {
+          profile.customAnswers = profile.customAnswers || {};
+          profile.customAnswers[k] = values[k];
+          var qa = Array.isArray(profile.customQA) ? profile.customQA.slice() : [];
+          qa.push({ question: k, answer: values[k] });
+          profile.customQA = qa;
+          if (/nationality/i.test(k)) profile.nationality = values[k];
+          if (/notice/i.test(k)) profile.noticePeriod = values[k];
+        });
+        await FillApplyProfile.saveProfile(profile);
+      } else {
+        await FillApplyProfile.applyMissingFieldAnswers(values);
+      }
+      await liveLog('missing_fields_saved', 'Saved ' + Object.keys(values).length + ' field(s) to active profile');
+      await clearPauseStateStorage();
+      hideMissingFieldsModal();
+      setStatus('Saved to profile — continuing…', 'ok');
+      var mode = missingFieldsContext.mode;
+      missingFieldsContext = null;
+      if (mode === 'batch') {
+        try {
+          const data = await send(MSG.RESUME || 'FILL_APPLY_RESUME');
+          applyStatus(data);
+          setStatus('Resumed batch after saving profile fields.', 'ok');
+        } catch (e) {
+          setStatus('Saved, but Resume failed: ' + e.message, 'err');
+        }
+      } else {
+        await fillCurrentPage();
+      }
+      await refreshSummary();
+    } catch (e) {
+      setStatus('Save failed: ' + (e && e.message ? e.message : e), 'err');
+    } finally {
+      if (els.save) els.save.disabled = false;
+    }
+  }
+
+  function wireMissingFieldsModal() {
+    var els = getMissingModalEls();
+    if (els.save) els.save.addEventListener('click', function () { onSaveMissingContinue(); });
+    if (els.cancel) {
+      els.cancel.addEventListener('click', function () {
+        hideMissingFieldsModal();
+        setStatus('Cancelled — fill fields in Options when ready, then Resume / Single again.', 'warn');
+      });
+    }
+    chrome.runtime.onMessage.addListener(function (message) {
+      if (!message) return;
+      if (message.type === 'FILL_APPLY_MISSING_FIELDS' || message.type === (MSG && MSG.MISSING_FIELDS)) {
+        var data = message.data || message.payload || message;
+        showMissingFieldsModal(data);
+      }
+    });
+    // Open automatically if pauseState already set
+    readPauseStateStorage().then(function (st) {
+      if (st && st.missingProfileFields && st.missingProfileFields.length) {
+        showMissingFieldsModal(st);
+      }
+    });
+    chrome.storage.onChanged.addListener(function (changes, area) {
+      if (area !== 'local') return;
+      var ch = changes[PAUSE_STATE_KEY];
+      if (!ch || !ch.newValue) return;
+      var st = ch.newValue;
+      if (st && st.missingProfileFields && st.missingProfileFields.length) {
+        showMissingFieldsModal(st);
+      }
+    });
+  }
+
   async function fillCurrentPage() {
     setStatus('Filling…');
+    await liveLog('single_start', 'Single — detecting adapter / waiting for page');
     if (btnFill) btnFill.disabled = true;
     if (btnStart) btnStart.disabled = true;
     try {
@@ -411,9 +623,63 @@
       const highlightUnmatched = highlightEl ? highlightEl.checked : false;
       const runMode = getSelectedRunMode();
 
+      // Wait for document.readyState complete + settle before first click
+      setStatus('Waiting for page to settle…');
+      await liveLog('waiting_load', 'Waiting document.readyState complete + settle');
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: function () {
+            return new Promise(function (resolve) {
+              var done = false;
+              function finish() {
+                if (done) return;
+                done = true;
+                var ms = 800 + Math.floor(Math.random() * 700);
+                setTimeout(resolve, ms);
+              }
+              try {
+                if (document.readyState === 'complete') finish();
+                else {
+                  window.addEventListener('load', finish, { once: true });
+                  document.addEventListener('readystatechange', function onRs() {
+                    if (document.readyState === 'complete') {
+                      document.removeEventListener('readystatechange', onRs);
+                      finish();
+                    }
+                  });
+                }
+              } catch (_e) {
+                finish();
+              }
+              setTimeout(finish, 12000);
+            });
+          }
+        });
+      } catch (_settleErr) {
+        await new Promise(function (r) { setTimeout(r, 1000); });
+      }
+
+      // Action delay (pace)
+      var paceMin = 400;
+      var paceMax = 900;
+      var focusHud = true;
+      try {
+        var cfg = await FillApplyStorage.getRunConfig();
+        if (cfg) {
+          if (cfg.actionDelayMinMs != null) paceMin = cfg.actionDelayMinMs;
+          if (cfg.actionDelayMaxMs != null) paceMax = cfg.actionDelayMaxMs;
+          focusHud = cfg.focusHud !== false;
+        }
+      } catch (_cfgErr) {}
+      var lo = Math.min(paceMin, paceMax);
+      var hi = Math.max(paceMin, paceMax);
+      await new Promise(function (r) {
+        setTimeout(r, lo + Math.floor(Math.random() * Math.max(0, hi - lo + 1)));
+      });
+
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
 
-      // Resolve Drive links inside the page context too (CORS may differ)
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: async function (docsArg, profileArg) {
@@ -440,8 +706,13 @@
         const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: async function (profileArg, documentsArg, opts) {
+            if (globalThis.FillApplyFocusHud && globalThis.FillApplyFocusHud.setEnabled) {
+              globalThis.FillApplyFocusHud.setEnabled(opts.focusHud !== false);
+            }
             const registry = globalThis.FillApplyRegistry;
             const adapter = registry ? registry.detect(location.href, document) : null;
+            var adapterId = adapter && adapter.id ? adapter.id : 'fallback';
+            // Host-preferring detect; never force Indeed on unknown hosts (registry already host-first)
             if (!adapter || typeof adapter.fill !== 'function') {
               if (!globalThis.__fillApply) return { ok: false, error: 'Fill helper missing' };
               return globalThis.__fillApply.run(profileArg, opts);
@@ -457,14 +728,19 @@
               fileInputHints: adapter.fileInputHints,
               fieldMaps: adapter.fieldMaps
             });
-            // Await async adapters (Teamtailor modal open, etc.)
             if (out && typeof out.then === 'function') out = await out;
+            if (out && !out.adapterId) out.adapterId = adapterId;
             return out;
           },
           args: [
             profile,
             documents,
-            { highlightUnmatched: highlightUnmatched, runMode: runMode }
+            {
+              highlightUnmatched: highlightUnmatched,
+              runMode: runMode,
+              focusHud: focusHud,
+              pace: { actionDelayMinMs: paceMin, actionDelayMaxMs: paceMax }
+            }
           ]
         });
         let result = results && results[0] && results[0].result;
@@ -472,9 +748,13 @@
         return result;
       }
 
+      await liveLog('detecting', 'Detecting adapter on ' + String(tab.url || '').slice(0, 80));
       let result = await injectFillOnce();
+      if (result && result.adapterId) {
+        await liveLog('adapter', 'Using adapter: ' + result.adapterId);
+      }
 
-      // Same-host modal: wait + re-inject up to 3 times after Apply-start
+      // Apply-start + 2–3 reDetect retries
       for (let attempt = 0; attempt < 3; attempt++) {
         if (
           !(
@@ -483,7 +763,8 @@
             (result.clickedApplyStart ||
               result.reDetect ||
               result.handedOff ||
-              result.deferToPageAdapter) &&
+              result.deferToPageAdapter ||
+              result.externalApply) &&
             !(result.filled > 0) &&
             !result.submitted &&
             !result.needsHuman
@@ -491,26 +772,65 @@
         ) {
           break;
         }
-        setStatus('Opened Apply — waiting for form… (' + (attempt + 1) + '/3)');
+        var cta = result.applyStartText || result.message || 'Apply';
+        setStatus('Clicked Apply — waiting for form… (' + (attempt + 1) + '/3)');
+        await liveLog(
+          'clicked_apply',
+          'Clicked Apply ("' + String(cta).slice(0, 60) + '"); waiting load (' + (attempt + 1) + '/3)'
+        );
         await new Promise(function (r) {
-          setTimeout(r, 1000 + attempt * 400);
+          setTimeout(r, 1000 + attempt * 400 + Math.floor(Math.random() * 400));
         });
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: function () {
+              return new Promise(function (resolve) {
+                var ms = 400 + Math.floor(Math.random() * 500);
+                if (document.readyState === 'complete') setTimeout(resolve, ms);
+                else {
+                  window.addEventListener('load', function () { setTimeout(resolve, ms); }, { once: true });
+                  setTimeout(resolve, 5000);
+                }
+              });
+            }
+          });
+        } catch (_w) {}
         await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
+        await liveLog('filling', 'Re-detect / fill attempt ' + (attempt + 2));
         const next = await injectFillOnce();
         if (next) result = next;
       }
 
       if (!result || result.ok === false) {
         setStatus((result && result.error) || 'Fill failed.', 'err');
+        await liveLog('error', (result && result.error) || 'Fill failed');
         return;
       }
       if (result.needsHuman) {
-        setStatus(
+        var missing = Array.isArray(result.missingProfileFields)
+          ? result.missingProfileFields
+          : [];
+        var msg =
           result.error ||
-            'Paused — missing profile field(s): ' +
-              ((result.missingProfileFields || []).join(', ') || 'see Options'),
-          'warn'
-        );
+          'Paused — missing profile field(s): ' +
+            (missing.join(', ') || 'see Options');
+        await liveLog('missing_fields', msg, { missingProfileFields: missing });
+        var pausePayload = {
+          jobId: null,
+          tabId: tab.id,
+          missingProfileFields: missing,
+          message: msg,
+          at: Date.now(),
+          mode: 'single',
+          reason: result.pauseReason || 'missing_profile_field'
+        };
+        try {
+          var o = {};
+          o[PAUSE_STATE_KEY] = pausePayload;
+          await chrome.storage.local.set(o);
+        } catch (_ps) {}
+        showMissingFieldsModal(pausePayload);
         return;
       }
       if (result.clickedApplyStart && !(result.filled > 0)) {
@@ -519,6 +839,7 @@
             'Clicked Apply to open the form — run again if fields are not filled yet.',
           'warn'
         );
+        await liveLog('apply_open', result.message || 'Apply clicked; form not filled yet');
         return;
       }
       const filesN =
@@ -541,6 +862,7 @@
           '.',
         result.filled || filesN ? 'ok' : 'warn'
       );
+      await liveLog('filling', 'Filled ' + result.filled + '/' + result.total + ' via ' + (result.adapterId || '?'));
       try {
         await FillApplyStorage.appendSessionLog({
           type: 'fill_once',
@@ -552,11 +874,13 @@
       } catch (_e) { /* ignore */ }
     } catch (e) {
       setStatus('Error: ' + (e && e.message ? e.message : String(e)), 'err');
+      await liveLog('error', e && e.message ? e.message : String(e));
     } finally {
       if (btnFill) btnFill.disabled = false;
       await refreshStatus();
     }
   }
+
 
   if (btnOptions) {
     btnOptions.addEventListener('click', function () {

@@ -23,6 +23,8 @@
   var HOST_RE = /(^|\.)indeed\.com$/i;
 
   function detect(url, doc) {
+    // Host-only: never claim Indeed on unknown hosts via DOM heuristics
+    // (that forced Indeed errors on Parsons/Workday/etc.).
     url = String(url || '');
     try {
       var u = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
@@ -36,7 +38,6 @@
     } catch (_e) {
       if (/indeed\.com/i.test(url)) return true;
     }
-    if (doc && detectIndeedApplyFlow(doc).inFlow) return true;
     return false;
   }
 
@@ -1089,10 +1090,12 @@
             advanced = true;
             await sleep(humanDelay(650));
           } else {
-            // Stuck — if required unknown, pause
+            // Stuck — pause for human (needsHuman) instead of hard-fail when possible
             return {
-              ok: totalFilled > 0,
+              ok: false,
               adapterId: 'indeed',
+              needsHuman: true,
+              pauseReason: 'could_not_advance',
               filled: totalFilled,
               unmatched: 0,
               total: totalFilled,
@@ -1101,7 +1104,8 @@
               resumeAttached: resumeAttached,
               step: lastStep,
               runMode: runMode,
-              error: totalFilled ? null : 'Indeed: could not advance step'
+              error:
+                'Indeed: could not advance step — review the page, then Resume (or retry after wait)'
             };
           }
         }
