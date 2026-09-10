@@ -86,6 +86,62 @@
       }
     }
 
+    // Required mapped fields with blank profile answers → high-alert pause (never invent)
+    var missingProfileFields = [];
+    var P = global.FillApplyFieldMap || global.FillApplyProfile;
+    var details = fillResult.details || [];
+    for (var di = 0; di < details.length; di++) {
+      var d = details[di];
+      if (!d || d.ok) continue;
+      var lab = d.label || d.name || d.key || '';
+      if (!lab) continue;
+      // Only pause on fields that look required / known profile keys
+      var keyHint = d.key;
+      if (keyHint && P && typeof P.isBlank === 'function' && P.isBlank(profile[keyHint])) {
+        missingProfileFields.push(keyHint);
+        continue;
+      }
+      if (P && typeof P.answerForLabel === 'function') {
+        var looked = P.answerForLabel(profile, lab);
+        if (looked && looked.missing && looked.key) {
+          missingProfileFields.push(looked.key);
+        }
+      }
+    }
+    // Deduplicate
+    var seenM = {};
+    missingProfileFields = missingProfileFields.filter(function (f) {
+      var k = String(f);
+      if (seenM[k]) return false;
+      seenM[k] = true;
+      return true;
+    });
+
+    if (missingProfileFields.length && (runMode === 'ready' || runMode === 'submit')) {
+      return {
+        ok: false,
+        adapterId: ctx.adapterId || 'fallback',
+        needsHuman: true,
+        pauseReason: 'missing_profile_field',
+        missingProfileFields: missingProfileFields,
+        filled: fillResult.filled || 0,
+        unmatched: fillResult.unmatched || 0,
+        total: fillResult.total || 0,
+        details: details,
+        applicationFields: fillResult.applicationFields || [],
+        filesAttached: filesAttached,
+        resumeAttached: !!(filesAttached && filesAttached.resumeAttached),
+        coverAttached: !!(filesAttached && filesAttached.coverAttached),
+        runMode: runMode,
+        advanced: advanced,
+        submitted: false,
+        error:
+          'Missing profile field(s): ' +
+          missingProfileFields.join(', ') +
+          ' — fill in Options or on the page, then Resume'
+      };
+    }
+
     return {
       ok: !!fillResult.ok,
       adapterId: ctx.adapterId || 'fallback',
@@ -103,7 +159,8 @@
       runMode: runMode,
       advanced: advanced,
       submitted: submitted,
-      error: fillResult.error || null
+      error: fillResult.error || null,
+      missingProfileFields: missingProfileFields.length ? missingProfileFields : undefined
     };
   }
 

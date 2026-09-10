@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.9.8** — **Zahid General** built-in applicant template (Options one-click create/reset + active); prior: **eFinancialCareers** account-first (Sign in / Register pause) + **Your application** modal (first/last name, resume DataTransfer); **fill** stages modal only; **ready/submit** clicks Apply → employer handoff / re-detect; iCIMS richer Candidate Profile + SSO Connected; LinkedIn External Apply → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
+**Version 1.9.9** — **No invented profile fields**: empty required answers pause with a **requireInteraction** high-alert notification (`Fill & Apply — profile field needed`); Zahid General cleaned (`gender: Male`, nationality/salary/sponsorship/notice/Over 18 cleared). Prior **1.9.8**: **Zahid General** built-in template; prior: **eFinancialCareers** account-first (Sign in / Register pause) + **Your application** modal (first/last name, resume DataTransfer); **fill** stages modal only; **ready/submit** clicks Apply → employer handoff / re-detect; iCIMS richer Candidate Profile + SSO Connected; LinkedIn External Apply → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
 
 ## Load unpacked
 
@@ -30,6 +30,7 @@ Options → **Profiles** at the top:
 - Storage: `fillApply.profiles` + `fillApply.activeProfileId` in **chrome.storage.local** (survives extension updates). Legacy `fillApply.profile` migrates into a **"Default"** profile on first load.
 - **Documents** (resume/cover) remain **global / shared across profiles** for now; export TBD.
 - **Zahid General**: Options → **Create / Reset Zahid General profile** loads Chaudhary Zahid Ali’s KSA FP&A template, sets it active, and persists it (separate from Default / sample Alex). See `profiles/zahid-general.json`.
+- **Missing profile fields**: adapters never invent nationality, salary, notice period, sponsorship, driving license, street, zip, DOB, etc. When a form needs a blank mapped field, the runner **pauses** and fires a Chrome notification with `requireInteraction: true` — fill in **Options** or on the page, then **Resume**.
 
 ## Side panel (Chrome right sidebar)
 

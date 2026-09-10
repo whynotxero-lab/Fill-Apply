@@ -364,9 +364,9 @@
           labLower
         )
       ) {
-        value = profile.authorizedToWork || 'Yes';
+        value = profile.authorizedToWork || '';
       } else if (/sponsor|visa|require.*sponsor|need.*sponsor/.test(labLower)) {
-        value = profile.requiresSponsorship || 'No';
+        value = profile.requiresSponsorship || '';
       } else if (map) {
         const key = map.bestKeyForField({
           label: label,
@@ -493,10 +493,10 @@
         const lab = (descriptor.label || '').toLowerCase();
         if (/authoriz|eligible.*work|legally.*work|work.*auth|right to work/.test(lab)) {
           key = 'authorizedToWork';
-          value = resolveValue(profile, key) || 'Yes';
+          value = resolveValue(profile, key) || '';
         } else if (/sponsor|visa|require.*sponsor|need.*sponsor/.test(lab)) {
           key = 'requiresSponsorship';
-          value = resolveValue(profile, key) || 'No';
+          value = resolveValue(profile, key) || '';
         }
       }
 

@@ -1544,10 +1544,13 @@
               ok: false,
               adapterId: 'icims',
               needsHuman: true,
-              pauseReason: 'structure_drift',
+              pauseReason: 'missing_profile_field',
+              missingProfileFields: (qResult.unknownRequired || []).map(function (x) {
+                return String(x).replace(/\s+/g, ' ').trim().slice(0, 80);
+              }),
               driftLabel: label,
               error:
-                'iCIMS required question unmapped — add customAnswers or answer manually: "' +
+                'iCIMS required question unmapped — fill in Options or on the page, then Resume: "' +
                 String(label).slice(0, 120) +
                 '"',
               filled: totalFilled,
@@ -1605,10 +1608,13 @@
                   ok: false,
                   adapterId: 'icims',
                   needsHuman: true,
-                  pauseReason: 'structure_drift',
+                  pauseReason: 'missing_profile_field',
+                  missingProfileFields: (q2.unknownRequired || []).map(function (x) {
+                    return String(x).replace(/\s+/g, ' ').trim().slice(0, 80);
+                  }),
                   driftLabel: lab2,
                   error:
-                    'iCIMS required question unmapped — add customAnswers or answer manually: "' +
+                    'iCIMS required question unmapped — fill in Options or on the page, then Resume: "' +
                     String(lab2).slice(0, 120) +
                     '"',
                   filled: totalFilled,

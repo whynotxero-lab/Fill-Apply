@@ -52,6 +52,10 @@ Fill & Apply supports **multiple applicant profiles** (v1.9+):
 6. **Documents** (resume/cover) are **shared across profiles for now**. Export of profiles is TBD.
 7. **Zahid General** — built-in one-click template for Chaudhary Zahid Ali (Options → **Create / Reset Zahid General profile**). Creates or resets a named profile, sets it **active**, and persists fields in `chrome.storage.local`. Does not overwrite Default / sample Alex. Backup JSON: `profiles/zahid-general.json`.
 
+## No invented answers (v1.9.9+)
+
+Empty / unknown required profile fields **must not be guessed**. When an adapter needs a mapped field that is blank (`nationality`, `noticePeriod`, `authorizedToWork`, `requiresSponsorship`, salary, driving license, street/zip, customAnswers miss, etc.), it returns `needsHuman` with `missingProfileFields` and the runner fires a **high-alert** notification (`priority: 2`, `requireInteraction: true`, title **Fill & Apply — profile field needed**). Fill the value in **Options** or on the page, then **Resume**. Helpers: `FillApplyProfile.isBlank`, `missingKeys`, `answerForLabel`, `requireOrPause`.
+
 ## Ashby adapter behavior
 
 Hosts: `jobs.ashbyhq.com`, `ashbyhq.com`, `*.ashbyhq.com`.

@@ -366,20 +366,20 @@
       return loc ? 'No' : '';
     }
     if (/legally\s*authorized|authorized\s*to\s*work|right\s*to\s*work|work\s*authorization/.test(lab)) {
-      return profileValue(profile, 'authorizedToWork') || 'Yes';
+      return profileValue(profile, 'authorizedToWork') || '';
     }
     if (/visa\s*sponsorship|require[s]?\s*sponsorship|need\s*sponsorship/.test(lab)) {
-      return profileValue(profile, 'requiresSponsorship') || 'No';
+      return profileValue(profile, 'requiresSponsorship') || '';
     }
     if (/work\s*auth(orization)?\s*basis|auth(orization)?\s*expir|visa\s*expir|if\s*yes/.test(lab)) {
       var basis = answerFromCustom(profile, label);
       if (basis != null) return basis;
       var needs = norm(profileValue(profile, 'requiresSponsorship'));
-      if (/^(no|n|false|0)$/i.test(needs) || needs === '') return 'N/A';
-      return answerFromCustom(profile, 'work authorization') || 'N/A';
+      if (/^(no|n|false|0)$/i.test(needs)) return 'N/A';
+      return answerFromCustom(profile, 'work authorization') || '';
     }
     if (/ofac|sanctioned\s*countr|citizen.*sanction|resident.*sanction/.test(lab)) {
-      return answerFromCustom(profile, label) || 'No';
+      return answerFromCustom(profile, label) || '';
     }
     return '';
   }
@@ -655,6 +655,7 @@
     var unmatched = 0;
     var total = 0;
     var savedAnswers = 0;
+    var missingLabels = [];
 
     var fields = doc.querySelectorAll(
       'input:not([type="hidden"]):not([type="file"]):not([type="submit"]):not([type="button"]), textarea, select'
@@ -669,6 +670,7 @@
       var answer = resolveAnswer(profile, label);
       if (!answer) {
         unmatched++;
+        missingLabels.push(String(label).replace(/\s+/g, ' ').trim().slice(0, 80));
         continue;
       }
       var type = String(el.type || '').toLowerCase();
@@ -751,7 +753,7 @@
       }
     }
 
-    return { filled: filled, unmatched: unmatched, total: total, savedAnswers: savedAnswers };
+    return { filled: filled, unmatched: unmatched, total: total, savedAnswers: savedAnswers, missingLabels: missingLabels };
   }
 
   function skipEeoSections(doc) {
@@ -931,6 +933,29 @@
             var fillStats = await fillNeedsInputFields(ctx);
             skipEeoSections(doc);
             await sleep(humanDelay(300));
+
+            if (
+              (runMode === 'ready' || runMode === 'submit') &&
+              fillStats.missingLabels &&
+              fillStats.missingLabels.length
+            ) {
+              return {
+                ok: false,
+                adapterId: 'swooped',
+                needsHuman: true,
+                pauseReason: 'missing_profile_field',
+                missingProfileFields: fillStats.missingLabels,
+                filled: fillStats.filled,
+                unmatched: fillStats.unmatched,
+                total: fillStats.total,
+                submitted: false,
+                swoopedAgentWorkspace: true,
+                error:
+                  'Swooped: missing profile field(s): ' +
+                  fillStats.missingLabels.join(', ') +
+                  ' — fill in Options or on the page, then Resume'
+              };
+            }
 
             var submitted = false;
             if (runMode === 'submit') {

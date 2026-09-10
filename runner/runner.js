@@ -211,30 +211,80 @@
     /* replaced by trackSubmittedTabAndPrune — fill/ready/failed never auto-close */
   }
 
+  function jobHost(job) {
+    try {
+      return job && job.url ? new URL(job.url).host : '';
+    } catch (_e) {
+      return '';
+    }
+  }
+
   function notifyActionNeeded(job, detail) {
     if (!chrome.notifications || !chrome.notifications.create) return;
-    let host = '';
-    try {
-      host = job && job.url ? new URL(job.url).host : '';
-    } catch (_e) {
-      host = '';
-    }
+    const host = jobHost(job);
     const title = (job && job.title) || 'Job';
     const message =
       (title.length > 60 ? title.slice(0, 57) + '…' : title) +
       (host ? ' · ' + host : '') +
-      (detail ? ' — ' + String(detail).slice(0, 80) : '');
+      (detail ? ' — ' + String(detail).slice(0, 100) : '');
     try {
       chrome.notifications.create('fill-apply-human-' + Date.now(), {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon128.png'),
         title: 'Fill & Apply — action needed',
         message: message,
-        priority: 2
+        priority: 2,
+        requireInteraction: true
       });
     } catch (_e2) {
       /* notifications may be unavailable */
     }
+  }
+
+  /**
+   * High-alert pause when a required profile field is empty / unknown.
+   * Never invent — user fills Options or the page, then Resume.
+   */
+  function notifyMissingProfileField(job, fieldLabels) {
+    if (!chrome.notifications || !chrome.notifications.create) return;
+    const host = jobHost(job);
+    const title = (job && job.title) || 'Job';
+    const fields = (Array.isArray(fieldLabels) ? fieldLabels : [fieldLabels])
+      .filter(Boolean)
+      .map(function (f) {
+        return String(f).trim();
+      })
+      .filter(Boolean);
+    const fieldText = fields.length ? fields.join(', ') : 'required field';
+    const message =
+      (title.length > 40 ? title.slice(0, 37) + '…' : title) +
+      (host ? ' · ' + host : '') +
+      ' — ' +
+      fieldText +
+      ' — fill in Options or on the page, then Resume';
+    try {
+      chrome.notifications.create('fill-apply-missing-profile-' + Date.now(), {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Fill & Apply — profile field needed',
+        message: message.slice(0, 250),
+        priority: 2,
+        requireInteraction: true
+      });
+    } catch (_e2) {
+      /* notifications may be unavailable */
+    }
+  }
+
+  function looksLikeMissingProfile(msg, fields) {
+    if (fields && fields.length) return true;
+    var s = String(msg || '').toLowerCase();
+    if (!s) return false;
+    return (
+      /missing profile|profile field needed|unanswered required|empty (profile|answer)|blank (profile|field)|unmapped|map it in customanswers|fill in options/.test(
+        s
+      ) && !/cloudflare|captcha|hcaptcha|challenge|verify you are human/.test(s)
+    );
   }
 
 
@@ -392,7 +442,15 @@
       message: pauseInfo.message
     });
 
-    notifyActionNeeded(job, pauseInfo.message);
+    var missingFields =
+      (pauseInfo && pauseInfo.missingProfileFields) ||
+      (extra && extra.missingProfileFields) ||
+      null;
+    if (looksLikeMissingProfile(pauseInfo.message, missingFields)) {
+      notifyMissingProfileField(job, missingFields || [pauseInfo.message]);
+    } else {
+      notifyActionNeeded(job, pauseInfo.message);
+    }
     currentJobId = null;
     return getStatusSnapshot();
   }
@@ -788,15 +846,31 @@
 
           // Adapter asked for human (structure drift / challenge mid-flow)
           if (fillResult && fillResult.needsHuman) {
-            const msg =
-              fillResult.pauseReason === 'structure_drift'
+            const missingFields = Array.isArray(fillResult.missingProfileFields)
+              ? fillResult.missingProfileFields
+              : null;
+            const isMissingProfile =
+              fillResult.pauseReason === 'missing_profile_field' ||
+              looksLikeMissingProfile(fillResult.error, missingFields);
+            const msg = isMissingProfile
+              ? fillResult.error ||
+                'Missing profile field — fill in Options or on the page, then Resume'
+              : fillResult.pauseReason === 'structure_drift'
                 ? fillResult.error || 'Form changed — review required'
                 : fillResult.error || 'Paused — verify Cloudflare/CAPTCHA';
-            await pauseForHuman(job, tab.id, fillResult.pauseReason || 'challenge', {
-              message: msg,
-              challenge: fillResult.challenge || null,
-              driftLabel: fillResult.driftLabel || null
-            });
+            await pauseForHuman(
+              job,
+              tab.id,
+              isMissingProfile
+                ? 'missing_profile_field'
+                : fillResult.pauseReason || 'challenge',
+              {
+                message: msg,
+                challenge: fillResult.challenge || null,
+                driftLabel: fillResult.driftLabel || null,
+                missingProfileFields: missingFields
+              }
+            );
             return getStatusSnapshot();
           }
 

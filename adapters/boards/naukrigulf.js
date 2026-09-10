@@ -595,13 +595,17 @@
       // Unknown required questions
       if (result.unmatchedLabels && result.unmatchedLabels.length) {
         if (runMode === 'submit') {
+          var ngMissing = (result.unmatchedLabels || []).map(function (l) {
+            return String(l).replace(/\s+/g, ' ').trim().slice(0, 80);
+          });
           return {
             ok: false,
             adapterId: 'naukrigulf',
             needsHuman: true,
-            pauseReason: 'structure_drift',
+            pauseReason: 'missing_profile_field',
+            missingProfileFields: ngMissing,
             error:
-              'NaukriGulf Easy Apply: unanswered required screening question — map it in customAnswers or answer manually. "' +
+              'NaukriGulf Easy Apply: unanswered required screening question — fill in Options or on the page, then Resume. "' +
               String(result.unmatchedLabels[0]).slice(0, 120) +
               '"',
             filled: totalFilled,

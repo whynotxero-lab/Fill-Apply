@@ -644,40 +644,85 @@
   }
 
   function fillWorkAuthStep(profile) {
-    // User pre-screened / queued → prefer Yes unless profile explicitly says No
-    var auth = profileValue(profile, 'authorizedToWork') || 'Yes';
-    if (/^(no|n|false|0)$/i.test(auth)) auth = 'No';
-    else auth = 'Yes';
-    var ok = selectRadioByLabel(/authorized to work|visa sponsorship|without visa/i, auth);
-    return ok ? 1 : 0;
+    // Never invent Yes/No — blank authorizedToWork / sponsorship → missing
+    var missing = [];
+    var authRaw = profileValue(profile, 'authorizedToWork');
+    var sponsorRaw = profileValue(profile, 'requiresSponsorship');
+    var filled = 0;
+
+    if (!authRaw) {
+      missing.push('Authorized to work');
+    } else {
+      var auth = /^(no|n|false|0)$/i.test(authRaw) ? 'No' : /^(yes|y|true|1)$/i.test(authRaw) ? 'Yes' : authRaw;
+      if (selectRadioByLabel(/authorized to work|legally authorized|right to work/i, auth)) filled++;
+    }
+
+    // Sponsorship question if present on same step
+    var body = '';
+    try {
+      body = ((document.body && document.body.innerText) || '').toLowerCase();
+    } catch (_e) {
+      body = '';
+    }
+    if (/sponsor|visa sponsorship|require.*sponsorship/.test(body)) {
+      if (!sponsorRaw) {
+        missing.push('Requires sponsorship');
+      } else {
+        var sp = /^(yes|y|true|1)$/i.test(sponsorRaw)
+          ? 'Yes'
+          : /^(no|n|false|0)$/i.test(sponsorRaw)
+            ? 'No'
+            : sponsorRaw;
+        if (selectRadioByLabel(/sponsor|visa sponsorship/i, sp)) filled++;
+      }
+    }
+
+    return { filled: filled, missing: missing };
   }
 
   function fillEmployerQuestions(profile) {
     var filled = 0;
-    // Driving license Yes/No
-    var lic =
-      answerFromCustom(profile, 'Driving License') ||
-      answerFromCustom(profile, 'driving licence') ||
-      answerFromCustom(profile, 'Do you have a driving license') ||
-      'Yes';
-    if (selectRadioByLabel(/driving licen/i, lic)) filled++;
+    var missing = [];
 
-    // Own car — often free text
-    var car =
-      answerFromCustom(profile, 'Do you ahve your own car') ||
-      answerFromCustom(profile, 'own car') ||
-      answerFromCustom(profile, 'Do you have your own car') ||
-      'Yes';
-    filled += fillMatchingFields(profile, [
-      {
-        match: function (b) {
-          return /own car|vehicle|have a car/.test(b);
-        },
-        value: function () {
-          return car;
-        }
+    function pageHas(re) {
+      try {
+        return re.test((document.body && document.body.innerText) || '');
+      } catch (_e) {
+        return false;
       }
-    ]);
+    }
+
+    // Driving license — never invent
+    if (pageHas(/driving licen/i)) {
+      var lic =
+        answerFromCustom(profile, 'Driving License') ||
+        answerFromCustom(profile, 'driving licence') ||
+        answerFromCustom(profile, 'Do you have a driving license');
+      if (!lic) missing.push('Driving License');
+      else if (selectRadioByLabel(/driving licen/i, lic)) filled++;
+    }
+
+    // Own car — never invent
+    if (pageHas(/own car|have a car|vehicle/i)) {
+      var car =
+        answerFromCustom(profile, 'Do you ahve your own car') ||
+        answerFromCustom(profile, 'own car') ||
+        answerFromCustom(profile, 'Do you have your own car');
+      if (!car) {
+        missing.push('Own car');
+      } else {
+        filled += fillMatchingFields(profile, [
+          {
+            match: function (b) {
+              return /own car|vehicle|have a car/.test(b);
+            },
+            value: function () {
+              return car;
+            }
+          }
+        ]);
+      }
+    }
 
     // Years UAE Contracting experience
     var years =
@@ -688,27 +733,41 @@
     if (!years && profile.customAnswers && profile.customAnswers.uaeContractingYears) {
       years = String(profile.customAnswers.uaeContractingYears);
     }
-    if (years) {
-      filled += fillMatchingFields(profile, [
-        {
-          match: function (b) {
-            return /years?.*(uae|contracting|experience)|contracting experience/.test(b);
-          },
-          value: function () {
-            return years;
+    if (pageHas(/years?.*(uae|contracting)|contracting experience/i)) {
+      if (!years) missing.push('Years of experience');
+      else {
+        filled += fillMatchingFields(profile, [
+          {
+            match: function (b) {
+              return /years?.*(uae|contracting|experience)|contracting experience/.test(b);
+            },
+            value: function () {
+              return years;
+            }
           }
-        }
-      ]);
+        ]);
+      }
     }
 
-    // Generic: any remaining visible text inputs with labels matched via customAnswers
+    // Generic: mapped customAnswers only — blank match on required-looking label → missing
     var inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="file"]), textarea, select');
     for (var i = 0; i < inputs.length; i++) {
       var el = inputs[i];
       if (!visible(el) || el.disabled) continue;
       if (el.getAttribute('data-fill-apply-filled')) continue;
       var label = getLabelFor(el);
-      var ans = answerFromCustom(profile, label);
+      if (!label) continue;
+      var ans = null;
+      var P = global.FillApplyFieldMap || global.FillApplyProfile;
+      if (P && typeof P.answerForLabel === 'function') {
+        var looked = P.answerForLabel(profile, label);
+        if (looked && !looked.missing && looked.value) ans = looked.value;
+        else if (looked && looked.missing && (el.required || el.getAttribute('aria-required') === 'true')) {
+          missing.push(label.replace(/\s+/g, ' ').trim().slice(0, 80));
+          continue;
+        }
+      }
+      if (ans == null) ans = answerFromCustom(profile, label);
       if (ans != null) {
         if (String(el.type).toLowerCase() === 'radio') continue;
         if (setNativeValue(el, ans)) {
@@ -718,7 +777,7 @@
       }
     }
 
-    return filled;
+    return { filled: filled, missing: missing };
   }
 
   function fillResumeStep(profile, documents) {
@@ -782,16 +841,26 @@
   function fillCurrentStep(profile, documents, flow) {
     var step = flow.step;
     var filled = 0;
+    var missing = [];
     var meta = { step: step, resumeSkipped: false };
 
+    function takeStepResult(r) {
+      if (r && typeof r === 'object' && !Array.isArray(r) && 'filled' in r) {
+        filled += r.filled || 0;
+        if (r.missing && r.missing.length) missing = missing.concat(r.missing);
+      } else {
+        filled += r || 0;
+      }
+    }
+
     if (step === 'contact' || (flow.progress != null && flow.progress <= 15)) {
-      filled += fillContactStep(profile);
+      takeStepResult(fillContactStep(profile));
       meta.step = 'contact';
     } else if (step === 'location' || (flow.progress != null && flow.progress <= 35 && flow.progress > 15)) {
-      filled += fillLocationStep(profile);
+      takeStepResult(fillLocationStep(profile));
       meta.step = 'location';
     } else if (step === 'work_auth') {
-      filled += fillWorkAuthStep(profile);
+      takeStepResult(fillWorkAuthStep(profile));
       meta.step = 'work_auth';
     } else if (step === 'resume') {
       var r = fillResumeStep(profile, documents);
@@ -800,19 +869,19 @@
       meta.resumeAttached = !!r.resumeAttached;
       meta.step = 'resume';
     } else if (step === 'employer_questions') {
-      filled += fillEmployerQuestions(profile);
+      takeStepResult(fillEmployerQuestions(profile));
       meta.step = 'employer_questions';
     } else if (step === 'review') {
       meta.step = 'review';
     } else {
-      // Unknown — try heuristic fill via fallback engine pieces
-      filled += fillContactStep(profile);
-      filled += fillLocationStep(profile);
-      filled += fillWorkAuthStep(profile);
-      filled += fillEmployerQuestions(profile);
+      takeStepResult(fillContactStep(profile));
+      takeStepResult(fillLocationStep(profile));
+      takeStepResult(fillWorkAuthStep(profile));
+      takeStepResult(fillEmployerQuestions(profile));
     }
 
-    return { filled: filled, meta: meta };
+    meta.missingProfileFields = missing;
+    return { filled: filled, meta: meta, missing: missing };
   }
 
   /**
@@ -896,6 +965,32 @@
 
           var drift = hasStructureDrift(flow.step);
           if (drift && drift.drifted) {
+            var driftMissing = [];
+            var P = global.FillApplyFieldMap || global.FillApplyProfile;
+            if (P && typeof P.answerForLabel === 'function' && drift.label) {
+              var looked = P.answerForLabel(profile, drift.label);
+              if (looked && looked.missing) driftMissing.push(String(drift.label).slice(0, 80));
+            }
+            if (driftMissing.length) {
+              return {
+                ok: false,
+                adapterId: 'indeed',
+                needsHuman: true,
+                filled: totalFilled,
+                unmatched: 1,
+                total: totalFilled + 1,
+                advanced: advanced,
+                submitted: false,
+                error:
+                  'Indeed: missing profile field: ' +
+                  driftMissing[0] +
+                  ' — fill in Options or on the page, then Resume',
+                pauseReason: 'missing_profile_field',
+                missingProfileFields: driftMissing,
+                driftLabel: drift.label,
+                step: flow.step
+              };
+            }
             return {
               ok: false,
               adapterId: 'indeed',
@@ -917,6 +1012,32 @@
           if (stepResult.meta) {
             lastStep = stepResult.meta.step || lastStep;
             if (stepResult.meta.resumeAttached) resumeAttached = true;
+          }
+          var miss =
+            (stepResult.missing && stepResult.missing.length && stepResult.missing) ||
+            (stepResult.meta &&
+              stepResult.meta.missingProfileFields &&
+              stepResult.meta.missingProfileFields.length &&
+              stepResult.meta.missingProfileFields) ||
+            null;
+          if (miss) {
+            return {
+              ok: false,
+              adapterId: 'indeed',
+              needsHuman: true,
+              pauseReason: 'missing_profile_field',
+              missingProfileFields: miss,
+              filled: totalFilled,
+              unmatched: miss.length,
+              total: totalFilled + miss.length,
+              advanced: advanced,
+              submitted: false,
+              error:
+                'Indeed: missing profile field(s): ' +
+                miss.join(', ') +
+                ' — fill in Options or on the page, then Resume',
+              step: lastStep
+            };
           }
 
           if (flow.isReview || flow.step === 'review') {

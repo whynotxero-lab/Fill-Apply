@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.9.8",
-  "description": "Queue-driven job-application filler with multi-profile Options + Zahid General built-in template: Recruitee\u2192Apply with Indeed (preferIndeedApply)\u2192Cloudflare pause\u2192Indeed Easy Apply, eFinancialCareers account-first + Your application modal \u2192 employer handoff, LinkedIn Easy Apply + External Apply (PepsiCo/Riyadh Air\u2192iCIMS), iCIMS richer Candidate Profile + SSO Connected skip + account human-gate, hCaptcha pause, Jooble\u2192Swooped, Working Nomads\u2192Greenhouse, WWR\u2192CATS, Ashby caps, submit-tab keep-N, PDF reports, challenge/auth-wall pause, fill/ready/submit.",
+  "version": "1.9.9",
+  "description": "Queue-driven job-application filler with multi-profile Options + Zahid General (gender Male; no invented profile fields) + high-alert pause when a required field is blank: Recruitee\u2192Apply with Indeed (preferIndeedApply)\u2192Cloudflare pause\u2192Indeed Easy Apply, eFinancialCareers account-first + Your application modal \u2192 employer handoff, LinkedIn Easy Apply + External Apply (PepsiCo/Riyadh Air\u2192iCIMS), iCIMS richer Candidate Profile + SSO Connected skip + account human-gate, hCaptcha pause, Jooble\u2192Swooped, Working Nomads\u2192Greenhouse, WWR\u2192CATS, Ashby caps, submit-tab keep-N, PDF reports, challenge/auth-wall pause, fill/ready/submit.",
   "permissions": [
     "storage",
     "activeTab",
