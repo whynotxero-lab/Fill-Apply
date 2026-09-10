@@ -62,6 +62,7 @@
     'adapters/ats/icims.js',
     'adapters/ats/cats.js',
     'adapters/boards/indeed.js',
+    'adapters/boards/linkedin.js',
     'adapters/boards/naukrigulf.js',
     'adapters/boards/remoteok.js',
     'adapters/boards/weworkremotely.js',

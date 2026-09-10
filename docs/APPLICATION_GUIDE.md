@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Jooble → Swooped** assisted-apply handoff, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **LinkedIn Easy Apply** multi-step modal, **Jooble → Swooped** assisted-apply handoff, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -146,6 +146,52 @@ Answer mapping (scoped to the modal only):
 2. Seed `customAnswers` for recurring screening questions (employed, industry experience, etc.).
 3. Use **Auto Fill** / **Auto Ready** first to confirm the modal and answers; use **Auto Submit** only when mappings look correct.
 4. Reload the extension after upgrading so `adapters/boards/naukrigulf.js` is included in the inject list.
+
+
+## LinkedIn Easy Apply
+
+LinkedIn **Easy Apply** jobs open a **multi-page modal** (e.g. 1/6 … Review) on the job page — not an external company ATS. External **Apply** / Premium upsells / **Tailor my resume** are ignored.
+
+### Prerequisite
+
+You must be **logged into LinkedIn** in the browser profile that runs Fill & Apply. A login / auth wall pauses with `needsHuman` (sign in, then Resume). LinkedIn is an **account/profile-first** source.
+
+### What you see (Qiddiya-style example)
+
+1. Job page with an **Easy Apply** button (not external Apply).
+2. Modal pages such as:
+   - **Contact (1/6):** First/Last name*, phone country + mobile*, email*, location (city)*, highest education*, gender (optional), conflict of interest Yes/No*, PIF/affiliates Yes/No*, social links, current location*, DOB*, expected / current salary*, salutation*, nationality* → **Next**
+   - **Resume (2/6):** Resume* upload (DOC/DOCX/PDF), summary, years of relevant experience*, currently involved with company Yes/No* → Next
+   - **Work experience (3/6):** Often prefilled from LinkedIn — leave if present → Next
+   - **Education (4/6):** Often prefilled — leave if present → Next
+   - **Additional Questions (5/6):** Privacy consent Yes*, criminal conviction Yes/No* → **Review**
+   - **Review:** Submit application
+
+Employer questions vary; seed `customAnswers` for recurring employer-specific prompts (conflict of interest, PIF, Qiddiya involvement, salaries, DOB, nationality, education level, criminal conviction).
+
+### Extension behavior
+
+| Mode | Behavior |
+|------|----------|
+| **fill** / **ready** | Open Easy Apply, fill visible fields on each page, click **Next** / **Review** through steps — **never** click **Submit application** |
+| **submit** | Same flow, then click **Submit application** on Review |
+
+Details:
+
+- All field / file queries are **scoped to the Easy Apply modal** (`role=dialog` / `.jobs-easy-apply-modal`).
+- Resume upload uses **DataTransfer** on the modal file input.
+- Prefill: do **not** wipe existing work/education cards when LinkedIn already populated them.
+- **Gender / EEO:** optional gender filled only if profile/`customAnswers` has it; otherwise leave blank. Never invent race/veteran/disability/etc.
+- Captcha / structure drift / missing Easy Apply modal → `needsHuman` pause.
+- Adapter: `adapters/boards/linkedin.js` (injected via runner / panel `INJECT_FILES`).
+
+### Operator tips
+
+1. Stay signed in to LinkedIn; complete your LinkedIn profile so work/education cards prefill.
+2. Upload a resume in Options (shared documents) before queueing Easy Apply URLs.
+3. Map employer-specific Yes/No and salary/DOB fields in `customAnswers`.
+4. Use **Auto Fill** / **Auto Ready** first; **Auto Submit** only when Review looks correct.
+5. Jobs that only offer external **Apply** hand off to the company ATS when that host is detected on navigation — this adapter targets **Easy Apply** modals.
 
 ## Remote OK — paid source
 
