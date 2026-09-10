@@ -582,24 +582,23 @@
    */
   function clickContinueButtons() {
     const clicked = [];
-    const buttons = document.querySelectorAll('button, input[type="button"], input[type="submit"], a[role="button"]');
-    const continueRe = /\b(next|continue|save and continue|save & continue)\b/i;
-    const submitRe = /\b(submit|apply|apply now|send application|submit application)\b/i;
+    const buttons = document.querySelectorAll(
+      'button, input[type="button"], input[type="submit"], a[role="button"], a.button'
+    );
+    const syn = global.FillApplySynonyms;
+    const continueRe = (syn && syn.CONTINUE_CTA) || /\b(next|continue|save and continue|save & continue)\b/i;
+    const isApply = syn && syn.isApplyCta ? syn.isApplyCta : function (t) {
+      return /\b(submit application|apply now|apply for this|submit & apply|apply)\b/i.test(t);
+    };
 
     for (let i = 0; i < buttons.length; i++) {
       const btn = buttons[i];
       if (btn.disabled) continue;
-      const text = (
-        (btn.textContent || '') +
-        ' ' +
-        (btn.value || '') +
-        ' ' +
-        (btn.getAttribute('aria-label') || '')
-      )
-        .replace(/\s+/g, ' ')
-        .trim();
+      const text = syn && syn.buttonText ? syn.buttonText(btn) : (
+        (btn.textContent || '') + ' ' + (btn.value || '') + ' ' + (btn.getAttribute('aria-label') || '')
+      ).replace(/\s+/g, ' ').trim();
       if (!text) continue;
-      if (submitRe.test(text) && !continueRe.test(text)) continue;
+      if (isApply(text) && !continueRe.test(text)) continue;
       if (continueRe.test(text)) {
         try {
           btn.click();
@@ -619,35 +618,32 @@
   function clickSubmitButtons(submitSelector) {
     if (submitSelector) {
       try {
-        const btn = document.querySelector(submitSelector);
-        if (btn && !btn.disabled) {
-          btn.click();
-          return true;
+        const nodes = document.querySelectorAll(submitSelector);
+        for (let s = 0; s < nodes.length; s++) {
+          const btn = nodes[s];
+          if (btn && !btn.disabled) {
+            btn.click();
+            return true;
+          }
         }
       } catch (_e) {
         /* ignore */
       }
     }
-    const submitRe = /\b(submit application|submit|apply now|apply|send application)\b/i;
+    const syn = global.FillApplySynonyms;
+    const isApply = syn && syn.isApplyCta ? syn.isApplyCta : function (t) {
+      return /\b(submit application|submit & apply|apply now|apply for this|send application|apply)\b/i.test(t);
+    };
     const buttons = document.querySelectorAll(
-      'button[type="submit"], input[type="submit"], button, input[type="button"]'
+      'button[type="submit"], input[type="submit"], button, input[type="button"], a[role="button"]'
     );
     for (let i = 0; i < buttons.length; i++) {
       const btn = buttons[i];
       if (btn.disabled) continue;
-      const text = (
-        (btn.textContent || '') +
-        ' ' +
-        (btn.value || '') +
-        ' ' +
-        (btn.getAttribute('aria-label') || '') +
-        ' ' +
-        (btn.id || '')
-      )
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (submitRe.test(text) || /submit_app|submit-app|btn-submit/i.test(btn.id + btn.className)) {
-        // Prefer buttons that look like final apply, not "next"
+      const text = syn && syn.buttonText ? syn.buttonText(btn) : (
+        (btn.textContent || '') + ' ' + (btn.value || '') + ' ' + (btn.getAttribute('aria-label') || '') + ' ' + (btn.id || '')
+      ).replace(/\s+/g, ' ').trim();
+      if (isApply(text) || /submit_app|submit-app|btn-submit|btn-apply/i.test(btn.id + ' ' + btn.className)) {
         if (/\bnext\b|\bcontinue\b/i.test(text) && !/\bsubmit\b|\bapply\b/i.test(text)) continue;
         try {
           btn.click();

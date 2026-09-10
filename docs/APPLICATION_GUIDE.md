@@ -233,6 +233,60 @@ Footer marker: **Powered by CATS**.
 - Paste additional live DOM selectors later for further hardening if CATS markup drifts.
 - Adapter: `adapters/ats/cats.js` (registered in catalog + runner / panel inject lists).
 
+## Configured sources (catalog)
+
+Registered in `adapters/catalog.js` (+ hardened overrides where noted).
+
+### ATS (apply engines)
+Greenhouse*, Ashby*, Lever, Workable, Workday, SmartRecruiters, iCIMS, **CATS***
+
+### Job boards
+LinkedIn, Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, Working Nomads, Jooble, Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
+
+### Agencies
+Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH
+
+\* Hardened from paste-library / live testing. Others use **generic fallback** + host detect until pasted.
+
+### Generic fallback (unknown sites)
+If no adapter matches, Fill & Apply still attempts **inspect → fill** using the same candidate profile and synonym maps (see below). Prefer pausing on Cloudflare / unknown required questions rather than blind submit.
+
+## Field types the app can process
+
+| Type | Examples | How |
+|------|----------|-----|
+| Text | Name, email, phone, city, LinkedIn, essays | Label / name / autocomplete / placeholder map |
+| Native `<select>` | Country, Yes/No | Fuzzy option match |
+| Custom dropdowns / radios | Sponsorship, EST timezone | Trigger + option click / radio |
+| File upload | Resume/CV, cover letter | DataTransfer (not OS picker) |
+| Multi-step CTAs | Next, Continue, Save & continue | Synonym CTA match |
+| Final CTAs | Apply, Apply Now, Apply for this Job, Submit Application, Submit & Apply | Synonym CTA match |
+| Challenges | Cloudflare, CAPTCHA | Pause + notify (never bypass) |
+| External handoff | WWR → CATS | Click Apply → re-detect destination adapter |
+
+Profile keys commonly mapped: first/last/full name, email, phone (+ country), location/city/state/country/zip/street, LinkedIn, portfolio, website, GitHub, resume URL/summary, work history, education, cover letter, work authorization, sponsorship, `customAnswers` / `customQA`.
+
+## Adaptive synonyms (same meaning, different labels)
+
+Boards rename the same actions. The engine treats these as equivalent (non-exhaustive):
+
+- **Resume file:** Resume, CV, C.V., Curriculum Vitae, Upload Resume/CV, Attach Resume
+- **Cover:** Cover letter, Covering letter, Motivation letter, Letter of interest
+- **Apply CTA:** Apply, Apply Now, Apply for this Job/Role, Submit Application, Submit & Apply, Send Application
+- **Continue CTA:** Next, Continue, Save and continue, Proceed
+
+Same **candidate** and **preferences** across sources; only site chrome changes. Unknown sites rely on fallback + synonyms; paste-library still improves precision.
+
+## Account / profile-first sources
+
+Build a complete **platform account/profile** before queuing applies on:
+
+- NaukriGulf (100% profile or redirect)
+- LinkedIn, Indeed, Upwork, Bayt, GulfTalent, Glassdoor, Wellfound
+- We Work Remotely, Remote OK, FlexJobs (also **paid** access where marked)
+
+Sources that mainly deep-link into Greenhouse/Ashby/Lever/CATS may need little/no board account beyond reaching the ATS form.
+
 ## Related docs
 
 - Main project README (load unpacked, architecture, Greenhouse / Indeed notes).

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "description": "Queue-driven job-application filler: WWR external Apply handoff, CATS ATS adapter, Ashby caps, submit-tab keep-N, PDF reports, Indeed multi-step, challenge pause, fill/ready/submit.",
   "permissions": [
     "storage",

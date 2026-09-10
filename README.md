@@ -4,9 +4,11 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
+**Adaptive fill:** synonym CTAs (Apply/Apply Now/…) and Resume≈CV via `lib/synonyms.js` + generic fallback for unknown hosts.
+
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.8.3** — WWR external Apply handoff (not AI Auto-Apply) + CATS ATS adapter, NaukriGulf Easy Apply, Ashby caps, Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
+**Version 1.8.4** — WWR external Apply handoff (not AI Auto-Apply) + CATS ATS adapter, NaukriGulf Easy Apply, Ashby caps, Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
 
 ## Load unpacked
 

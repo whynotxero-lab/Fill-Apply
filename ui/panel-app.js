@@ -45,6 +45,7 @@
   };
 
   const INJECT_FILES = [
+    'lib/synonyms.js',
     'lib/field-map.js',
     'lib/files.js',
     'lib/challenges.js',
