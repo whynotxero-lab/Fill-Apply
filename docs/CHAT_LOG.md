@@ -242,6 +242,14 @@ Chronological narrative of the Fill & Apply build conversation between **User** 
 **Assistant:** Hardened `adapters/boards/glassdoor.js` + shared `lib/easy-apply-steps.js`; Indeed fill→Continue→rescan; runner/panel frame-churn re-inject retry (no markFailed solely for frame removal); glassdoor source profile + Mock seeds; docs — **v1.14.0**.
 
 
+
+## Glassdoor Easy Apply click fix 1.14.1
+
+**User:** Runner sees Easy Apply on Glassdoor job page then stops; `indeed,? inc` in `inFlow` always true from footer; bump 1.14.1.
+
+**Assistant:** Removed footer “Indeed, Inc.” from wizard detection; tightened contact markers; always click Easy Apply + `clickedApplyStart`/`reDetect` if wizard slow; Easy Apply attrs + banner skips in `findEasyApplyButton`; synonyms `isEasyApplyCta` / `isApplyStartCtaForHost`; smoke `smoke-glassdoor-inflow.js` — **v1.14.1**.
+
+
 ## Notes for readers
 
 - Timestamps omitted; order follows the agent transcript turn sequence.

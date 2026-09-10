@@ -10,7 +10,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
-**Version 1.14.0** — **Glassdoor Easy Apply** (Indeed-backed): contact → location → resume → review + reCAPTCHA `needsHuman`; shared `lib/easy-apply-steps.js`; host-change handoff to Indeed. **Frame-churn retry** in runner + panel (`Frame with ID … removed` / `No tab with id` → re-query tab, re-inject, continue — Ready does not markFailed solely for frame churn). Indeed fill→Continue→rescan aligned. Source profile + Mock seeds for `glassdoor`. Prior **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename; **1.12.0** missing-fields popup + settle/pace.
+**Version 1.14.1** — **Glassdoor Easy Apply click fix**: footer `Indeed, Inc.` no longer forces `inFlow` (skipped Easy Apply); always click Easy Apply when found + `clickedApplyStart`/`reDetect` if wizard slow; tighter contact/wizard markers; Easy Apply attrs in `findEasyApplyButton`. Prior **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
 ## Load unpacked
 

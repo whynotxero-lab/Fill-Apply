@@ -1,6 +1,6 @@
 /**
  * Shared panel UI logic for sidepanel/ (and popup/ markup).
- * v1.14 — Glassdoor Easy Apply, frame-churn retry, shared easy-apply-steps.
+ * v1.14.1 — Glassdoor Easy Apply click fix (Indeed, Inc. inFlow false-positive), frame-churn retry.
  */
 (function () {
   'use strict';

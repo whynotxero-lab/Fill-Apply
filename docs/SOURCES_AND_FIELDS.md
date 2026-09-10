@@ -146,6 +146,8 @@ Published **apply caps** (default 2, max 3 per source) enforced by the extension
 
 **Anti-patterns:** do not click “Is my resume a good match?” / AI upload widgets as Apply; never bypass reCAPTCHA.
 
+**Detect note (v1.14.1):** footer “Indeed, Inc.” alone is not an apply-flow marker; require real wizard chrome (Add your contact/location/resume, progress %, Indeed apply iframe).
+
 ## NaukriGulf
 
 **Prerequisite:** platform profile **100% complete** or redirect to profile → pause.

@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.14.0** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.14.1** on `main`.
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -34,7 +34,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 |---------|--------|-------|
 | Greenhouse | ✅ | GitLab / Figma pastes; file Attach; selects; EEO skip |
 | Indeed | ✅ | Multi-step contact→review; Cloudflare pause; fill→Continue→rescan |
-| Glassdoor Easy Apply | ✅ | v1.14.0 — Indeed-backed steps + frame-churn retry |
+| Glassdoor Easy Apply | ✅ | v1.14.1 — inFlow false-positive fix + Easy Apply click/reDetect; v1.14.0 steps + frame-churn |
 | Ashby | ✅ | + published caps |
 | NaukriGulf | ✅ | 100% profile gate + Easy Apply modal |
 | Remote OK | ✅ | Paid / paywall / geolock pause (no full unlocked form yet) |
@@ -125,4 +125,4 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
 ---
 
-*Last reviewed against repo `main` at v1.14.0 (Glassdoor Easy Apply).*
+*Last reviewed against repo `main` at v1.14.1 (Glassdoor Easy Apply click fix).*

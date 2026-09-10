@@ -613,6 +613,8 @@ Hosts often: `*.recruitee.com` or company career sites powered by Recruitee (Rec
 
 **Status:** Hardened from live paste (`adapters/boards/glassdoor.js` + shared `lib/easy-apply-steps.js`).
 
+**v1.14.1:** Do not treat footer “Indeed, Inc.” as apply-wizard `inFlow` — that skipped Easy Apply on job pages; click Easy Apply then `reDetect` if the wizard is slow to paint.
+
 Hosts: `glassdoor.com` / `www.glassdoor.com`. Apply chrome may stay on Glassdoor or **shift to indeed.com** — on host change the runner re-injects and the **Indeed** adapter takes over.
 
 ### Flow (progress %)
@@ -639,7 +641,7 @@ Hosts: `glassdoor.com` / `www.glassdoor.com`. Apply chrome may stay on Glassdoor
 
 ### Operator checklist
 
-1. Reload extension **v1.14.0**.
+1. Reload extension **v1.14.1**.
 2. Select source **Glassdoor** in App Settings (contact + location + resume fields) or rely on base profile merge.
 3. Queue a Glassdoor Easy Apply job URL → **Ready**.
 4. Expect: Easy Apply → contact → location → resume → Review; captcha → notification → solve manually → **Resume**; Submit only in submit mode.

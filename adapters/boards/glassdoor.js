@@ -152,10 +152,61 @@
       var el = nodes[i];
       if (!visible(el)) continue;
       var t = buttonText(el);
-      if (/is my resume a good match|good match\?/i.test(t)) continue;
-      if (/easy apply/i.test(t)) return el;
+      var aria = (el.getAttribute && el.getAttribute('aria-label')) || '';
+      var dataBlob =
+        ((el.getAttribute && el.getAttribute('data-test')) || '') +
+        ' ' +
+        ((el.getAttribute && el.getAttribute('data-gd')) || '');
+      if (
+        /is my resume a good match|resume.?match|upload resume to see|good match\?/i.test(t) ||
+        (/^upload resume$/i.test(t.trim()) && !/easy apply/i.test(t + ' ' + aria))
+      ) {
+        continue;
+      }
+      if (
+        /easy apply/i.test(t) ||
+        /easy\s*apply/i.test(aria) ||
+        /easyApply|easy-apply|easy_apply/i.test(dataBlob)
+      ) {
+        return el;
+      }
     }
     return null;
+  }
+
+  /** Prefer scroll + click + MouseEvent (Teamtailor-style) so overlay handlers fire. */
+  function clickApplyEl(el) {
+    if (!el) return false;
+    try {
+      el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    } catch (_eScroll) {}
+    try {
+      el.disabled = false;
+    } catch (_eEn) {}
+    try {
+      el.click();
+      return true;
+    } catch (_eClick) {}
+    try {
+      el.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, view: window })
+      );
+      return true;
+    } catch (_eMouse) {}
+    return false;
+  }
+
+  function hasIndeedApplyChrome(doc) {
+    doc = doc || document;
+    try {
+      return !!(
+        doc.querySelector(
+          'iframe[src*="indeed.com"], iframe[src*="apply.indeed"], .ia-BasePage, .ia-ApplyForm, [class*="ia-Apply"], #ia-container, [data-testid*="indeed-apply"], [role="dialog"] .ia-BasePage'
+        )
+      );
+    } catch (_e) {
+      return false;
+    }
   }
 
   function clickContinue() {
@@ -196,8 +247,9 @@
     var progress = readProgressPercent(doc);
     var applyBtn = findEasyApplyButton(doc);
 
+    // Tighten: bare "contact information" / footer "Indeed, Inc." are NOT wizard markers.
     var isContact =
-      /add your contact information|contact information/i.test(text) ||
+      /add your contact information/i.test(text) ||
       (progress != null && progress <= 20 && progress >= 1);
     var isLocation =
       /add your location|street address.*(not shown|employers)/i.test(text) ||
@@ -213,12 +265,17 @@
         progress === 100 ||
         (progress != null && progress >= 85));
 
+    var wizardMarkerText =
+      /add your contact information|add your location|add a resume|build an indeed resume/i.test(
+        text
+      ) || isReview;
+
     var step = 'unknown';
     if (isReview) step = 'review';
     else if (isResume && !isContact) step = 'resume';
     else if (isLocation && !isContact) step = 'location';
     else if (isContact) step = 'contact';
-    else if (progress != null) {
+    else if (progress != null && progress > 0) {
       if (progress <= 20) step = 'contact';
       else if (progress <= 40) step = 'location';
       else if (progress <= 60) step = 'resume';
@@ -226,10 +283,12 @@
       else step = 'review';
     }
 
+    // Real wizard only — never treat Glassdoor footer "Indeed, Inc." as inFlow.
     var inFlow =
-      step !== 'unknown' ||
-      /add your contact|add your location|add a resume|indeed,? inc/i.test(text) ||
-      (progress != null && progress > 0);
+      wizardMarkerText ||
+      (progress != null && progress > 0) ||
+      hasIndeedApplyChrome(doc) ||
+      (step !== 'unknown' && (wizardMarkerText || (progress != null && progress > 0)));
 
     return {
       step: step,
@@ -579,15 +638,38 @@
 
           var flow = detectGlassdoorApplyFlow(document);
 
-          // Job listing → click Easy Apply first
-          if ((flow.isJobPage || (flow.hasApplyButton && !flow.inFlow)) && flow.applyButton) {
+          // Job listing → always click Easy Apply when button found and wizard not open
+          // (even if weak heuristics were confused previously).
+          if (flow.applyButton && !flow.inFlow) {
             try {
-              flow.applyButton.click();
+              clickApplyEl(flow.applyButton);
               advanced = true;
               await sleep(humanDelay(700));
-              if (runMode === 'fill') {
-                flow = detectGlassdoorApplyFlow(document);
-              } else {
+              var flowAfterClick = detectGlassdoorApplyFlow(document);
+              if (!flowAfterClick.inFlow) {
+                // Wizard not painted yet — same as Teamtailor: ask runner to re-inject
+                return {
+                  ok: true,
+                  adapterId: 'glassdoor',
+                  clickedApplyStart: true,
+                  reDetect: true,
+                  handedOff: true,
+                  deferToPageAdapter: true,
+                  filled: totalFilled,
+                  unmatched: 0,
+                  total: totalFilled,
+                  advanced: true,
+                  submitted: false,
+                  resumeAttached: resumeAttached,
+                  step: flowAfterClick.step || 'unknown',
+                  runMode: runMode,
+                  message:
+                    'Clicked Easy Apply — waiting for wizard, then re-detect',
+                  error: null
+                };
+              }
+              flow = flowAfterClick;
+              if (runMode !== 'fill') {
                 continue;
               }
             } catch (_eClick) {
@@ -664,6 +746,17 @@
           }
 
           if (runMode === 'fill') {
+            var dbgFill = '';
+            if (!advanced && totalFilled === 0 && !flow.inFlow) {
+              dbgFill =
+                'No Easy Apply clicked — inFlow=' +
+                !!flow.inFlow +
+                ' hasBtn=' +
+                !!flow.hasApplyButton;
+              try {
+                console.log('[FillApply glassdoor]', dbgFill);
+              } catch (_log) {}
+            }
             return {
               ok: true,
               adapterId: 'glassdoor',
@@ -675,6 +768,7 @@
               resumeAttached: resumeAttached,
               step: lastStep,
               runMode: runMode,
+              message: dbgFill || null,
               error: null
             };
           }
@@ -712,6 +806,18 @@
           }
         }
 
+        var dbgEnd = '';
+        if (!advanced && totalFilled === 0) {
+          var flowEnd = detectGlassdoorApplyFlow(document);
+          dbgEnd =
+            'No Easy Apply clicked — inFlow=' +
+            !!flowEnd.inFlow +
+            ' hasBtn=' +
+            !!flowEnd.hasApplyButton;
+          try {
+            console.log('[FillApply glassdoor]', dbgEnd);
+          } catch (_log2) {}
+        }
         return {
           ok: true,
           adapterId: 'glassdoor',
@@ -723,6 +829,7 @@
           resumeAttached: resumeAttached,
           step: lastStep,
           runMode: runMode,
+          message: dbgEnd || null,
           error: null
         };
       });
