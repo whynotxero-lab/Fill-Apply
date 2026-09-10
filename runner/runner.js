@@ -27,7 +27,8 @@
     'adapters/ats/workable.js',
     'adapters/ats/icims.js',
     'adapters/boards/indeed.js',
-    'adapters/boards/naukrigulf.js'
+    'adapters/boards/naukrigulf.js',
+    'adapters/boards/remoteok.js'
   ];
 
   let loopActive = false;

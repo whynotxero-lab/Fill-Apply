@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness and **Easy Apply**, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** paid access and **Easy Apply**, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -135,6 +135,31 @@ Answer mapping (scoped to the modal only):
 2. Seed `customAnswers` for recurring screening questions (employed, industry experience, etc.).
 3. Use **Auto Fill** / **Auto Ready** first to confirm the modal and answers; use **Auto Submit** only when mappings look correct.
 4. Reload the extension after upgrading so `adapters/boards/naukrigulf.js` is included in the inject list.
+
+## Remote OK — paid source
+
+**Status:** **PAID JOB SOURCE — no free trial.**
+
+Remote OK (`remoteok.com`) gates apply / early access behind a subscription (e.g. Single Platform ~$14.95/mo or TopAccess Bundle ~$29.95/mo, billed with commitment; marketing copy states **no free trial**).
+
+### What Fill & Apply does today
+
+1. Detects Remote OK job pages.
+2. If **paywall** UI appears (“You’re almost there”, Subscribe to Remote OK / TopAccess, pricing cards) → **pause + notify**. Does **not** subscribe or bypass payment.
+3. If **geolock** warning appears (job only accepts certain nationalities/residencies) → **pause** for human confirmation. Does **not** bypass geolocks.
+4. Until a **paid unlocked** account exposes the real application form, the adapter will not pretend to complete Apply.
+5. Full apply-form automation will be adapted **after** the operator has paid access and pastes the unlocked apply UI into the paste library.
+
+### Operator checklist
+
+1. Maintain an active Remote OK paid subscription if you want this source in Auto Submit.
+2. Respect geolocks — only apply when eligible.
+3. Some posts include anti-spam keywords (“Please mention the word …”) — put that word in cover letter / `customAnswers` once the form is unlocked.
+4. Per-source apply caps still apply (default 2, max 3).
+
+### Related
+
+- Adapter: `adapters/boards/remoteok.js` (`paidSource: true`, `noFreeTrial: true`)
 
 ## Related docs
 

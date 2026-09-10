@@ -6,7 +6,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.8.0** — NaukriGulf Easy Apply (on-page modal screening + Submit & Apply), Ashby caps, Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
+**Version 1.8.1** — NaukriGulf Easy Apply (on-page modal screening + Submit & Apply), Ashby caps, Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
 
 ## Load unpacked
 
@@ -179,6 +179,10 @@ Greenhouse “Attach” is often a visible button + hidden `input[type=file]`, o
 
 Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhouse.io` apply forms.
 
+
+## Remote OK — paid source
+
+Remote OK is a **paid** board (**no free trial**). Fill & Apply pauses on paywall/geolock and will not fake applies until a paid account unlocks the real form. See [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#remote-ok--paid-source).
 
 ## NaukriGulf prerequisite
 

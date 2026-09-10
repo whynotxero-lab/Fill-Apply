@@ -60,7 +60,8 @@
     'adapters/ats/workable.js',
     'adapters/ats/icims.js',
     'adapters/boards/indeed.js',
-    'adapters/boards/naukrigulf.js'
+    'adapters/boards/naukrigulf.js',
+    'adapters/boards/remoteok.js'
   ];
 
   function setStatus(text, kind) {
