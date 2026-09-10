@@ -59,6 +59,7 @@
   };
 
   const INJECT_FILES = [
+    'lib/dom-deep.js',
     'lib/synonyms.js',
     'lib/pace.js',
     'lib/field-map.js',
@@ -92,6 +93,42 @@
     'adapters/boards/swooped.js',
     'adapters/boards/efinancialcareers.js'
   ];
+
+  /** ATS forms are usually iframed into the career site — inject everywhere. */
+  const INJECT_TARGET = { allFrames: true };
+
+  /**
+   * Only one frame holds the application form; pick the one that did the work.
+   */
+  function pickBestFrameResult(injectionResults) {
+    const entries = (injectionResults || []).filter(function (entry) {
+      return entry && entry.result;
+    });
+    if (!entries.length) return null;
+
+    function score(r) {
+      if (!r) return -1;
+      if (r.frameSkipped) return 0;
+      let s = 1;
+      if (r.total > 0) s += 5;
+      if (r.needsHuman) s += 40;
+      if (r.submitted) s += 60;
+      if (r.filled > 0) s += 100 + Math.min(r.filled, 50);
+      if (r.clickedApplyStart || r.reDetect) s += 20;
+      return s;
+    }
+
+    let best = entries[0];
+    let bestScore = score(entries[0].result);
+    for (let i = 1; i < entries.length; i++) {
+      const s = score(entries[i].result);
+      if (s > bestScore) {
+        bestScore = s;
+        best = entries[i];
+      }
+    }
+    return Object.assign({}, best.result, { frameId: best.frameId });
+  }
 
   let lastCounts = { queued: 0, applied: 0, failed: 0, cancelled: 0 };
 
@@ -797,7 +834,10 @@
         setTimeout(r, lo + Math.floor(Math.random() * Math.max(0, hi - lo + 1)));
       });
 
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
+      await chrome.scripting.executeScript({
+        target: Object.assign({ tabId: tab.id }, INJECT_TARGET),
+        files: INJECT_FILES
+      });
 
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -823,8 +863,26 @@
 
       async function injectFillOnce() {
         const results = await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
+          target: Object.assign({ tabId: tab.id }, INJECT_TARGET),
           func: async function (profileArg, documentsArg, opts) {
+            // Skip sub-frames that hold no application form and no Apply CTA.
+            const isSubFrame = (function () {
+              try {
+                return window.top !== window.self;
+              } catch (_e) {
+                return true;
+              }
+            })();
+            if (isSubFrame) {
+              const syn = globalThis.FillApplySynonyms;
+              const hasForm = syn && syn.isApplicationFormOpen && syn.isApplicationFormOpen(document);
+              const hasCta =
+                syn && syn.findApplyStartButtons && syn.findApplyStartButtons(document).length > 0;
+              if (!hasForm && !hasCta) {
+                return { ok: true, frameSkipped: true, filled: 0, unmatched: 0, total: 0 };
+              }
+            }
+
             if (globalThis.FillApplyFocusHud && globalThis.FillApplyFocusHud.setEnabled) {
               globalThis.FillApplyFocusHud.setEnabled(opts.focusHud !== false);
             }
@@ -849,6 +907,33 @@
             });
             if (out && typeof out.then === 'function') out = await out;
             if (out && !out.adapterId) out.adapterId = adapterId;
+
+            // Adapter matched nothing — the page has probably drifted from the
+            // layout it targets. Let the generic engine read the page as it is.
+            const adapterFoundNothing =
+              out &&
+              adapterId !== 'fallback' &&
+              !(out.filled > 0) &&
+              !out.submitted &&
+              !out.needsHuman &&
+              !out.clickedApplyStart &&
+              !out.reDetect &&
+              !out.handedOff &&
+              !out.externalApply;
+
+            if (adapterFoundNothing && globalThis.__fillApply) {
+              try {
+                const generic = await globalThis.__fillApply.run(profileArg, opts);
+                if (generic && generic.filled > 0) {
+                  generic.adapterId = adapterId;
+                  generic.usedGenericFallback = true;
+                  return generic;
+                }
+              } catch (_genericErr) {
+                /* keep the adapter result */
+              }
+            }
+
             return out;
           },
           args: [
@@ -862,7 +947,7 @@
             }
           ]
         });
-        let result = results && results[0] && results[0].result;
+        let result = pickBestFrameResult(results);
         if (result && typeof result.then === 'function') result = await result;
         return result;
       }
@@ -891,7 +976,7 @@
             tab = await refreshTabRef(tab);
             try {
               await chrome.scripting.executeScript({
-                target: { tabId: tab.id },
+                target: Object.assign({ tabId: tab.id }, INJECT_TARGET),
                 files: INJECT_FILES
               });
             } catch (_re) {
@@ -950,7 +1035,10 @@
             }
           });
         } catch (_w) {}
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
+        await chrome.scripting.executeScript({
+          target: Object.assign({ tabId: tab.id }, INJECT_TARGET),
+          files: INJECT_FILES
+        });
         await liveLog('filling', 'Re-detect / fill attempt ' + (attempt + 2));
         const next = await injectFillWithFrameRetry('redetect-' + (attempt + 2));
         if (next) result = next;

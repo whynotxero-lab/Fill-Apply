@@ -13,6 +13,7 @@
   'use strict';
 
   const INJECT_FILES = [
+    'lib/dom-deep.js',
     'lib/synonyms.js',
     'lib/pace.js',
     'lib/field-map.js',
@@ -47,6 +48,14 @@
     'adapters/boards/efinancialcareers.js'
   ];
 
+  /**
+   * Company career sites embed the real ATS form in an iframe (Greenhouse,
+   * Lever, Workable, SmartRecruiters, iCIMS, Glassdoor→Indeed). Injecting into
+   * the top frame only means the extension never sees those forms, so every
+   * injection runs in all frames and the best frame result wins.
+   */
+  const INJECT_TARGET = { allFrames: true };
+
   let loopActive = false;
   let delayTimer = null;
   let currentJobId = null;
@@ -54,6 +63,65 @@
   let resumeTabId = null;
   /** Oldest-first list of submitted job tabs kept for context: { tabId, jobId, at } */
   let submittedTabs = [];
+
+  /**
+   * Rank per-frame fill results and return the frame that actually did the work.
+   *
+   * Only one frame holds the application form; the rest report that they had
+   * nothing to do. Higher score wins, and diagnostics from every frame are
+   * attached so a failure shows what each frame saw.
+   */
+  function pickBestFrameResult(injectionResults) {
+    const entries = (injectionResults || [])
+      .map(function (entry) {
+        return {
+          frameId: entry && entry.frameId,
+          result: entry && entry.result
+        };
+      })
+      .filter(function (entry) {
+        return entry.result;
+      });
+
+    if (!entries.length) return null;
+
+    function score(r) {
+      if (!r) return -1;
+      if (r.frameSkipped) return 0;
+      let s = 1;
+      if (r.total > 0) s += 5;
+      if (r.needsHuman) s += 40;
+      if (r.submitted) s += 60;
+      if (r.filled > 0) s += 100 + Math.min(r.filled, 50);
+      if (r.clickedApplyStart || r.reDetect) s += 20;
+      if (r.ok === false && !r.total) s -= 1;
+      return s;
+    }
+
+    let best = entries[0];
+    let bestScore = score(entries[0].result);
+    for (let i = 1; i < entries.length; i++) {
+      const s = score(entries[i].result);
+      if (s > bestScore) {
+        bestScore = s;
+        best = entries[i];
+      }
+    }
+
+    const winner = Object.assign({}, best.result, { frameId: best.frameId });
+    if (entries.length > 1) {
+      winner.frames = entries.map(function (entry) {
+        return {
+          frameId: entry.frameId,
+          filled: entry.result.filled || 0,
+          total: entry.result.total || 0,
+          skipped: !!entry.result.frameSkipped,
+          error: entry.result.error || null
+        };
+      });
+    }
+    return winner;
+  }
 
   function sleep(ms) {
     return new Promise(function (resolve) {
@@ -625,7 +693,7 @@
     }
 
     await chrome.scripting.executeScript({
-      target: { tabId: tabId },
+      target: Object.assign({ tabId: tabId }, INJECT_TARGET),
       files: INJECT_FILES
     });
 
@@ -638,8 +706,27 @@
     };
 
     const results = await chrome.scripting.executeScript({
-      target: { tabId: tabId },
+      target: Object.assign({ tabId: tabId }, INJECT_TARGET),
       func: async function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg, focusHudArg, paceArg) {
+        // Sub-frames are mostly ads, trackers and social widgets. Only engage a
+        // sub-frame that actually contains an application form or an Apply CTA.
+        const isSubFrame = (function () {
+          try {
+            return window.top !== window.self;
+          } catch (_e) {
+            return true;
+          }
+        })();
+        if (isSubFrame) {
+          const syn = globalThis.FillApplySynonyms;
+          const hasForm = syn && syn.isApplicationFormOpen && syn.isApplicationFormOpen(document);
+          const hasCta =
+            syn && syn.findApplyStartButtons && syn.findApplyStartButtons(document).length > 0;
+          if (!hasForm && !hasCta) {
+            return { ok: true, frameSkipped: true, filled: 0, unmatched: 0, total: 0 };
+          }
+        }
+
         if (globalThis.FillApplyFocusHud && globalThis.FillApplyFocusHud.setEnabled) {
           globalThis.FillApplyFocusHud.setEnabled(focusHudArg !== false);
         }
@@ -688,6 +775,40 @@
             fieldMaps: adapter.fieldMaps
           });
           if (out && typeof out.then === 'function') out = await out;
+
+          // A site-specific adapter that matched nothing has usually drifted
+          // from the layout it was written against. The generic engine knows
+          // how to read the page as it is now, so let it try before giving up.
+          const adapterFoundNothing =
+            out &&
+            adapter.id !== 'fallback' &&
+            !(out.filled > 0) &&
+            !out.submitted &&
+            !out.needsHuman &&
+            !out.clickedApplyStart &&
+            !out.reDetect &&
+            !out.handedOff &&
+            !out.externalApply;
+
+          if (adapterFoundNothing && globalThis.__fillApply) {
+            try {
+              const generic = await globalThis.__fillApply.run(profileArg, {
+                highlightUnmatched: false,
+                runMode: runModeArg || 'fill'
+              });
+              if (generic && generic.filled > 0) {
+                generic.adapterId = adapter.id;
+                generic.usedGenericFallback = true;
+                generic.adapterMessage = out.error || out.message || null;
+                return generic;
+              }
+            } catch (genericErr) {
+              out.genericFallbackError = String(
+                (genericErr && genericErr.message) || genericErr
+              );
+            }
+          }
+
           return out;
         }
         return {
@@ -703,7 +824,7 @@
     });
 
     return (
-      (results && results[0] && results[0].result) || {
+      pickBestFrameResult(results) || {
         ok: false,
         error: 'No result from inject',
         filled: 0,
@@ -750,7 +871,7 @@
         await sleep(400 + Math.floor(Math.random() * 300));
         try {
           await chrome.scripting.executeScript({
-            target: { tabId: currentTabId },
+            target: Object.assign({ tabId: currentTabId }, INJECT_TARGET),
             files: INJECT_FILES
           });
         } catch (_reinj) {
