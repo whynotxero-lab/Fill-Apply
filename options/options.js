@@ -32,6 +32,7 @@
   const btnProfileDuplicate = document.getElementById('btnProfileDuplicate');
   const btnProfileSetActive = document.getElementById('btnProfileSetActive');
   const btnProfileDelete = document.getElementById('btnProfileDelete');
+  const btnZahidGeneral = document.getElementById('btnZahidGeneral');
 
   const TEXT_FIELDS = [
     'firstName', 'lastName', 'fullName', 'email', 'phone', 'phoneCountry',
@@ -359,6 +360,24 @@
         activeIdCache = result.activeId;
         await refreshProfilesUI({ selectId: result.activeId });
         setStatus(profileMgrStatus, 'Deleted "' + meta.name + '".', 'ok');
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
+
+
+  if (btnZahidGeneral) {
+    btnZahidGeneral.addEventListener('click', async function () {
+      if (!confirmIfDirty('You have unsaved changes. Discard them and create/reset Zahid General?')) return;
+      try {
+        var profile = await FillApplyProfile.createZahidGeneralProfile();
+        activeIdCache = profile.id;
+        selectedIdCache = profile.id;
+        await refreshProfilesUI({ selectId: profile.id });
+        clearDirty();
+        setStatus(profileMgrStatus, 'Zahid General profile ready and active.', 'ok');
+        setStatus(statusEl, 'Loaded Zahid General into form.', 'ok');
       } catch (e) {
         setStatus(profileMgrStatus, e.message, 'err');
       }

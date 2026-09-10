@@ -50,6 +50,7 @@ Fill & Apply supports **multiple applicant profiles** (v1.9+):
 4. The runner and side panel always use the active profile (`getProfile()`).
 5. Data is stored in `chrome.storage.local` keys `fillApply.profiles` and `fillApply.activeProfileId` so it **survives extension updates**. A legacy single profile migrates into **"Default"** when the multi store is empty.
 6. **Documents** (resume/cover) are **shared across profiles for now**. Export of profiles is TBD.
+7. **Zahid General** — built-in one-click template for Chaudhary Zahid Ali (Options → **Create / Reset Zahid General profile**). Creates or resets a named profile, sets it **active**, and persists fields in `chrome.storage.local`. Does not overwrite Default / sample Alex. Backup JSON: `profiles/zahid-general.json`.
 
 ## Ashby adapter behavior
 

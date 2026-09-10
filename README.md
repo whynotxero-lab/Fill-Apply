@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.9.6** — **eFinancialCareers** account-first (Sign in / Register pause) + **Your application** modal (first/last name, resume DataTransfer); **fill** stages modal only; **ready/submit** clicks Apply → employer handoff / re-detect; iCIMS richer Candidate Profile + SSO Connected; LinkedIn External Apply → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
+**Version 1.9.8** — **Zahid General** built-in applicant template (Options one-click create/reset + active); prior: **eFinancialCareers** account-first (Sign in / Register pause) + **Your application** modal (first/last name, resume DataTransfer); **fill** stages modal only; **ready/submit** clicks Apply → employer handoff / re-detect; iCIMS richer Candidate Profile + SSO Connected; LinkedIn External Apply → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
 
 ## Load unpacked
 
@@ -16,7 +16,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 2. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
 3. Enable **Developer mode**.
 4. **Load unpacked** → select this folder (contains `manifest.json`).
-5. Open **Options**: manage **profiles** (New / Rename / Duplicate / Delete / Set active), seed/edit the active profile, paste **Mock queue** apply URLs, optionally upload resume/cover (documents are shared across profiles for now).
+5. Open **Options**: manage **profiles** (New / Rename / Duplicate / Delete / Set active, or **Create / Reset Zahid General**), seed/edit the active profile, paste **Mock queue** apply URLs, optionally upload resume/cover (documents are shared across profiles for now).
 6. Click the **Fill & Apply** toolbar icon — the UI opens in Chrome’s **right sidebar** (not a tiny popup).
 
 ## Multi-profile (v1.9)
@@ -29,6 +29,7 @@ Options → **Profiles** at the top:
 - Side panel summary shows `ProfileName · Person · email`
 - Storage: `fillApply.profiles` + `fillApply.activeProfileId` in **chrome.storage.local** (survives extension updates). Legacy `fillApply.profile` migrates into a **"Default"** profile on first load.
 - **Documents** (resume/cover) remain **global / shared across profiles** for now; export TBD.
+- **Zahid General**: Options → **Create / Reset Zahid General profile** loads Chaudhary Zahid Ali’s KSA FP&A template, sets it active, and persists it (separate from Default / sample Alex). See `profiles/zahid-general.json`.
 
 ## Side panel (Chrome right sidebar)
 
