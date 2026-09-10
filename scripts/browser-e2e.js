@@ -42,7 +42,7 @@ const ATS_FORM = `<!doctype html><html><body>
     <div class="_fieldEntry"><div class="_label">Expected salary</div><div><input id="sal" type="number" /></div></div>
     <div class="_fieldEntry">
       <div class="_label">Resume</div>
-      <div><button id="attach" type="button">Attach resume</button></div>
+      <div><button id="attach" type="button">Attach resume</button> <span id="cvname"></span></div>
     </div>
     <div class="_fieldEntry">
       <div class="_label" id="lbl-auth">Are you authorized to work?</div>
@@ -63,6 +63,12 @@ const ATS_FORM = `<!doctype html><html><body>
         input.id = 'cv';
         input.name = 'resume';
         input.style.display = 'none';
+        // The site's own change handler is what renders the filename, so this
+        // also shows the extension's events reaching page code.
+        input.addEventListener('change', function () {
+          const file = input.files && input.files[0];
+          document.getElementById('cvname').textContent = file ? file.name : '';
+        });
         document.body.appendChild(input);
       }
       input.click();
@@ -252,7 +258,8 @@ function check(condition, message) {
         why: val('why'),
         auth: document.getElementById('auth').textContent.trim(),
         resume: cv && cv.files && cv.files[0] ? cv.files[0].name : null,
-        resumeSize: cv && cv.files && cv.files[0] ? cv.files[0].size : 0
+        resumeSize: cv && cv.files && cv.files[0] ? cv.files[0].size : 0,
+        resumeShown: document.getElementById('cvname').textContent.trim()
       };
     });
     console.log('  form values: ' + JSON.stringify(values));
@@ -268,6 +275,10 @@ function check(condition, message) {
     check(values.auth === 'Yes', 'async portalled listbox option selected');
     check(values.resume === 'zahid-ali-cv.pdf', 'the preloaded resume is attached to the upload control');
     check(values.resumeSize > 0, 'the attached resume carries its bytes');
+    check(
+      values.resumeShown === 'zahid-ali-cv.pdf',
+      "the page's own change handler rendered the attached filename"
+    );
     check(fileChoosersOpened === 0, 'no file chooser dialog was opened (' + fileChoosersOpened + ')');
     check(!!(result && result.resumeAttached), 'the run reports the resume as attached');
 
