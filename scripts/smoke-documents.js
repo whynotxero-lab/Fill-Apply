@@ -323,6 +323,48 @@ const FORM = `
     );
   })();
 
+  /* Multi-step applications keep the upload behind Continue, so a single pass
+   * before advancing can never reach it. */
+  await (async function uploadStepBehindContinue() {
+    const page = createPage(
+      `
+      <div id="application-form">
+        <div id="step1">
+          <div class="field"><label for="fn">First name</label><input id="fn" name="first_name" /></div>
+          <div class="field"><label for="em">Email</label><input id="em" name="email" type="email" /></div>
+          <button type="button" id="next">Continue</button>
+        </div>
+      </div>
+    `,
+      LIBS.concat(['adapters/registry.js', 'adapters/fallback.js'])
+    );
+
+    const doc = page.document;
+    doc.getElementById('next').addEventListener('click', function () {
+      doc.getElementById('application-form').innerHTML =
+        '<div class="field"><span class="label">Resume</span>' +
+        '<input id="cv" name="resume" type="file" required /></div>' +
+        '<button type="submit">Submit application</button>';
+    });
+
+    const result = await page.window.FillApplyFallbackAdapter.fill({
+      profile: PROFILE,
+      documents: DOCUMENTS,
+      runMode: 'ready',
+      adapterId: 'fallback',
+      fileInputHints: [],
+      options: { formWaitMs: 300, documentWaitMs: 200 }
+    });
+
+    suite.ok(result.advanced, 'the adapter advanced past the first step');
+    const revealed = doc.getElementById('cv');
+    suite.ok(
+      !!(revealed && revealed.files && revealed.files.length),
+      'the upload control revealed by Continue receives the stored resume'
+    );
+    suite.ok(result.resumeAttached, 'the adapter reports the resume as attached after advancing');
+  })();
+
   /* No stored documents: report it, never guess. */
   await (async function noDocuments() {
     const page = createPage(

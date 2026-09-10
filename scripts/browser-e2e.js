@@ -26,10 +26,24 @@ const ATS_FORM = `<!doctype html><html><body>
     <div class="_fieldEntry"><div class="_label">First Name *</div><div><input id="fn" /></div></div>
     <div class="_fieldEntry"><div class="_label">Last Name *</div><div><input id="ln" /></div></div>
     <div class="_fieldEntry"><div class="_label">Email</div><div><input id="em" type="email" /></div></div>
-    <div class="_fieldEntry"><div class="_label">Phone</div><div><input id="ph" type="tel" /></div></div>
+    <div class="_fieldEntry">
+      <div class="_label">Phone country code</div>
+      <div>
+        <select id="cc" name="phone_country">
+          <option value="">Select...</option>
+          <option value="+1">+1</option>
+          <option value="+966">+966</option>
+        </select>
+      </div>
+    </div>
+    <div class="_fieldEntry"><div class="_label">Mobile number</div><div><input id="ph" name="phone" type="tel" /></div></div>
+    <div class="_fieldEntry"><div class="_label">Postal code</div><div><input id="zip" name="zip" maxlength="5" /></div></div>
     <div class="_fieldEntry"><div class="_label">LinkedIn URL</div><div><input id="li" type="url" /></div></div>
     <div class="_fieldEntry"><div class="_label">Expected salary</div><div><input id="sal" type="number" /></div></div>
-    <div class="_fieldEntry"><div class="_label">Resume</div><div><input id="cv" type="file" /></div></div>
+    <div class="_fieldEntry">
+      <div class="_label">Resume</div>
+      <div><button id="attach" type="button">Attach resume</button></div>
+    </div>
     <div class="_fieldEntry">
       <div class="_label" id="lbl-auth">Are you authorized to work?</div>
       <button id="auth" type="button" aria-haspopup="listbox" aria-labelledby="lbl-auth">Select...</button>
@@ -38,6 +52,22 @@ const ATS_FORM = `<!doctype html><html><body>
     <button type="submit">Submit application</button>
   </div>
   <script>
+    // The upload control does not exist until Attach is clicked, and the
+    // handler then calls input.click() — which opens the operating system's
+    // file chooser unless the extension intercepts it.
+    document.getElementById('attach').addEventListener('click', function () {
+      var input = document.getElementById('cv');
+      if (!input) {
+        input = document.createElement('input');
+        input.type = 'file';
+        input.id = 'cv';
+        input.name = 'resume';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+      }
+      input.click();
+    });
+
     // A react-select style dropdown: options are portalled to <body> two
     // frames later, so a same-tick query can never see them.
     document.getElementById('auth').addEventListener('click', function () {
@@ -76,10 +106,21 @@ const PROFILE = {
   fullName: 'Chaudhary Zahid Ali',
   email: 'zahid@example.com',
   phone: '+966500000000',
+  phoneCountry: '+966',
+  zip: '10018-1234',
   linkedin: 'https://linkedin.com/in/zahid',
   authorizedToWork: 'Yes',
   customAnswers: { expectedSalary: '25000 SAR' },
   customQA: [{ question: 'Why should we hire you', answer: 'Fifteen years in FP&A.' }]
+};
+
+/** Stands in for the resume loaded through App Settings ahead of applying. */
+const DOCUMENTS = {
+  resume: {
+    name: 'zahid-ali-cv.pdf',
+    mime: 'application/pdf',
+    base64: Buffer.from('%PDF-1.4 end-to-end resume', 'utf8').toString('base64')
+  }
 };
 
 function serve(port, body) {
@@ -142,6 +183,16 @@ function check(condition, message) {
     const frames = page.frames();
     check(frames.length >= 2, 'career page hosts a cross-origin application iframe');
 
+    // Counting the dialog Chrome would have shown is the only honest way to
+    // prove the applicant is never sent back to their file system.
+    let fileChoosersOpened = 0;
+    const pageSession = await page.createCDPSession();
+    await pageSession.send('Page.enable');
+    await pageSession.send('Page.setInterceptFileChooserDialog', { enabled: true });
+    pageSession.on('Page.fileChooserOpened', function () {
+      fileChoosersOpened += 1;
+    });
+
     // Resolve the tab id the way the runner does, then run the real injection path.
     const tabId = await worker.evaluate(async function (url) {
       const tabs = await chrome.tabs.query({});
@@ -153,18 +204,19 @@ function check(condition, message) {
     check(tabId != null, 'runner can resolve the job tab');
 
     const result = await worker.evaluate(
-      async function (id, profile) {
+      async function (id, profile, documents) {
         return globalThis.FillApplyRunner.injectAndFill(
           id,
           profile,
-          {},
+          documents,
           'fill',
           { actionDelayMinMs: 50, actionDelayMaxMs: 120, focusHud: false },
           { id: 'e2e', url: '' }
         );
       },
       tabId,
-      PROFILE
+      PROFILE,
+      DOCUMENTS
     );
 
     console.log('  runner result: ' + JSON.stringify({
@@ -187,26 +239,37 @@ function check(condition, message) {
         const el = document.getElementById(id);
         return el ? el.value : null;
       };
+      const cv = document.getElementById('cv');
       return {
         fn: val('fn'),
         ln: val('ln'),
         em: val('em'),
+        cc: val('cc'),
         ph: val('ph'),
+        zip: val('zip'),
         li: val('li'),
         sal: val('sal'),
         why: val('why'),
-        auth: document.getElementById('auth').textContent.trim()
+        auth: document.getElementById('auth').textContent.trim(),
+        resume: cv && cv.files && cv.files[0] ? cv.files[0].name : null,
+        resumeSize: cv && cv.files && cv.files[0] ? cv.files[0].size : 0
       };
     });
     console.log('  form values: ' + JSON.stringify(values));
 
     check(values.fn === 'Zahid', 'first name filled from a wrapper-div label');
     check(values.em === 'zahid@example.com', 'email filled');
-    check(values.ph === '+966500000000', 'phone filled');
+    check(values.cc === '+966', 'phone country code selected in its own control');
+    check(values.ph === '500000000', 'phone field beside it gets the national number');
+    check(values.zip === '10018', 'postal code shortened to the field maxlength');
     check(values.li === PROFILE.linkedin, 'linkedin filled');
     check(values.sal === '25000', 'salary coerced for a number input');
     check(values.why === 'Fifteen years in FP&A.', 'free-text question answered from customQA');
     check(values.auth === 'Yes', 'async portalled listbox option selected');
+    check(values.resume === 'zahid-ali-cv.pdf', 'the preloaded resume is attached to the upload control');
+    check(values.resumeSize > 0, 'the attached resume carries its bytes');
+    check(fileChoosersOpened === 0, 'no file chooser dialog was opened (' + fileChoosersOpened + ')');
+    check(!!(result && result.resumeAttached), 'the run reports the resume as attached');
 
     const requiredReported = (result.details || []).filter(function (d) {
       return d && d.required;
