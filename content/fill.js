@@ -459,6 +459,43 @@
     return filled;
   }
 
+  /**
+   * Open-application step: on job overview / few fillable fields, click Apply-start once.
+   * Allowed in fill, ready, AND submit (opening is not final submit).
+   * Returns a result object when clicked (caller / runner should wait + re-detect);
+   * returns null when form already open or no CTA.
+   */
+  function tryOpenApplication(options) {
+    options = options || {};
+    if (options.skipApplyStart) return null;
+    const syn = global.FillApplySynonyms;
+    if (!syn || typeof syn.tryClickApplyStart !== 'function') return null;
+
+    const open = syn.tryClickApplyStart(document, {
+      minFields: options.minOpenFormFields
+    });
+    if (!open || !open.clicked) return null;
+
+    return {
+      ok: true,
+      clickedApplyStart: true,
+      reDetect: true,
+      handedOff: true,
+      deferToPageAdapter: true,
+      externalApply: false,
+      filled: 0,
+      unmatched: 0,
+      total: 0,
+      submitted: false,
+      message:
+        'Clicked "' +
+        (open.text || 'Apply') +
+        '" to open the application — waiting to re-detect / fill',
+      applyStartText: open.text || '',
+      applyStartReason: open.reason || 'clicked'
+    };
+  }
+
   function run(profile, options) {
     options = options || {};
     const highlightUnmatched = !!options.highlightUnmatched;
@@ -466,6 +503,10 @@
     if (!map) {
       return { ok: false, error: 'FillApplyFieldMap not loaded', filled: 0, unmatched: 0 };
     }
+
+    // Before filling: open Apply when still on a job detail / overview page.
+    const opened = tryOpenApplication(options);
+    if (opened) return opened;
 
     const inspection = inspectForm(document);
     clearHighlights();
@@ -637,12 +678,33 @@
     const buttons = document.querySelectorAll(
       'button[type="submit"], input[type="submit"], button, input[type="button"], a[role="button"]'
     );
+    const formOpen =
+      syn && typeof syn.isApplicationFormOpen === 'function'
+        ? syn.isApplicationFormOpen(document)
+        : true;
+    const isExcluded =
+      syn && syn.isExcludedApplyCta
+        ? syn.isExcludedApplyCta
+        : function (t) {
+            return /\b(auto[- ]?apply|upgrade|subscribe)\b/i.test(t);
+          };
     for (let i = 0; i < buttons.length; i++) {
       const btn = buttons[i];
       if (btn.disabled) continue;
       const text = syn && syn.buttonText ? syn.buttonText(btn) : (
         (btn.textContent || '') + ' ' + (btn.value || '') + ' ' + (btn.getAttribute('aria-label') || '') + ' ' + (btn.id || '')
       ).replace(/\s+/g, ' ').trim();
+      if (isExcluded(text)) continue;
+      // If form not open yet, leave Apply-start to tryOpenApplication — do not "submit" overview CTAs
+      if (
+        !formOpen &&
+        syn &&
+        syn.isApplyStartCta &&
+        syn.isApplyStartCta(text) &&
+        !(syn.isFinalSubmitCta && syn.isFinalSubmitCta(text))
+      ) {
+        continue;
+      }
       if (isApply(text) || /submit_app|submit-app|btn-submit|btn-apply/i.test(btn.id + ' ' + btn.className)) {
         if (/\bnext\b|\bcontinue\b/i.test(text) && !/\bsubmit\b|\bapply\b/i.test(text)) continue;
         try {
@@ -664,6 +726,7 @@
     fillCustomDropdowns: fillCustomDropdowns,
     clickContinueButtons: clickContinueButtons,
     clickSubmitButtons: clickSubmitButtons,
+    tryOpenApplication: tryOpenApplication,
     getLabelText: getLabelText
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

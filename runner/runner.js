@@ -31,6 +31,7 @@
     'adapters/ats/icims.js',
     'adapters/ats/cats.js',
     'adapters/ats/recruitee.js',
+    'adapters/ats/teamtailor.js',
     'adapters/boards/indeed.js',
     'adapters/boards/linkedin.js',
     'adapters/boards/naukrigulf.js',
@@ -791,13 +792,17 @@
 
           fillResult = await injectAndFill(tab.id, profile, documents, runMode, config);
 
-          // WWR (and similar boards): Apply now opened an external ATS host —
-          // wait for navigation and re-detect / fill with the destination adapter (e.g. CATS).
-          // Only re-run when the tab hostname actually changed (avoids Apply-click loops).
+          // External Apply handoff OR universal Apply-start (same-host modal / form open):
+          // wait for load/overlay, then re-detect / fill. Host-change required for pure
+          // externalApply; clickedApplyStart / reDetect re-runs even on same host (once).
           if (
             fillResult &&
             fillResult.ok !== false &&
-            (fillResult.deferToPageAdapter || fillResult.handedOff || fillResult.externalApply) &&
+            (fillResult.deferToPageAdapter ||
+              fillResult.handedOff ||
+              fillResult.externalApply ||
+              fillResult.clickedApplyStart ||
+              fillResult.reDetect) &&
             !(fillResult.filled > 0) &&
             !fillResult.submitted &&
             !fillResult.needsHuman
@@ -805,7 +810,7 @@
             try {
               await sleep(700 + Math.floor(Math.random() * 500));
               await waitTabComplete(tab.id, 45000);
-              await sleep(400 + Math.floor(Math.random() * 300));
+              await sleep(500 + Math.floor(Math.random() * 400));
               let postUrl = '';
               try {
                 const postTab = await chrome.tabs.get(tab.id);
@@ -819,13 +824,29 @@
               } catch (_eHost) {
                 hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
               }
-              if (hostChanged) {
+              const sameHostOpen =
+                !!(fillResult.clickedApplyStart || fillResult.reDetect);
+              if (hostChanged || sameHostOpen) {
                 const handed = await injectAndFill(tab.id, profile, documents, runMode, config);
                 if (handed) {
-                  handed.externalApply = true;
+                  if (hostChanged) handed.externalApply = true;
+                  if (fillResult.clickedApplyStart) handed.fromApplyStart = true;
                   handed.fromBoardHandoff = (fillResult && fillResult.adapterId) || true;
                   if (!handed.message && fillResult && fillResult.message) {
                     handed.message = fillResult.message;
+                  }
+                  // Avoid infinite Apply-start loops: if second pass also only clicked Apply, stop.
+                  if (
+                    handed.clickedApplyStart &&
+                    fillResult.clickedApplyStart &&
+                    !(handed.filled > 0)
+                  ) {
+                    handed.ok = true;
+                    handed.clickedApplyStart = false;
+                    handed.reDetect = false;
+                    handed.message =
+                      (handed.message || fillResult.message || 'Apply clicked') +
+                      ' — form still not open; open Apply manually or check page';
                   }
                   fillResult = handed;
                 }

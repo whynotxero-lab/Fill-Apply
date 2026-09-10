@@ -92,7 +92,8 @@
     { id: 'smartrecruiters', name: 'SmartRecruiters', category: 'ats', hosts: ['jobs.smartrecruiters.com', 'smartrecruiters.com'], hostRe: /smartrecruiters\.com/i },
     { id: 'icims', name: 'iCIMS', category: 'ats', hosts: ['icims.com', 'careers-*.icims.com'], hostRe: /icims\.com/i },
     { id: 'cats', name: 'CATS', category: 'ats', hosts: ['catsone.com', 'www.catsone.com'], hostRe: /catsone\.com/i },
-    { id: 'recruitee', name: 'Recruitee', category: 'ats', hosts: ['recruitee.com', 'www.recruitee.com'], hostRe: /(^|\.)recruitee\.com$/i }
+    { id: 'recruitee', name: 'Recruitee', category: 'ats', hosts: ['recruitee.com', 'www.recruitee.com'], hostRe: /(^|\.)recruitee\.com$/i },
+    { id: 'teamtailor', name: 'Teamtailor', category: 'ats', hosts: ['teamtailor.com', 'www.teamtailor.com', 'app.teamtailor.com'], hostRe: /(^|\.)teamtailor\.com$/i }
   ];
 
   var index = [];

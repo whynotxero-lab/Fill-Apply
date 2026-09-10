@@ -4,11 +4,11 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
-**Adaptive fill:** synonym CTAs (Apply/Apply Now/…) and Resume≈CV via `lib/synonyms.js` + generic fallback for unknown hosts.
+**Adaptive fill:** synonym CTAs (Apply / Apply Now / Start Apply / Apply for this Job / …) and Resume≈CV via `lib/synonyms.js` + **universal Apply-start** (click Apply to open the form when still on a job overview) + generic fallback for unknown hosts.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.9.9** — **No invented profile fields**: empty required answers pause with a **requireInteraction** high-alert notification (`Fill & Apply — profile field needed`); Zahid General cleaned (`gender: Male`, nationality/salary/sponsorship/notice/Over 18 cleared). Prior **1.9.8**: **Zahid General** built-in template; prior: **eFinancialCareers** account-first (Sign in / Register pause) + **Your application** modal (first/last name, resume DataTransfer); **fill** stages modal only; **ready/submit** clicks Apply → employer handoff / re-detect; iCIMS richer Candidate Profile + SSO Connected; LinkedIn External Apply → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
+**Version 1.10.0** — **Universal Apply-start**: on job detail / overview pages with few fillable fields, Fill / Ready / Submit clicks **Apply / Apply Now / Start Apply / Apply for this Job / Apply here** once to open the form (never AI Auto-Apply / Upgrade / Easy Apply — LinkedIn owns Easy Apply), then runner / Fill once waits and re-detects. **Teamtailor** ATS adapter (career sites + `*.teamtailor.com`; Noon Academy paste: Apply for this job → modal → screening + CV → Submit application). Prior **1.9.9**: no invented profile fields + high-alert pause; **1.9.8** Zahid General; eFinancialCareers; iCIMS; LinkedIn External → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
 
 ## Load unpacked
 
@@ -31,6 +31,15 @@ Options → **Profiles** at the top:
 - **Documents** (resume/cover) remain **global / shared across profiles** for now; export TBD.
 - **Zahid General**: Options → **Create / Reset Zahid General profile** loads Chaudhary Zahid Ali’s KSA FP&A template, sets it active, and persists it (separate from Default / sample Alex). See `profiles/zahid-general.json`.
 - **Missing profile fields**: adapters never invent nationality, salary, notice period, sponsorship, driving license, street, zip, DOB, etc. When a form needs a blank mapped field, the runner **pauses** and fires a Chrome notification with `requireInteraction: true` — fill in **Options** or on the page, then **Resume**.
+
+## Fill once vs Start (v1.10)
+
+| Action | What it does |
+|--------|----------------|
+| **Fill current page** | Runs on the **active tab**. If the page is still a job overview (few/no application fields) and an Apply-start CTA is visible, clicks it once to open the form / modal, waits, re-detects, then fills. Does **not** require queue URLs. |
+| **Start** | Processes **queued** job URLs only (Options → Mock queue / JobPool). Opens each URL, detects adapter, fills per run mode. |
+
+Never clicks paid **AI Auto-Apply** / **Upgrade** / **Subscribe**. LinkedIn **Easy Apply** stays on the LinkedIn board adapter.
 
 ## Side panel (Chrome right sidebar)
 
@@ -61,7 +70,7 @@ adapters/
   registry.js   register / detect
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
-  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS (multi-step + account human-gate + hCaptcha), CATS, Recruitee (Apply with Indeed → Indeed)
+  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS (multi-step + account human-gate + hCaptcha), CATS, Recruitee (Apply with Indeed → Indeed), Teamtailor (Apply for this job → modal)
   boards/       Indeed (multi-step), LinkedIn (Easy Apply + External Apply → iCIMS), NaukriGulf (Easy Apply modal), eFinancialCareers (account-first modal → employer), Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), Jooble (→ Swooped/ATS), Swooped (Apply manually instead), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/

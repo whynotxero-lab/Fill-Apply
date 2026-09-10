@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Recruitee → Apply with Indeed** (Cloudflare pause → Indeed Easy Apply), **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Recruitee → Apply with Indeed** (Cloudflare pause → Indeed Easy Apply), **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, **Teamtailor** career-site modal apply, **universal Apply-start** CTAs, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -571,12 +571,60 @@ Hosts often: `*.recruitee.com` or company career sites powered by Recruitee (Rec
 - Challenges: `lib/challenges.js`
 - Similar patterns: [Working Nomads → Greenhouse handoff](#working-nomads--greenhouse-handoff), [We Work Remotely — paid source](#we-work-remotely--paid-source)
 
+
+
+## Teamtailor (career site modal)
+
+**Status:** Hardened from live paste (`careers.learnatnoon.com` Mentorship Manager — footer *Applicant tracking system by Teamtailor*).
+
+**Detect:** `*.teamtailor.com`, Teamtailor CDN / Stimulus (`careersite--jobs--form-overlay`, `#job-application-form`, `turbo-frame#application_form`), or footer “Applicant tracking system by Teamtailor” on white-label career hosts.
+
+### Flow
+
+1. Job page with **Apply for this job** (cover + floating).
+2. Click opens **modal/overlay** apply form (“Close modal”).
+3. Screening questions + personal info + **Upload CV** + cover letter.
+4. **Submit application** only in **submit** mode; **fill** / **ready** stop before Submit.
+5. Privacy policy consent checkbox near submit when present.
+
+### Field mapping (no invented answers)
+
+| Question | Source |
+|----------|--------|
+| Total years of working experience (0-2 / 3-5 / 6-9 / 10+) | `yearsExperience` / workHistory / customAnswers; **15+ → 10+**; blank → pause |
+| Current Salary * | `currentSalary` / customAnswers; blank → pause |
+| Notice period (Onspot / 15 / 30 / 60 days) | `noticePeriod`; blank → pause |
+| Citizenship | `nationality`; blank → pause |
+| Currently based in Riyadh? * | **Yes** only if `location` contains Riyadh; else pause (do not invent for Khobar-only) |
+| Largest team size * | `customAnswers` only; blank → pause |
+| شهادة تربوية * | `customAnswers` only; blank → pause |
+| Previously recruited/hired * | `customAnswers` only; blank → pause |
+| Computer tools / operational data rating * | `customAnswers` only; blank → pause |
+| Why hire / first 6 months / metrics * | `coverLetter` / `resumeSummary` / customAnswers — **never** Alex sample boilerplate |
+| First / Last / Email / Phone | profile |
+| Upload CV | DataTransfer resume; Additional files optional |
+| Cover letter | `coverLetter` |
+
+Empty required → `needsHuman` + `missingProfileFields` + high-alert notification; fill in Options or on the page, then **Resume**.
+
+### Operator checklist
+
+1. Reload extension **v1.10.0**.
+2. Open a Teamtailor job URL (or queue it) → **Fill current page** or **Start**.
+3. Expect Apply for this job → modal → mapped fields; Submit only in submit mode.
+4. Pre-fill `customAnswers` for team size, شهادة تربوية, recruitment, tools rating, and current salary / nationality / notice as needed.
+
+### Related
+
+- Adapter: `adapters/ats/teamtailor.js`
+- Universal Apply-start: `lib/synonyms.js`, `content/fill.js`
+
 ## Configured sources (catalog)
 
 Registered in `adapters/catalog.js` (+ hardened overrides where noted).
 
 ### ATS (apply engines)
-**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (multi-step + account human-gate + hCaptcha), **CATS***, **Recruitee*** (Apply with Indeed → Cloudflare → Indeed Easy Apply)
+**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (multi-step + account human-gate + hCaptcha), **CATS***, **Recruitee*** (Apply with Indeed → Cloudflare → Indeed Easy Apply), **Teamtailor*** (Apply for this job → modal)
 
 ### Job boards
 **LinkedIn*** (Easy Apply + External Apply handoff), Upwork, **NaukriGulf***, Indeed*, **eFinancialCareers*** (account-first + modal → employer handoff), FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
@@ -600,7 +648,7 @@ If no adapter matches, Fill & Apply still attempts **inspect → fill** using th
 | Multi-step CTAs | Next, Continue, Save & continue | Synonym CTA match |
 | Final CTAs | Apply, Apply Now, Apply for this Job, Submit Application, Submit & Apply | Synonym CTA match |
 | Challenges | Cloudflare, CAPTCHA, **hCaptcha** (Protected by hCaptcha) | Pause + notify (never bypass) |
-| External handoff | WWR → CATS; Working Nomads → Greenhouse; **Recruitee → Apply with Indeed → Indeed**; Jooble → Swooped → ATS; LinkedIn External Apply → careers/iCIMS; eFinancialCareers modal Apply → employer careers | Click Apply / Apply with Indeed / Apply manually instead → re-detect destination adapter |
+| External handoff / Apply-start | WWR → CATS; Working Nomads → Greenhouse; **Recruitee → Apply with Indeed → Indeed**; Jooble → Swooped → ATS; LinkedIn External Apply → careers/iCIMS; eFinancialCareers modal Apply → employer careers; **Teamtailor** Apply for this job → modal; generic job pages | Click Apply-start → wait / re-detect destination or open modal |
 
 Profile keys commonly mapped: first/last/full name, email, phone (+ country), location/city/state/country/zip/street, LinkedIn, portfolio, website, GitHub, resume URL/summary, work history, education, cover letter, work authorization, sponsorship, `customAnswers` / `customQA`.
 
@@ -610,8 +658,18 @@ Boards rename the same actions. The engine treats these as equivalent (non-exhau
 
 - **Resume file:** Resume, CV, C.V., Curriculum Vitae, Upload Resume/CV, Attach Resume
 - **Cover:** Cover letter, Covering letter, Motivation letter, Letter of interest
-- **Apply CTA:** Apply, Apply Now, Apply for this Job/Role, Submit Application, Submit & Apply, Send Application
+- **Apply-start CTA (open form):** Apply, Apply Now, Start Apply, Start Application, Apply for this Job/Role/Position, Apply here — used when the form is **not** open yet (job overview / few fillable fields). Excludes **Easy Apply** (LinkedIn adapter), **AI Auto-Apply**, **Auto-Apply**, Upgrade, Subscribe, Share, Save job.
+- **Final submit CTA:** Submit Application, Submit & Apply, Send Application, Complete Application (and the same Apply labels when the form **is** already open).
 - **Continue CTA:** Next, Continue, Save and continue, Proceed
+
+### Universal open step (v1.10)
+
+Shared helper (`lib/synonyms.js` `tryClickApplyStart` + `content/fill.js` `tryOpenApplication` + fallback):
+
+1. If fewer than ~2 visible application inputs (or page looks like a job posting) **and** a visible Apply-start CTA exists → **click once**.
+2. Return `clickedApplyStart` / `reDetect` / `handedOff` so the **runner** waits for load/overlay and re-injects (same pattern as WWR/Jooble handoff; also works **same-host** for Teamtailor modals).
+3. Allowed in **fill**, **ready**, and **submit** (opening is not final submit). Does **not** click Submit Application when a filled form is already present.
+4. **Fill current page** performs the same open + one retry on the active tab; **Start** still requires queue URLs.
 
 Same **candidate** and **preferences** across sources; only site chrome changes. Unknown sites rely on fallback + synonyms; paste-library still improves precision.
 

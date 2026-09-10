@@ -49,6 +49,31 @@
       highlightUnmatched: !!options.highlightUnmatched
     });
 
+    // Apply-start open step: form not open yet — runner / Fill once should wait + re-detect
+    if (
+      fillResult &&
+      (fillResult.clickedApplyStart || fillResult.reDetect) &&
+      !(fillResult.filled > 0)
+    ) {
+      return {
+        ok: true,
+        adapterId: ctx.adapterId || 'fallback',
+        clickedApplyStart: true,
+        reDetect: true,
+        handedOff: true,
+        deferToPageAdapter: true,
+        externalApply: !!fillResult.externalApply,
+        filled: 0,
+        unmatched: 0,
+        total: 0,
+        submitted: false,
+        runMode: runMode,
+        message: fillResult.message || 'Clicked Apply to open application — re-detect after load',
+        applyStartText: fillResult.applyStartText || '',
+        error: null
+      };
+    }
+
     let filesAttached = {
       ok: true,
       attached: [],

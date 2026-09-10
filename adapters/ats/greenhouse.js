@@ -902,6 +902,47 @@
         dismissAutofillBanner();
         await sleep(150);
 
+        // Open-application: classic GH "Apply for this job" before #application fields
+        try {
+          var syn = global.FillApplySynonyms;
+          var appRoot = document.querySelector(
+            '#application, #application-form, form#application, #main_fields'
+          );
+          var appOpen =
+            appRoot &&
+            syn &&
+            typeof syn.countFillableApplicationInputs === 'function' &&
+            syn.countFillableApplicationInputs(appRoot) >= 2;
+          if (!appOpen && syn && typeof syn.tryClickApplyStart === 'function') {
+            var opened = syn.tryClickApplyStart(document, {});
+            if (opened && opened.clicked) {
+              await sleep(500 + Math.floor(Math.random() * 300));
+              appRoot = document.querySelector(
+                '#application, #application-form, form#application, #main_fields'
+              );
+              appOpen =
+                appRoot &&
+                syn.countFillableApplicationInputs(appRoot) >= 2;
+              if (!appOpen) {
+                return {
+                  ok: true,
+                  adapterId: 'greenhouse',
+                  clickedApplyStart: true,
+                  reDetect: true,
+                  handedOff: true,
+                  deferToPageAdapter: true,
+                  filled: 0,
+                  unmatched: 0,
+                  total: 0,
+                  submitted: false,
+                  message:
+                    'Clicked Apply for this job (Greenhouse) — waiting for application form'
+                };
+              }
+            }
+          }
+        } catch (_openErr) {}
+
         // 1) Attach files FIRST (DataTransfer — before any continue/submit)
         var filesAttached = attachGreenhouseFiles(documents);
         if (filesAttached.resumeAttached) totalFilled++;

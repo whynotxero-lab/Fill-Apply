@@ -63,6 +63,7 @@
     'adapters/ats/icims.js',
     'adapters/ats/cats.js',
     'adapters/ats/recruitee.js',
+    'adapters/ats/teamtailor.js',
     'adapters/boards/indeed.js',
     'adapters/boards/linkedin.js',
     'adapters/boards/naukrigulf.js',
@@ -535,9 +536,70 @@
         ]
       });
 
-      const result = results && results[0] && results[0].result;
-      if (!result || !result.ok) {
+      let result = results && results[0] && results[0].result;
+
+      // Apply-start / modal open: wait briefly and fill once more on the active tab
+      if (
+        result &&
+        result.ok !== false &&
+        (result.clickedApplyStart || result.reDetect || result.handedOff || result.deferToPageAdapter) &&
+        !(result.filled > 0) &&
+        !result.submitted &&
+        !result.needsHuman
+      ) {
+        setStatus('Opened Apply — waiting for form…');
+        await new Promise(function (r) { setTimeout(r, 900); });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
+        const results2 = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: function (profileArg, documentsArg, opts) {
+            const registry = globalThis.FillApplyRegistry;
+            const adapter = registry ? registry.detect(location.href, document) : null;
+            if (!adapter || typeof adapter.fill !== 'function') {
+              if (!globalThis.__fillApply) return { ok: false, error: 'Fill helper missing' };
+              return globalThis.__fillApply.run(profileArg, opts);
+            }
+            return adapter.fill({
+              profile: profileArg,
+              documents: documentsArg,
+              runMode: opts.runMode || 'fill',
+              autoSubmit: opts.runMode === 'submit',
+              options: opts,
+              adapterId: adapter.id,
+              submitSelector: adapter.submitSelector,
+              fileInputHints: adapter.fileInputHints,
+              fieldMaps: adapter.fieldMaps
+            });
+          },
+          args: [
+            profile,
+            documents,
+            { highlightUnmatched: highlightUnmatched, runMode: runMode }
+          ]
+        });
+        const result2 = results2 && results2[0] && results2[0].result;
+        if (result2) result = result2;
+      }
+
+      if (!result || result.ok === false) {
         setStatus((result && result.error) || 'Fill failed.', 'err');
+        return;
+      }
+      if (result.needsHuman) {
+        setStatus(
+          result.error ||
+            'Paused — missing profile field(s): ' +
+              ((result.missingProfileFields || []).join(', ') || 'see Options'),
+          'warn'
+        );
+        return;
+      }
+      if (result.clickedApplyStart && !(result.filled > 0)) {
+        setStatus(
+          result.message ||
+            'Clicked Apply to open the form — run Fill current page again if fields are not filled yet.',
+          'warn'
+        );
         return;
       }
       const filesN =
