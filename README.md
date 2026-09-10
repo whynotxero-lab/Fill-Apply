@@ -6,9 +6,9 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Adaptive fill:** synonym CTAs (Apply/Apply Now/…) and Resume≈CV via `lib/synonyms.js` + generic fallback for unknown hosts.
 
-**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
+**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.9.5** — **iCIMS** richer Candidate Profile (Riyadh Air: **CV** label, passport names, nationality/gender/notice period, employment/education blocks, marketing consent prefer No) + **SSO Connected/Disconnect** skips auth pause; Create-login human gate unchanged when passwords present; LinkedIn External Apply → iCIMS; hCaptcha pause; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
+**Version 1.9.6** — **eFinancialCareers** account-first (Sign in / Register pause) + **Your application** modal (first/last name, resume DataTransfer); **fill** stages modal only; **ready/submit** clicks Apply → employer handoff / re-detect; iCIMS richer Candidate Profile + SSO Connected; LinkedIn External Apply → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
 
 ## Load unpacked
 
@@ -60,7 +60,7 @@ adapters/
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
   ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS (multi-step + account human-gate + hCaptcha), CATS
-  boards/       Indeed (multi-step), LinkedIn (Easy Apply + External Apply → iCIMS), NaukriGulf (Easy Apply modal), Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), Jooble (→ Swooped/ATS), Swooped (Apply manually instead), …
+  boards/       Indeed (multi-step), LinkedIn (Easy Apply + External Apply → iCIMS), NaukriGulf (Easy Apply modal), eFinancialCareers (account-first modal → employer), Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), Jooble (→ Swooped/ATS), Swooped (Apply manually instead), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
@@ -270,7 +270,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 **ATS:** Greenhouse, Ashby, Lever, Workable, Workday, SmartRecruiters, iCIMS, CATS  
 
-**Boards / aggregators:** LinkedIn (Easy Apply + External Apply → careers/iCIMS), Upwork, NaukriGulf, Remote OK, We Work Remotely, Working Nomads (→ Greenhouse), Indeed, eFinancialCareers, FreeHire, Jooble (→ Swooped/ATS), Swooped (Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In  
+**Boards / aggregators:** LinkedIn (Easy Apply + External Apply → careers/iCIMS), Upwork, NaukriGulf, Remote OK, We Work Remotely, Working Nomads (→ Greenhouse), Indeed, eFinancialCareers (account-first → employer), FreeHire, Jooble (→ Swooped/ATS), Swooped (Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In  
 
 **Agencies:** Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH  
 
@@ -329,7 +329,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 ## Reload test (LinkedIn Easy Apply)
 
-1. `chrome://extensions` → **Reload** Fill & Apply (**v1.9.5**).
+1. `chrome://extensions` → **Reload** Fill & Apply (**v1.9.6**).
 2. Sign in to LinkedIn in the same browser profile (login wall → pause).
 3. Options → seed profile + upload resume → add `customAnswers` for employer Qs (conflict of interest, PIF, salaries, DOB, nationality, privacy, criminal) → Save.
 4. Paste a LinkedIn job URL that shows **Easy Apply** into Mock queue → Save.

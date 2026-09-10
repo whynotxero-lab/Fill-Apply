@@ -37,7 +37,8 @@
     'adapters/boards/weworkremotely.js',
     'adapters/boards/workingnomads.js',
     'adapters/boards/jooble.js',
-    'adapters/boards/swooped.js'
+    'adapters/boards/swooped.js',
+    'adapters/boards/efinancialcareers.js'
   ];
 
   let loopActive = false;

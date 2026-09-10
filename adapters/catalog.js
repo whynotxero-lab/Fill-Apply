@@ -58,7 +58,7 @@
     { id: 'remoteok', name: 'Remote OK', category: 'board', hosts: ['remoteok.com', 'remoteok.io'], hostRe: /remoteok\.(com|io)/i },
     { id: 'weworkremotely', name: 'We Work Remotely', category: 'board', hosts: ['weworkremotely.com'], hostRe: /weworkremotely\.com/i },
     { id: 'indeed', name: 'Indeed', category: 'board', hosts: ['indeed.com', 'www.indeed.com', 'pk.indeed.com', 'ae.indeed.com'], hostRe: /(^|\.)indeed\.com$/i },
-    { id: 'efinancialcareers', name: 'eFinancialCareers', category: 'board', hosts: ['efinancialcareers.com'], hostRe: /efinancialcareers\.com/i },
+    { id: 'efinancialcareers', name: 'eFinancialCareers', category: 'board', hosts: ['efinancialcareers.com', 'www.efinancialcareers.com'], hostRe: /efinancialcareers\.com/i },
     { id: 'freehire', name: 'FreeHire', category: 'board', hosts: ['freehire.com', 'www.freehire.com'], hostRe: /freehire\.com/i },
     { id: 'workingnomads', name: 'Working Nomads', category: 'board', hosts: ['workingnomads.com', 'www.workingnomads.com'], hostRe: /workingnomads\.com/i },
     { id: 'jooble', name: 'Jooble', category: 'board', hosts: ['jooble.org', 'www.jooble.org'], hostRe: /jooble\.org/i },

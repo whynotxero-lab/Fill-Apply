@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.9.5",
-  "description": "Queue-driven job-application filler with multi-profile Options: LinkedIn Easy Apply + External Apply (PepsiCo/Riyadh Air→iCIMS), iCIMS richer Candidate Profile (CV, nationality, notice, employment/education) + SSO Connected skip + account human-gate, hCaptcha pause, Jooble→Swooped, Working Nomads→Greenhouse, WWR→CATS, Ashby caps, submit-tab keep-N, PDF reports, challenge/auth-wall pause, fill/ready/submit.",
+  "version": "1.9.6",
+  "description": "Queue-driven job-application filler with multi-profile Options: eFinancialCareers account-first + Your application modal (name/resume) → employer handoff, LinkedIn Easy Apply + External Apply (PepsiCo/Riyadh Air→iCIMS), iCIMS richer Candidate Profile + SSO Connected skip + account human-gate, hCaptcha pause, Jooble→Swooped, Working Nomads→Greenhouse, WWR→CATS, Ashby caps, submit-tab keep-N, PDF reports, challenge/auth-wall pause, fill/ready/submit.",
   "permissions": [
     "storage",
     "activeTab",

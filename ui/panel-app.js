@@ -48,6 +48,7 @@
     'lib/synonyms.js',
     'lib/field-map.js',
     'lib/files.js',
+    'lib/auth-walls.js',
     'lib/challenges.js',
     'content/fill.js',
     'adapters/registry.js',
@@ -68,7 +69,8 @@
     'adapters/boards/weworkremotely.js',
     'adapters/boards/workingnomads.js',
     'adapters/boards/jooble.js',
-    'adapters/boards/swooped.js'
+    'adapters/boards/swooped.js',
+    'adapters/boards/efinancialcareers.js'
   ];
 
   function setStatus(text, kind) {

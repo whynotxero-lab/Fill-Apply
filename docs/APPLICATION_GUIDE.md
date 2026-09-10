@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -467,6 +467,43 @@ Footer marker: **Powered by CATS**.
 - Catalog: `jooble`, `swooped` in `adapters/catalog.js`
 - Similar patterns: [Working Nomads → Greenhouse](#working-nomads--greenhouse-handoff), [We Work Remotely — paid source](#we-work-remotely--paid-source)
 
+## eFinancialCareers — account-first + employer handoff
+
+**Status:** Account-first board. Job pages require **Sign in / Register**. Apply opens an on-site **"Your application"** modal, then typically **redirects to the employer website** to finish the application.
+
+### Operator paste (example)
+
+1. Job page on `efinancialcareers.com` — **Sign in / Register** required (account-first)
+2. **Apply now** → popup **"Your application"**: First name*, Last name*, Upload Resume* (DOC/DOCX/PDF up to 3MB), **Apply**
+3. Clicking **Apply** shares your profile with the company and **redirects to the employer website** to complete the application
+4. Example destination: **AIIB Career Site** (`aiib.org` careers) with another **Apply Now** — hand off / re-detect destination adapter or fallback
+
+### What Fill & Apply does today
+
+1. Detects eFinancialCareers hosts (`efinancialcareers.com`).
+2. If a **Sign in / Register** wall is present → **needsHuman** pause via `lib/auth-walls.js` (account required). **Never invents credentials.**
+3. Clicks **Apply now** on the job page.
+4. Fills the **"Your application"** modal: First name / Last name from the active profile; **Upload Resume** via DataTransfer (DOC/DOCX/PDF).
+5. Modes:
+   - **fill** — fill modal fields only; do **not** click modal **Apply** (avoids profile share / redirect)
+   - **ready** / **submit** — after fill, click modal **Apply** so navigation can reach the employer form
+6. On host change away from eFinancialCareers → `externalApply` / `deferToPageAdapter` / `handedOff`; runner re-injects and `registry.detect` fills the destination (company careers / ATS) or generic fallback.
+
+### Operator checklist
+
+1. Create / sign in to an **eFinancialCareers account** before queueing jobs.
+2. Ensure the Fill & Apply profile has first name, last name, and a stored **resume** (≤3MB DOC/DOCX/PDF).
+3. Prefer **ready** or **submit** when you want the extension to click modal Apply and continue on the employer site; use **fill** to stage the modal only.
+4. If paused on Sign in / Register, complete auth manually and **Resume**.
+5. If the employer site (e.g. AIIB) has another Apply Now, destination adapter / fallback continues after handoff.
+
+### Related
+
+- Adapter: `adapters/boards/efinancialcareers.js` (injected in runner / panel `INJECT_FILES`)
+- Catalog: `efinancialcareers` in `adapters/catalog.js`
+- Auth helper: `lib/auth-walls.js`
+- Similar patterns: [Jooble → Swooped / external ATS](#jooble--swooped--external-ats), [Working Nomads → Greenhouse handoff](#working-nomads--greenhouse-handoff), [We Work Remotely — paid source](#we-work-remotely--paid-source)
+
 ## Working Nomads → Greenhouse handoff
 
 **Status:** Discovery board adapter with **external Apply handoff** (same pattern as We Work Remotely → CATS).
@@ -502,7 +539,7 @@ Registered in `adapters/catalog.js` (+ hardened overrides where noted).
 **Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (multi-step + account human-gate + hCaptcha), **CATS***
 
 ### Job boards
-**LinkedIn*** (Easy Apply + External Apply handoff), Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
+**LinkedIn*** (Easy Apply + External Apply handoff), Upwork, **NaukriGulf***, Indeed*, **eFinancialCareers*** (account-first + modal → employer handoff), FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
 
 ### Agencies
 Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH
@@ -523,7 +560,7 @@ If no adapter matches, Fill & Apply still attempts **inspect → fill** using th
 | Multi-step CTAs | Next, Continue, Save & continue | Synonym CTA match |
 | Final CTAs | Apply, Apply Now, Apply for this Job, Submit Application, Submit & Apply | Synonym CTA match |
 | Challenges | Cloudflare, CAPTCHA, **hCaptcha** (Protected by hCaptcha) | Pause + notify (never bypass) |
-| External handoff | WWR → CATS; Working Nomads → Greenhouse; Jooble → Swooped → ATS; LinkedIn External Apply → careers/iCIMS | Click Apply / Apply manually instead → re-detect destination adapter |
+| External handoff | WWR → CATS; Working Nomads → Greenhouse; Jooble → Swooped → ATS; LinkedIn External Apply → careers/iCIMS; eFinancialCareers modal Apply → employer careers | Click Apply / Apply manually instead → re-detect destination adapter |
 
 Profile keys commonly mapped: first/last/full name, email, phone (+ country), location/city/state/country/zip/street, LinkedIn, portfolio, website, GitHub, resume URL/summary, work history, education, cover letter, work authorization, sponsorship, `customAnswers` / `customQA`.
 
@@ -543,6 +580,7 @@ Same **candidate** and **preferences** across sources; only site chrome changes.
 Build a complete **platform account/profile** before queuing applies on:
 
 - NaukriGulf (100% profile or redirect)
+- **eFinancialCareers** (Sign in / Register before Apply; modal then employer handoff)
 - LinkedIn, Indeed, Upwork, Bayt, GulfTalent, Glassdoor, Wellfound
 - We Work Remotely, Remote OK, FlexJobs (also **paid** access where marked)
 
