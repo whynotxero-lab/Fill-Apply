@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Queue-driven job-application filler: submit-only tab keep-N auto-close, PDF apply reports, Indeed multi-step, challenge pause, fill/ready/submit modes.",
   "permissions": [
     "storage",

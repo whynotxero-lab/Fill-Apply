@@ -316,7 +316,6 @@
   loadMockUrls().catch(function (e) { setStatus(mockUrlsStatus, e.message, 'err'); });
   refreshDocsMeta().catch(function () {});
   refreshBucketCounts().catch(function () {});
-})();
 
   const btnLastReport = document.getElementById('btnLastReport');
   const reportStatus = document.getElementById('reportStatus');
@@ -342,3 +341,4 @@
       }
     });
   }
+})();
