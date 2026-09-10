@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.10.0",
-  "description": "Queue-driven job-application filler with multi-profile Options + universal Apply-start (Apply / Apply Now / Start Apply / Apply for this Job opens the form) + Teamtailor ATS (modal apply) + Zahid General + high-alert pause when a required field is blank: Recruitee\u2192Indeed, eFinancialCareers, LinkedIn Easy/External Apply\u2192iCIMS, Jooble\u2192Swooped, WWR\u2192CATS, Ashby caps, PDF reports, fill/ready/submit.",
+  "version": "1.11.0",
+  "description": "Queue-driven job-application filler with lean side panel (Single/Batch), collapsible Options, Application queue, Drive/URL document links, multi-profile, universal Apply-start, Teamtailor + Zahid General, high-alert pause when a required field is blank.",
   "permissions": [
     "storage",
     "activeTab",

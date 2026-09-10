@@ -1,6 +1,17 @@
 (function () {
   'use strict';
 
+  const SECTIONS_KEY = 'fillApply.ui.sections';
+  const DEFAULT_SECTIONS = {
+    profiles: true,
+    profileSettings: false,
+    backend: false,
+    caps: false,
+    applicationQueue: true,
+    documents: false,
+    customQa: false
+  };
+
   const form = document.getElementById('profileForm');
   const qaList = document.getElementById('qaList');
   const statusEl = document.getElementById('status');
@@ -21,13 +32,14 @@
   const mockUrlsMeta = document.getElementById('mockUrlsMeta');
   const mockQueueUrlsEl = document.getElementById('mockQueueUrls');
   const bucketCountsEl = document.getElementById('bucketCounts');
+  const realtimeLogEl = document.getElementById('realtimeLog');
+  const btnClearSessionLog = document.getElementById('btnClearSessionLog');
 
   const profileSelect = document.getElementById('profileSelect');
-  const profileActiveBadge = document.getElementById('profileActiveBadge');
+  const profileChipsEl = document.getElementById('profileChips');
   const profileMgrStatus = document.getElementById('profileMgrStatus');
-  const headerActiveProfile = document.getElementById('headerActiveProfile');
+  const headerActiveChip = document.getElementById('headerActiveChip');
   const formActiveProfileHint = document.getElementById('formActiveProfileHint');
-  const btnProfileNew = document.getElementById('btnProfileNew');
   const btnProfileRename = document.getElementById('btnProfileRename');
   const btnProfileDuplicate = document.getElementById('btnProfileDuplicate');
   const btnProfileSetActive = document.getElementById('btnProfileSetActive');
@@ -38,7 +50,8 @@
     'firstName', 'lastName', 'fullName', 'email', 'phone', 'phoneCountry',
     'nationality', 'gender', 'noticePeriod',
     'location', 'street', 'city', 'state',
-    'country', 'zip', 'postcode', 'linkedin', 'portfolio', 'website', 'github', 'resumeUrl',
+    'country', 'zip', 'postcode', 'linkedin', 'portfolio', 'website', 'github',
+    'resumeUrl', 'coverUrl',
     'resumeSummary', 'workHistory', 'education', 'coverLetter',
     'authorizedToWork', 'requiresSponsorship'
   ];
@@ -50,6 +63,7 @@
   let selectedIdCache = null;
 
   function setStatus(el, text, kind) {
+    if (!el) return;
     el.textContent = text || '';
     el.className = 'status' + (kind ? ' ' + kind : '');
   }
@@ -82,6 +96,41 @@
   function confirmIfDirty(message) {
     if (!dirty) return true;
     return confirm(message || 'You have unsaved profile changes. Discard them?');
+  }
+
+  /* ---- collapsible sections persistence ---- */
+  function loadSectionState() {
+    return new Promise(function (resolve) {
+      chrome.storage.local.get([SECTIONS_KEY], function (result) {
+        var saved = result[SECTIONS_KEY];
+        resolve(Object.assign({}, DEFAULT_SECTIONS, saved && typeof saved === 'object' ? saved : {}));
+      });
+    });
+  }
+
+  function saveSectionState(state) {
+    var payload = {};
+    payload[SECTIONS_KEY] = state;
+    return new Promise(function (resolve) {
+      chrome.storage.local.set(payload, resolve);
+    });
+  }
+
+  async function initSections() {
+    var state = await loadSectionState();
+    document.querySelectorAll('details[data-sec]').forEach(function (el) {
+      var key = el.getAttribute('data-sec');
+      if (!key) return;
+      if (Object.prototype.hasOwnProperty.call(state, key)) {
+        el.open = !!state[key];
+      }
+      el.addEventListener('toggle', function () {
+        loadSectionState().then(function (cur) {
+          cur[key] = el.open;
+          return saveSectionState(cur);
+        });
+      });
+    });
   }
 
   function addQARow(question, answer) {
@@ -158,14 +207,10 @@
   function updateActiveLabels() {
     var meta = findMeta(activeIdCache);
     var name = meta ? meta.name : '—';
-    if (headerActiveProfile) headerActiveProfile.textContent = name;
+    if (headerActiveChip) headerActiveChip.textContent = '★ ' + name;
     if (formActiveProfileHint) {
-      formActiveProfileHint.textContent = meta ? '(editing: ' + meta.name + ')' : '';
-    }
-    var sel = selectedProfileId();
-    if (profileActiveBadge) {
-      var isActive = !!sel && sel === activeIdCache;
-      profileActiveBadge.hidden = !isActive;
+      var selMeta = findMeta(selectedIdCache || activeIdCache);
+      formActiveProfileHint.textContent = selMeta ? '(editing: ' + selMeta.name + ')' : '';
     }
   }
 
@@ -186,7 +231,44 @@
       profileSelect.value = activeIdCache;
       selectedIdCache = activeIdCache;
     }
+    renderProfileChips();
     updateActiveLabels();
+  }
+
+  function renderProfileChips() {
+    if (!profileChipsEl) return;
+    profileChipsEl.innerHTML = '';
+    profilesCache.forEach(function (p) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'profile-chip';
+      btn.setAttribute('role', 'listitem');
+      var label = p.name || 'Untitled';
+      if (p.id === activeIdCache) label = '★ ' + label;
+      btn.textContent = label;
+      if (p.id === selectedIdCache) btn.classList.add('selected');
+      if (p.id === activeIdCache) btn.classList.add('active-mark');
+      btn.addEventListener('click', async function () {
+        selectedIdCache = p.id;
+        profileSelect.value = p.id;
+        updateActiveLabels();
+        renderProfileChips();
+        try {
+          await switchToProfile(p.id);
+        } catch (e) {
+          setStatus(profileMgrStatus, e.message, 'err');
+        }
+      });
+      profileChipsEl.appendChild(btn);
+    });
+    var createBtn = document.createElement('button');
+    createBtn.type = 'button';
+    createBtn.className = 'profile-chip create';
+    createBtn.textContent = '+ Create new profile';
+    createBtn.addEventListener('click', function () {
+      createNewProfile();
+    });
+    profileChipsEl.appendChild(createBtn);
   }
 
   async function refreshProfilesUI(opts) {
@@ -206,11 +288,17 @@
     if (!id) return;
     if (id === activeIdCache && !force) {
       selectedIdCache = id;
+      var profileSame = await FillApplyProfile.getProfileById
+        ? await FillApplyProfile.getProfileById(id)
+        : await FillApplyProfile.getProfile();
+      if (profileSame) fillForm(profileSame);
       updateActiveLabels();
+      renderProfileChips();
       return;
     }
     if (!confirmIfDirty('You have unsaved changes. Discard them and switch profile?')) {
       profileSelect.value = selectedIdCache || activeIdCache;
+      renderProfileChips();
       return;
     }
     await FillApplyProfile.setActiveProfile(id);
@@ -222,13 +310,50 @@
     setStatus(profileMgrStatus, 'Active profile: ' + (findMeta(id) || {}).name, 'ok');
   }
 
+  async function createNewProfile() {
+    if (!confirmIfDirty('You have unsaved changes. Discard them and create a new profile?')) return;
+    var name = prompt('New profile name:', 'New profile');
+    if (name == null) return;
+    name = String(name).trim();
+    if (!name) {
+      setStatus(profileMgrStatus, 'Name required.', 'err');
+      return;
+    }
+    try {
+      var meta = await FillApplyProfile.createProfile(name);
+      activeIdCache = meta.id;
+      selectedIdCache = meta.id;
+      await refreshProfilesUI({ selectId: meta.id });
+      var settings = document.getElementById('sec-profile-settings');
+      if (settings) settings.open = true;
+      setStatus(profileMgrStatus, 'Created and activated "' + meta.name + '".', 'ok');
+    } catch (e) {
+      setStatus(profileMgrStatus, e.message, 'err');
+    }
+  }
+
   form.addEventListener('input', markDirty);
   form.addEventListener('change', markDirty);
 
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
-      await FillApplyProfile.saveProfile(readForm());
+      var data = readForm();
+      await FillApplyProfile.saveProfile(data);
+      // Mirror resume/cover URLs onto documents links when set
+      try {
+        var patch = {};
+        if (data.resumeUrl) patch.resumeLink = data.resumeUrl;
+        if (data.coverUrl) patch.coverLink = data.coverUrl;
+        if (Object.keys(patch).length) {
+          await FillApplyStorage.saveDocuments(patch);
+          var linkEl = document.getElementById('resumeLink');
+          var coverEl = document.getElementById('coverLink');
+          if (linkEl && data.resumeUrl) linkEl.value = data.resumeUrl;
+          if (coverEl && data.coverUrl) coverEl.value = data.coverUrl;
+          await refreshDocsMeta();
+        }
+      } catch (_e) { /* ignore */ }
       clearDirty();
       setStatus(statusEl, 'Saved to active profile.', 'ok');
       await refreshProfilesUI({ loadForm: false, selectId: activeIdCache });
@@ -258,41 +383,6 @@
       setStatus(statusEl, err.message, 'err');
     }
   });
-
-  if (profileSelect) {
-    profileSelect.addEventListener('change', async function () {
-      var id = selectedProfileId();
-      selectedIdCache = id;
-      updateActiveLabels();
-      try {
-        await switchToProfile(id);
-      } catch (e) {
-        setStatus(profileMgrStatus, e.message, 'err');
-      }
-    });
-  }
-
-  if (btnProfileNew) {
-    btnProfileNew.addEventListener('click', async function () {
-      if (!confirmIfDirty('You have unsaved changes. Discard them and create a new profile?')) return;
-      var name = prompt('New profile name:', 'New profile');
-      if (name == null) return;
-      name = String(name).trim();
-      if (!name) {
-        setStatus(profileMgrStatus, 'Name required.', 'err');
-        return;
-      }
-      try {
-        var meta = await FillApplyProfile.createProfile(name);
-        activeIdCache = meta.id;
-        selectedIdCache = meta.id;
-        await refreshProfilesUI({ selectId: meta.id });
-        setStatus(profileMgrStatus, 'Created and activated "' + meta.name + '".', 'ok');
-      } catch (e) {
-        setStatus(profileMgrStatus, e.message, 'err');
-      }
-    });
-  }
 
   if (btnProfileRename) {
     btnProfileRename.addEventListener('click', async function () {
@@ -366,7 +456,6 @@
     });
   }
 
-
   if (btnZahidGeneral) {
     btnZahidGeneral.addEventListener('click', async function () {
       if (!confirmIfDirty('You have unsaved changes. Discard them and create/reset Zahid General?')) return;
@@ -414,8 +503,8 @@
     const urls = await FillApplyStorage.getMockQueueUrls();
     mockQueueUrlsEl.value = urls.join('\n');
     mockUrlsMeta.textContent = urls.length
-      ? urls.length + ' https URL(s) configured — Start serves these into Queued (demo URLs filtered out).'
-      : 'No URLs yet — Start will fail until you add https apply links.';
+      ? urls.length + ' https URL(s) configured — Start (Batch) serves these into Queued.'
+      : 'No URLs yet — Batch Start will prompt to fill the current page or open this queue.';
   }
 
   async function refreshBucketCounts() {
@@ -434,6 +523,62 @@
     } catch (_e) {
       bucketCountsEl.textContent = '';
     }
+  }
+
+  function formatLogEntry(entry) {
+    if (!entry) return '';
+    var ts = entry.ts ? new Date(entry.ts).toLocaleTimeString() : '';
+    var parts = [];
+    if (entry.type) parts.push(entry.type);
+    if (entry.jobId) parts.push('job=' + entry.jobId);
+    if (entry.title) parts.push(entry.title);
+    if (entry.url) parts.push(String(entry.url).slice(0, 60));
+    if (entry.error) parts.push('err: ' + entry.error);
+    if (entry.message) parts.push(entry.message);
+    if (entry.ms != null) parts.push(entry.ms + 'ms');
+    if (entry.mode) parts.push('mode=' + entry.mode);
+    if (!parts.length) {
+      try { parts.push(JSON.stringify(entry)); } catch (_e) { parts.push(String(entry)); }
+    }
+    return { ts: ts, text: parts.join(' · ') };
+  }
+
+  async function refreshRealtimeLog() {
+    if (!realtimeLogEl) return;
+    try {
+      var log = await FillApplyStorage.getSessionLog();
+      var slice = (log || []).slice(-40);
+      if (!slice.length) {
+        realtimeLogEl.innerHTML = '<p class="empty">No session events yet — Start the runner to see live activity.</p>';
+        return;
+      }
+      realtimeLogEl.innerHTML = slice
+        .map(function (e) {
+          var f = formatLogEntry(e);
+          return (
+            '<p class="log-line"><span class="log-ts">' +
+            f.ts +
+            '</span>' +
+            f.text.replace(/</g, '&lt;') +
+            '</p>'
+          );
+        })
+        .join('');
+      realtimeLogEl.scrollTop = realtimeLogEl.scrollHeight;
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
+  if (btnClearSessionLog) {
+    btnClearSessionLog.addEventListener('click', async function () {
+      try {
+        await FillApplyStorage.clearSessionLog();
+        await refreshRealtimeLog();
+      } catch (e) {
+        setStatus(mockUrlsStatus, e.message, 'err');
+      }
+    });
   }
 
   btnSaveConfig.addEventListener('click', async function () {
@@ -474,17 +619,7 @@
       document.getElementById('capDefault').value = String(L.default);
       setStatus(
         configStatus,
-        'Config saved (mode ' +
-          next.runMode +
-          '; delay ' +
-          next.delayMs +
-          'ms; auto-close ' +
-          (next.autoCloseAppliedTab ? 'ON keep ' + next.keepRecentTabs : 'OFF') +
-          '; PDF ' +
-          (next.autoPdfReport ? 'ON' : 'OFF') +
-          '; caps ashby=' +
-          L.ashby +
-          ').',
+        'Config saved (mode ' + next.runMode + '; delay ' + next.delayMs + 'ms).',
         'ok'
       );
     } catch (e) {
@@ -500,11 +635,11 @@
       mockQueueUrlsEl.value = (data.urls || []).join('\n');
       mockUrlsMeta.textContent = data.remaining
         ? data.remaining + ' job(s) in queued from saved https URLs.'
-        : 'No valid https URLs — Start will show: Add job apply URLs in Options (Mock queue)';
+        : 'No valid https URLs — add Target apply URLs above.';
       setStatus(
         mockUrlsStatus,
         data.remaining
-          ? 'Saved ' + data.urls.length + ' URL(s); queued rebuilt (chrome-extension filtered).'
+          ? 'Saved ' + data.urls.length + ' URL(s); queued rebuilt.'
           : 'Saved, but queued is empty (need https:// URLs).',
         data.remaining ? 'ok' : 'err'
       );
@@ -553,7 +688,17 @@
     if (docs.cover && docs.cover.name) {
       parts.push('Cover: ' + docs.cover.name + ' (' + ((docs.cover.base64 || '').length) + ' b64 chars)');
     } else parts.push('Cover: none');
+    if (docs.resumeLink) parts.push('Resume link set');
+    if (docs.coverLink) parts.push('Cover link set');
     docsMeta.textContent = parts.join(' · ') + ' · Shared across profiles';
+    var resumeLinkEl = document.getElementById('resumeLink');
+    var coverLinkEl = document.getElementById('coverLink');
+    if (resumeLinkEl && document.activeElement !== resumeLinkEl) {
+      resumeLinkEl.value = docs.resumeLink || '';
+    }
+    if (coverLinkEl && document.activeElement !== coverLinkEl) {
+      coverLinkEl.value = docs.coverLink || '';
+    }
   }
 
   async function readFileAsDoc(fileInput) {
@@ -570,26 +715,64 @@
       const cover = await readFileAsDoc(document.getElementById('coverFile'));
       if (resume) patch.resume = resume;
       if (cover) patch.cover = cover;
-      if (!resume && !cover) {
-        setStatus(docsStatus, 'Choose at least one file first.', 'err');
+      const resumeLink = (document.getElementById('resumeLink').value || '').trim();
+      const coverLink = (document.getElementById('coverLink').value || '').trim();
+      patch.resumeLink = resumeLink;
+      patch.coverLink = coverLink;
+      if (!resume && !cover && !resumeLink && !coverLink) {
+        setStatus(docsStatus, 'Choose a file or paste a Drive/URL first.', 'err');
         return;
       }
       await FillApplyStorage.saveDocuments(patch);
+      // Also mirror onto active profile URL fields when links provided
+      try {
+        if (resumeLink || coverLink) {
+          var cur = await FillApplyProfile.getProfile();
+          var upd = {};
+          var changed = false;
+          if (resumeLink && resumeLink !== (cur.resumeUrl || '')) {
+            upd.resumeUrl = resumeLink;
+            changed = true;
+          }
+          if (coverLink && coverLink !== (cur.coverUrl || '')) {
+            upd.coverUrl = coverLink;
+            changed = true;
+          }
+          if (changed) {
+            await FillApplyProfile.saveProfile(Object.assign({}, cur, upd));
+            if (upd.resumeUrl && form.elements.namedItem('resumeUrl')) {
+              form.elements.namedItem('resumeUrl').value = upd.resumeUrl;
+            }
+            if (upd.coverUrl && form.elements.namedItem('coverUrl')) {
+              form.elements.namedItem('coverUrl').value = upd.coverUrl;
+            }
+          }
+        }
+      } catch (_e) { /* ignore */ }
       await refreshDocsMeta();
-      setStatus(docsStatus, 'Documents saved to storage.', 'ok');
+      setStatus(docsStatus, 'Documents saved.', 'ok');
     } catch (e) {
       setStatus(docsStatus, e.message, 'err');
     }
   });
 
   btnClearDocs.addEventListener('click', async function () {
-    if (!confirm('Clear stored resume/cover blobs?')) return;
-    await FillApplyStorage.saveDocuments({ resume: null, cover: null });
+    if (!confirm('Clear stored resume/cover blobs and links?')) return;
+    await FillApplyStorage.saveDocuments({
+      resume: null,
+      cover: null,
+      resumeLink: '',
+      coverLink: ''
+    });
     document.getElementById('resumeFile').value = '';
     document.getElementById('coverFile').value = '';
+    document.getElementById('resumeLink').value = '';
+    document.getElementById('coverLink').value = '';
     await refreshDocsMeta();
     setStatus(docsStatus, 'Documents cleared.', 'ok');
   });
+
+  initSections().catch(function () {});
 
   refreshProfilesUI()
     .catch(function (err) {
@@ -601,6 +784,18 @@
   loadMockUrls().catch(function (e) { setStatus(mockUrlsStatus, e.message, 'err'); });
   refreshDocsMeta().catch(function () {});
   refreshBucketCounts().catch(function () {});
+  refreshRealtimeLog().catch(function () {});
+  setInterval(function () {
+    refreshRealtimeLog().catch(function () {});
+    refreshBucketCounts().catch(function () {});
+  }, 2000);
+
+  if (chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener(function (changes, area) {
+      if (area !== 'local') return;
+      if (changes['fillApply.sessionLog']) refreshRealtimeLog().catch(function () {});
+    });
+  }
 
   const btnLastReport = document.getElementById('btnLastReport');
   const reportStatus = document.getElementById('reportStatus');
@@ -626,4 +821,12 @@
       }
     });
   }
+
+  try {
+    var man = chrome.runtime.getManifest && chrome.runtime.getManifest();
+    if (man && man.version) {
+      var verEl = document.getElementById('extVersion');
+      if (verEl) verEl.textContent = 'v' + man.version;
+    }
+  } catch (_e) { /* ignore */ }
 })();

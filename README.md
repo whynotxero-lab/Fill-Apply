@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.10.0** — **Universal Apply-start**: on job detail / overview pages with few fillable fields, Fill / Ready / Submit clicks **Apply / Apply Now / Start Apply / Apply for this Job / Apply here** once to open the form (never AI Auto-Apply / Upgrade / Easy Apply — LinkedIn owns Easy Apply), then runner / Fill once waits and re-detects. **Teamtailor** ATS adapter (career sites + `*.teamtailor.com`; Noon Academy paste: Apply for this job → modal → screening + CV → Submit application). Prior **1.9.9**: no invented profile fields + high-alert pause; **1.9.8** Zahid General; eFinancialCareers; iCIMS; LinkedIn External → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
+**Version 1.11.0** — **Production UI**: collapsible Options sections (persisted), thin sticky title bar, **Application queue** (renamed from Application queue; storage keys compatible), realtime session log, Drive/URL document links (best-effort fetch), lean side panel (Select profile, Application mode, Runner mode Single/Batch, Start runner, live log). Sample/Default profile display name → **Mock**. Prior **1.10.0** — **Universal Apply-start**: on job detail / overview pages with few fillable fields, Fill / Ready / Submit clicks **Apply / Apply Now / Start Apply / Apply for this Job / Apply here** once to open the form (never AI Auto-Apply / Upgrade / Easy Apply — LinkedIn owns Easy Apply), then runner / Fill once waits and re-detects. **Teamtailor** ATS adapter (career sites + `*.teamtailor.com`; Noon Academy paste: Apply for this job → modal → screening + CV → Submit application). Prior **1.9.9**: no invented profile fields + high-alert pause; **1.9.8** Zahid General; eFinancialCareers; iCIMS; LinkedIn External → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
 
 ## Load unpacked
 
@@ -16,28 +16,29 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 2. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
 3. Enable **Developer mode**.
 4. **Load unpacked** → select this folder (contains `manifest.json`).
-5. Open **Options**: manage **profiles** (New / Rename / Duplicate / Delete / Set active, or **Create / Reset Zahid General**), seed/edit the active profile, paste **Mock queue** apply URLs, optionally upload resume/cover (documents are shared across profiles for now).
+5. Open **Options**: manage **profiles** (chips: Set active / Rename / Duplicate / Delete / Create-Reset Zahid), edit **Profile settings**, paste **Application queue** target apply URLs, optionally upload resume/cover or Drive/URL links (documents shared across profiles).
 6. Click the **Fill & Apply** toolbar icon — the UI opens in Chrome’s **right sidebar** (not a tiny popup).
 
 ## Multi-profile (v1.9)
 
-Options → **Profiles** at the top:
+Options → **Profiles** (collapsible; expanded by default):
 
-- Dropdown of profiles by **name** (★ = active)
-- **New profile**, **Rename**, **Duplicate**, **Delete** (cannot delete the last one), **Set active** (selecting from the dropdown also activates)
+- Chips: **Zahid General**, **Mock** (sample Alex renamed), **+ Create new profile** (★ = active)
+- **Set active / Rename / Duplicate / Delete / Create-Reset Zahid**
+- **Profile settings / Identity** is a separate collapsed section (opens while editing)
 - Form edits save into the **active** profile only; switching warns if unsaved
-- Side panel summary shows `ProfileName · Person · email`
-- Storage: `fillApply.profiles` + `fillApply.activeProfileId` in **chrome.storage.local** (survives extension updates). Legacy `fillApply.profile` migrates into a **"Default"** profile on first load.
-- **Documents** (resume/cover) remain **global / shared across profiles** for now; export TBD.
-- **Zahid General**: Options → **Create / Reset Zahid General profile** loads Chaudhary Zahid Ali’s KSA FP&A template, sets it active, and persists it (separate from Default / sample Alex). See `profiles/zahid-general.json`.
-- **Missing profile fields**: adapters never invent nationality, salary, notice period, sponsorship, driving license, street, zip, DOB, etc. When a form needs a blank mapped field, the runner **pauses** and fires a Chrome notification with `requireInteraction: true` — fill in **Options** or on the page, then **Resume**.
+- Side panel shows active applicant `Person · email` only (not chip·person·email)
+- Storage: `fillApply.profiles` + `fillApply.activeProfileId`. Legacy migrates to **"Mock"**. Section open-state: `fillApply.ui.sections`.
+- **Documents**: file upload + optional Resume/Cover Drive/URL (`resumeLink`/`coverLink` + profile `resumeUrl`/`coverUrl`). Fetch→blob is best-effort; Drive auth/CORS → pause + manual upload.
+- **Zahid General**: Create/Reset loads Chaudhary Zahid Ali’s KSA FP&A template (see `profiles/zahid-general.json`).
+- **Missing profile fields**: never invented — high-alert pause + Resume.
 
-## Fill once vs Start (v1.10)
+## Single vs Batch (v1.11)
 
-| Action | What it does |
-|--------|----------------|
-| **Fill current page** | Runs on the **active tab**. If the page is still a job overview (few/no application fields) and an Apply-start CTA is visible, clicks it once to open the form / modal, waits, re-detects, then fills. Does **not** require queue URLs. |
-| **Start** | Processes **queued** job URLs only (Options → Mock queue / JobPool). Opens each URL, detects adapter, fills per run mode. |
+| Runner mode | What **Start runner** does |
+|-------------|----------------------------|
+| **Single** | Fill & Apply on the **current page** (Apply-start + fill). Same as former Fill once. |
+| **Batch** | Processes **queued** URLs from Options → **Application queue**. If the queue is empty, prompts: run on current page? / open Options. |
 
 Never clicks paid **AI Auto-Apply** / **Upgrade** / **Subscribe**. LinkedIn **Easy Apply** stays on the LinkedIn board adapter.
 
@@ -125,7 +126,7 @@ Side panel shows counts: **Queued / Applied / Failed / Cancelled**.
 
 The runner **never** opens `chrome-extension://…/demo/…` (executeScript cannot inject into extension pages). Demo URLs can **never** enter the mock queue.
 
-1. Options → enable **Mock mode** (default) → paste one apply URL per line under **Mock queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save mock URLs & rebuild queued**.
+1. Options → enable **Mock mode** (default) → paste one apply URL per line under **Application queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save & rebuild queued & rebuild queued**.
 2. Confirm **Auto-close old submitted tabs** is ON (default) and set **Keep recent tabs** (3–10, default 5) if using **Submit** mode — fill/ready never auto-close.
 3. Confirm **Auto PDF report** is ON (default) to download an audit PDF after each successful Submit.
 4. Side panel → **Seed sample profile** (once) — includes work auth / sponsorship Yes/No.
@@ -134,7 +135,7 @@ The runner **never** opens `chrome-extension://…/demo/…` (executeScript cann
 7. Click **Start**. The runner opens each queued `https` URL, detects the adapter, fills (and optionally advances / submits), moves the job to applied or failed, prunes oldest submitted tabs beyond the keep window (Submit success only), waits `delayMs`, then opens the next.
 8. Click **Stop** between jobs to halt (current → cancelled; remaining stay queued). **Reset mock queue** rebuilds queued from saved URLs.
 
-If no URLs are configured, Start fails with: **Add job apply URLs in Options (Mock queue)**.
+If no URLs are configured, Start fails with: **Add job apply URLs in Options (Application queue)**.
 
 ### Manual demo form (optional)
 
@@ -263,7 +264,7 @@ Set **Backend base URL** and turn **Mock mode** off.
 | GET | `/profile` | Optional remote profile |
 | GET | `/documents` | `{ resume, cover }` each `{ name, mime, base64 }` or URL |
 
-With mock mode (or empty base URL), `lib/backend.js` serves the in-extension **queued** bucket built from **Options → Mock queue** URLs.
+With mock mode (or empty base URL), `lib/backend.js` serves the in-extension **queued** bucket built from **Options → Application queue** URLs.
 
 ## File attach method
 
@@ -322,7 +323,7 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 
 1. `chrome://extensions` → **Reload** Fill & Apply (v1.8.0).
 2. Options → seed sample profile (includes `phoneCountry`, UAE location, Driving License / car / contracting `customAnswers`) → Save.
-3. Paste an `https://ae.indeed.com/…` or `https://pk.indeed.com/…` (or www) job URL into Mock queue → Save.
+3. Paste an `https://ae.indeed.com/…` or `https://pk.indeed.com/…` (or www) job URL into Application queue → Save.
 4. Side panel → **Auto Ready** or **Auto Submit** → Start.
 5. If Cloudflare / Turnstile appears: run pauses, notification fires, side panel shows **Paused — verify Cloudflare/CAPTCHA** — solve it in the tab (do not expect the extension to click it) → **Resume**.
 6. Confirm steps: Apply with Indeed → contact/location/work-auth/resume/employer Qs → review; Submit only in submit mode; resume file left alone if already shown.
@@ -342,7 +343,7 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 1. `chrome://extensions` → **Reload** Fill & Apply (v1.8.0).
 2. Confirm NaukriGulf profile is **100% complete** on naukrigulf.com (incomplete → profile redirect pause).
 3. Options → seed sample profile (UAE location helps “located in UAE”) → add `customAnswers` for employed / industry questions if you use them → Save.
-4. Paste a NaukriGulf job URL that shows **Easy Apply** into Mock queue → Save.
+4. Paste a NaukriGulf job URL that shows **Easy Apply** into Application queue → Save.
 5. Side panel → **Auto Fill** or **Auto Ready** → Start. Confirm: Easy Apply opens on-page modal, Yes/No answered, **Submit & Apply** not clicked.
 6. Optional: **Auto Submit** → Confirm **Submit & Apply** is clicked; unknown unmapped required question → pause with structure-drift message.
 7. If modal never appears → pause asking you to open Easy Apply manually, then Resume.
@@ -353,7 +354,7 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 1. `chrome://extensions` → **Reload** Fill & Apply (**v1.9.6**).
 2. Sign in to LinkedIn in the same browser profile (login wall → pause).
 3. Options → seed profile + upload resume → add `customAnswers` for employer Qs (conflict of interest, PIF, salaries, DOB, nationality, privacy, criminal) → Save.
-4. Paste a LinkedIn job URL that shows **Easy Apply** into Mock queue → Save.
+4. Paste a LinkedIn job URL that shows **Easy Apply** into Application queue → Save.
 5. Side panel → **Auto Fill** or **Auto Ready** → Start. Confirm: Easy Apply opens, pages fill, Next/Review advance, **Submit application** is **not** clicked.
 6. Optional: **Auto Submit** → Confirm **Submit application** on Review; captcha / missing modal / unmapped required → pause.
 7. External-only Apply jobs are not Easy Apply — use the company ATS URL or expect a structure-drift pause.
@@ -373,8 +374,8 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 | `brand/` | Master assets: `icon-master.png`, `banner.png`, `favicon.ico`, and sized `icon16` / `32` / `48` / `128` / `256.png` |
 | `icons/` | Extension toolbar / store icons used by `manifest.json` (`icon16.png`, `icon32.png`, `icon48.png`, `icon128.png`, `icon256.png`) |
 
-Side panel and Options headers use the wordmark **Fill & Apply** with tagline **Queue. Fill. Apply.** and the mint accent `#22c55e` on a dark navy / blue palette. The side panel is full-height with a sticky brand header and scrollable body (~320–360px wide).
+Options uses a **thin sticky title bar** (logo + name + version + active profile chip) and **collapsible sections**. The side panel is a **lean runner console** (profile select, application mode, Single/Batch, Start/Stop/Resume, bucket pills, live log) with mint accent `#22c55e` on dark navy.
 
 ## Development
 
-No bundler. After edits: **Reload** on `chrome://extensions`, then paste Greenhouse apply URLs into Options → Mock queue → Start / Stop.
+No bundler. After edits: **Reload** on `chrome://extensions`, then paste Greenhouse apply URLs into Options → Application queue → Start / Stop.

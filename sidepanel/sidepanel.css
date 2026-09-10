@@ -394,3 +394,84 @@ button.danger { background: #7f1d1d; color: #fecaca; }
 .caps-note {
   margin: 8px 0 0;
 }
+
+/* Lean runner console (v1.11) */
+.thin-header {
+  padding: 8px 12px;
+  gap: 8px;
+}
+.thin-header .brand-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+.thin-header .brand-text h1 {
+  font-size: 15px;
+}
+.thin-header .tagline {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.panel.lean {
+  gap: 8px;
+  padding: 12px;
+}
+.summary.compact {
+  margin: 0;
+  font-size: 11px;
+}
+.compact-check {
+  font-size: 11px;
+  margin-top: 2px;
+}
+.empty-queue-prompt {
+  background: #1e293b;
+  border: 1px solid #f59e0b55;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+  color: #fde68a;
+}
+.empty-queue-prompt p {
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+.live-log-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0b1220;
+  overflow: hidden;
+}
+.live-log-title {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.live-log {
+  max-height: 110px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+.live-log .log-line { margin: 0 0 3px; word-break: break-word; }
+.live-log .log-ts { color: #64748b; margin-right: 4px; }
+.live-log .empty { color: #64748b; }
+#profileSelect {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  background: #0b1220;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+}

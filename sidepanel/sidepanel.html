@@ -9,93 +9,78 @@
   </head>
   <body>
     <div class="shell">
-      <header class="brand-header sticky-header">
-        <img class="brand-logo" src="../icons/icon48.png" width="40" height="40" alt="" />
+      <header class="brand-header sticky-header thin-header">
+        <img class="brand-logo" src="../icons/icon48.png" width="28" height="28" alt="" />
         <div class="brand-text">
           <h1>Fill &amp; Apply</h1>
-          <p class="tagline">Queue. Fill. Apply.</p>
+          <p class="tagline" id="extVersionTag">v1.11.0</p>
         </div>
       </header>
 
       <div class="scroll-body">
-        <p id="summary" class="summary">Loading…</p>
-
-        <section class="panel">
-          <div class="row">
-            <label class="grow">Delay (sec)
-              <input type="number" id="delaySec" min="0" step="1" value="3" />
-            </label>
-          </div>
+        <section class="panel lean">
+          <label class="grow">Select profile
+            <select id="profileSelect" aria-label="Select profile"></select>
+          </label>
+          <p id="summary" class="summary compact">Loading…</p>
 
           <fieldset class="mode-fieldset">
-            <legend>Run mode</legend>
-            <div class="mode-seg" role="radiogroup" aria-label="Run mode">
+            <legend>Application mode</legend>
+            <div class="mode-seg" role="radiogroup" aria-label="Application mode">
               <label class="mode-seg-item">
                 <input type="radio" name="runMode" value="fill" checked />
                 <span class="mode-seg-label">
                   <strong>Fill</strong>
-                  <small>Fields only</small>
+                  <small>Fields</small>
                 </span>
               </label>
               <label class="mode-seg-item">
                 <input type="radio" name="runMode" value="ready" />
                 <span class="mode-seg-label">
                   <strong>Ready</strong>
-                  <small>Fill + Next</small>
+                  <small>+ Next</small>
                 </span>
               </label>
               <label class="mode-seg-item">
                 <input type="radio" name="runMode" value="submit" />
                 <span class="mode-seg-label">
                   <strong>Submit</strong>
-                  <small>End-to-end</small>
+                  <small>E2E</small>
                 </span>
               </label>
             </div>
           </fieldset>
 
-          <label class="row check auto-close">
-            <input type="checkbox" id="autoCloseAppliedTab" checked />
-            <span>
-              <strong>Auto-close old submitted tabs (keeps last N; Submit mode only)</strong>
-              <span class="sub">Prunes oldest after successful submit — never fill/ready</span>
-            </span>
-          </label>
-
-          <div class="row keep-tabs">
-            <label class="grow">Keep recent tabs
-              <input type="number" id="keepRecentTabs" min="3" max="10" step="1" value="5" />
-            </label>
-          </div>
-
-
-          <fieldset class="caps-fieldset">
-            <legend>Per-source apply caps (1–3)</legend>
-            <div class="caps-grid">
-              <label>Ashby <input type="number" id="capAshby" min="1" max="3" step="1" value="2" /></label>
-              <label>Indeed <input type="number" id="capIndeed" min="1" max="3" step="1" value="2" /></label>
-              <label>Greenhouse <input type="number" id="capGreenhouse" min="1" max="3" step="1" value="2" /></label>
-              <label>Lever <input type="number" id="capLever" min="1" max="3" step="1" value="2" /></label>
-              <label>Default <input type="number" id="capDefault" min="1" max="3" step="1" value="2" /></label>
+          <fieldset class="mode-fieldset">
+            <legend>Runner mode</legend>
+            <div class="mode-seg" role="radiogroup" aria-label="Runner mode">
+              <label class="mode-seg-item">
+                <input type="radio" name="runnerMode" value="single" checked />
+                <span class="mode-seg-label">
+                  <strong>Single</strong>
+                  <small>This page</small>
+                </span>
+              </label>
+              <label class="mode-seg-item">
+                <input type="radio" name="runnerMode" value="batch" />
+                <span class="mode-seg-label">
+                  <strong>Batch</strong>
+                  <small>Queue</small>
+                </span>
+              </label>
             </div>
-            <p class="hint-mini caps-note">Ashby allows at most 3 apps / 60 days; we default to 2. <a href="../docs/APPLICATION_GUIDE.md" target="_blank" rel="noopener">Guide</a></p>
           </fieldset>
 
-          <label class="row check">
-            <input type="checkbox" id="autoPdfReport" checked />
-            <span>
-              <strong>Auto PDF report</strong>
-              <span class="sub">On successful Submit only (Downloads)</span>
-            </span>
-          </label>
-
-          <div class="btn-row reports-row">
-            <button type="button" id="btnLastReport" class="secondary">Last report</button>
+          <div id="emptyQueuePrompt" class="empty-queue-prompt" hidden>
+            <p>No URLs in the queue — run Fill &amp; Apply on the current page?</p>
+            <div class="btn-row">
+              <button type="button" id="btnEmptyYes" class="primary">Yes</button>
+              <button type="button" id="btnEmptyNo" class="secondary">No — open Options</button>
+            </div>
           </div>
-          <ul id="recentReports" class="recent-reports" hidden></ul>
 
           <div class="btn-row">
-            <button type="button" id="btnStart" class="primary">Start</button>
+            <button type="button" id="btnStart" class="primary">Start runner</button>
             <button type="button" id="btnStop" class="danger">Stop</button>
           </div>
 
@@ -104,40 +89,56 @@
             <p id="pauseMessage" class="pause-message">Paused — verify Cloudflare/CAPTCHA</p>
             <button type="button" id="btnResume" class="primary resume-btn">Resume</button>
           </div>
+
           <div id="queueStatus" class="bucket-pills" aria-live="polite">
-            <span class="pill pill-queued"><span class="pill-label">Queued</span> <strong id="countQueued">—</strong></span>
-            <span class="pill pill-applied"><span class="pill-label">Applied</span> <strong id="countApplied">—</strong></span>
-            <span class="pill pill-failed"><span class="pill-label">Failed</span> <strong id="countFailed">—</strong></span>
-            <span class="pill pill-cancelled"><span class="pill-label">Cancelled</span> <strong id="countCancelled">—</strong></span>
+            <span class="pill pill-queued"><span class="pill-label">Q</span> <strong id="countQueued">—</strong></span>
+            <span class="pill pill-applied"><span class="pill-label">A</span> <strong id="countApplied">—</strong></span>
+            <span class="pill pill-failed"><span class="pill-label">F</span> <strong id="countFailed">—</strong></span>
+            <span class="pill pill-cancelled"><span class="pill-label">C</span> <strong id="countCancelled">—</strong></span>
           </div>
           <p id="lastJobTitle" class="muted last-job" hidden></p>
           <p id="lastError" class="err-line" hidden></p>
-        </section>
 
-        <section class="panel">
-          <label class="row check">
+          <div class="live-log-wrap">
+            <strong class="live-log-title">Live log</strong>
+            <div id="liveLog" class="live-log"></div>
+          </div>
+
+          <label class="row check compact-check">
             <input type="checkbox" id="highlightUnmatched" />
-            Highlight unmatched fields
+            Highlight unmatched
           </label>
-          <button type="button" id="btnFill">Fill current page</button>
-          <button type="button" id="btnResetMock" class="secondary">Reset mock queue</button>
-          <button type="button" id="btnSeed" class="secondary">Seed sample profile</button>
-          <button type="button" id="btnOptions">Open options</button>
-          <p class="hint-mini">
-            <strong>Fill current page</strong> on a job detail clicks <strong>Apply / Apply Now / Apply for this Job</strong> to open the form when needed, then fills.
-            <strong>Start</strong> still needs queue URLs (Options → Mock queue).
-            Demo page is manual-only (never queued).
-            Options also via right-click the extension icon → <strong>Options</strong>.
-          </p>
+
+          <div class="btn-row">
+            <button type="button" id="btnOptions" class="secondary">Open options</button>
+          </div>
+          <p class="hint-mini">Delay, caps, keep-tabs, documents, and queue URLs live in Options.</p>
         </section>
 
         <p id="status" class="status" role="status"></p>
+
+        <!-- Hidden compatibility hooks for panel-app (settings moved to Options) -->
+        <input type="hidden" id="delaySec" value="3" />
+        <input type="checkbox" id="autoCloseAppliedTab" checked hidden />
+        <input type="hidden" id="keepRecentTabs" value="5" />
+        <input type="checkbox" id="autoPdfReport" checked hidden />
+        <input type="hidden" id="capAshby" value="2" />
+        <input type="hidden" id="capIndeed" value="2" />
+        <input type="hidden" id="capGreenhouse" value="2" />
+        <input type="hidden" id="capLever" value="2" />
+        <input type="hidden" id="capDefault" value="2" />
+        <button type="button" id="btnFill" hidden>Fill</button>
+        <button type="button" id="btnSeed" hidden>Seed</button>
+        <button type="button" id="btnResetMock" hidden>Reset</button>
+        <button type="button" id="btnLastReport" hidden>Report</button>
+        <ul id="recentReports" hidden></ul>
       </div>
     </div>
 
     <script src="../lib/types.js"></script>
     <script src="../lib/profile.js"></script>
     <script src="../lib/storage.js"></script>
+    <script src="../lib/files.js"></script>
     <script src="../ui/panel-app.js"></script>
   </body>
 </html>

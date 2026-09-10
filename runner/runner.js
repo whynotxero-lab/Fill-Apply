@@ -129,7 +129,7 @@
     }
     if (/^chrome-extension:\/\//i.test(job.url) || /^about:/i.test(job.url)) {
       throw new Error(
-        'Cannot open chrome-extension:// or about: pages in the runner. Add https job apply URLs in Options (Mock queue).'
+        'Cannot open chrome-extension:// or about: pages in the runner. Add https job apply URLs in Options (Application queue).'
       );
     }
     if (!/^https?:\/\//i.test(job.url)) {
@@ -782,7 +782,23 @@
           }
 
           const profile = P ? await P.getProfile() : await B.getProfile();
-          const documents = await B.getDocuments();
+          let documents = await B.getDocuments();
+          // Best-effort Drive/direct URL → blob before attach (CORS may still fail → needsHuman)
+          try {
+            if (
+              global.FillApplyFiles &&
+              typeof global.FillApplyFiles.resolveDocumentLinks === 'function'
+            ) {
+              const resolved = await global.FillApplyFiles.resolveDocumentLinks(documents, profile);
+              documents = resolved.documents || documents;
+              if (resolved.needsManual && resolved.errors && resolved.errors.length) {
+                await pauseForHuman(job, tab.id, 'documents', {
+                  message: resolved.errors[0] || 'Open Drive link or upload file manually'
+                });
+                return getStatusSnapshot();
+              }
+            }
+          } catch (_docLinkErr) { /* continue with whatever blobs we have */ }
 
           let preHandoffUrl = '';
           try {

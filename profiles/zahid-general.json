@@ -5,16 +5,16 @@
   "email": "czahidali@gmail.com",
   "phone": "504131857",
   "phoneCountry": "+966",
-  "location": "Riyadh / Khobar, Saudi Arabia",
-  "street": "",
+  "location": "Riyadh, Saudi Arabia",
+  "street": "Khobar, Ryadh",
   "city": "Riyadh",
   "state": "Riyadh",
   "country": "Saudi Arabia",
   "zip": "",
   "postcode": "",
-  "nationality": "",
+  "nationality": "Pakistan",
   "gender": "Male",
-  "noticePeriod": "",
+  "noticePeriod": "I can start immediately",
   "linkedin": "https://linkedin.com/in/chaudhryzahidali",
   "portfolio": "",
   "website": "",
@@ -24,8 +24,8 @@
   "workHistory": "SIXT, Samara Land Transportation Services Co. Ltd. | Khobar, Saudi Arabia\nFinancial Planning, Analysis & Reporting Manager | Oct 2024 – Sep 2025\n- Led FP&A, forecasting, KPI dashboards, and scenario modeling for planning and investments.\n- Delivered ROI/ROCE appraisals, P&L/cost reviews, and executive reporting aligned to finance-operations.\n\nIndependent Financial Advisory & FP&A Consulting | Islamabad, Pakistan\nFP&A Consultant / Financial Planning, Analysis & Reporting Advisor | Dec 2021 – Jun 2024\n- Multi-year strategic plans, valuations, feasibility studies, budgets/forecasts, and Power BI dashboards for multi-industry clients.\n- Improved profitability and reporting via process automation, scenario planning, and cost initiatives.\n\nPanda Group, Head Office | Saudi Arabia\nManager, Planning, Reporting & Operational Finance | Nov 2017 – Nov 2021\n- Cut Group reporting time by ~4 weeks via VBA automation and standardized workflows.\n- Owned multi-year plans, budgets, rolling forecasts, store capital appraisals (NPV/IRR/ROI), and finance team mentoring.\n\nAlamar Foods Company (Master Franchiser of Domino's Pizza) | Riyadh, Saudi Arabia\nGroup Reporting Manager | Nov 2015 – Nov 2017\n- Led group reporting, budgeting, and forecasting across KSA/MENAP; reduced reporting lag by weeks through automation.\n- KPI dashboards, offer feasibility, and regional liaison with Domino's International and sub-franchisees.\n\nUnited Fuel Company (in partnership with PETRONAS) | Riyadh, Saudi Arabia\nHead of Accounting & Finance / Fractional CFO | Jun 2014 – Oct 2015\n- Built finance function from the ground up (policies, controls, Sage ERP, cash/liquidity, budgeting).\n- Partnered with PETRONAS directors and Group CFO on planning and operational decisions.\n\nAzizia Panda United, Head Office | Riyadh, Saudi Arabia\nAssistant Manager, Planning & Reporting | Feb 2010 – Jun 2014\n- Budgeting, variance analysis, VBA/Oracle MIS, capital appraisals, and executive summaries.\n- Key contributor to Oracle ERP rollout, chart of accounts redesign, and loaded P&L (ABC allocation).\n\nPricewaterhouseCoopers (PwC) | Islamabad, Pakistan\nSupervising Senior, Audit & Assurance | Mar 2006 – Dec 2009\n- Led audits across reporting, controls, and compliance; supervised teams and client communication.\n- Oil & gas, financial services, and public sector engagements; IFRS/GAAP readiness.",
   "education": "MBA Executive — Finance | Virtual University of Pakistan (VUP) | 2018 | CGPA 3.75; B.Com | University of the Punjab, Lahore | 2001; CMA — Institute of Management Accountants (IMA), USA | 2015; ACCA — United Kingdom | 2005",
   "coverLetter": "I am writing to express my interest in a strategic finance / FP&A leadership role where rigorous planning, clear management reporting, and commercial partnership drive better decisions. As a CMA and ACCA-qualified professional with 15+ years across KSA and MENA retail, F&B, mobility, and energy, I bring proven skills in budgeting, forecasting, capital appraisal, and reporting automation. I am based in Saudi Arabia, authorized to work, and ready to contribute immediately to stronger forecast discipline and executive visibility. I would welcome the opportunity to discuss how my experience aligns with your team's priorities.",
-  "authorizedToWork": "",
-  "requiresSponsorship": "",
+  "authorizedToWork": "Yes",
+  "requiresSponsorship": "Yes",
   "customQA": [
     {
       "question": "Expected Salary",
@@ -97,7 +97,7 @@
     },
     {
       "question": "Notice period",
-      "answer": ""
+      "answer": "I can start immediately"
     },
     {
       "question": "Social media",
@@ -109,19 +109,19 @@
     },
     {
       "question": "Authorized to work",
-      "answer": ""
+      "answer": "Yes"
     },
     {
       "question": "Requires sponsorship",
-      "answer": ""
+      "answer": "Yes"
     },
     {
       "question": "Work authorization",
-      "answer": ""
+      "answer": "Yes"
     },
     {
       "question": "Sponsorship",
-      "answer": ""
+      "answer": "Yes"
     }
   ],
   "customAnswers": {
@@ -142,16 +142,17 @@
     "PIF": "",
     "Previously worked at company": "",
     "OFAC": "",
-    "Notice period": "",
+    "Notice period": "I can start immediately",
     "Social media": "https://linkedin.com/in/chaudhryzahidali",
     "LinkedIn": "https://linkedin.com/in/chaudhryzahidali",
-    "Authorized to work": "",
-    "Requires sponsorship": "",
-    "Work authorization": "",
-    "Sponsorship": "",
+    "Authorized to work": "Yes",
+    "Requires sponsorship": "Yes",
+    "Work authorization": "Yes",
+    "Sponsorship": "Yes",
     "Expected Salary / salary expectation": "",
     "salary expectation": "",
     "Located in Saudi Arabia / KSA": "Yes"
   },
-  "name": "Zahid General"
+  "name": "Zahid General",
+  "coverUrl": ""
 }

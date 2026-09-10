@@ -36,7 +36,7 @@ chrome.runtime.onInstalled.addListener(function (details) {
   configureSidePanel();
   if (details.reason === 'install') {
     console.log(
-      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Add https job apply URLs in Options (Mock queue), then Start.'
+      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Add https job apply URLs in Options (Application queue), then Start.'
     );
   }
   FillApplyStorage.getRunConfig().then(function (cfg) {
@@ -131,7 +131,7 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
             lastError: jobs.length
               ? null
               : FillApplyBackend.NO_URLS_ERROR ||
-                'Add job apply URLs in Options (Mock queue)'
+                'Add job apply URLs in Options (Application queue)'
           });
           return { remaining: jobs.length, jobs: jobs, counts: counts };
         }

@@ -30,13 +30,22 @@ Tracked history entries look like:
 
 Stored under `chrome.storage.local` key `fillApply.applyHistory`.
 
+
+
+## Options & side panel layout (v1.11)
+
+- **Options** sections are collapsible (`<details>`); open state persists in `chrome.storage.local` key `fillApply.ui.sections`. Defaults: Profiles + Application queue expanded; Profile settings + Backend collapsed.
+- **Application queue** is the production name for the former Mock queue (storage keys `fillApply.mockQueueUrls` / buckets unchanged). Paste target apply URLs; realtime session log shows while Options is open.
+- **Side panel** is a lean runner: Select profile, Application mode (Fill/Ready/Submit), Runner mode (Single/Batch), Start runner, compact buckets, pause banner, short live log. Delay / keep-tabs / caps / seed live in Options only.
+- **Drive / URL documents**: optional `resumeLink` / `coverLink` (and profile `resumeUrl` / `coverUrl`). Content scripts attempt fetch→blob when CORS allows; authenticated Google Drive links usually fail — pause with “Open Drive link or upload file manually”. Prefer uploading a PDF when possible.
+
 ## Configure in Options
 
 1. Open **Options** (side panel → **Open options**, or right-click the extension icon → **Options**).
 2. Under **Per-source application caps**, set **Ashby / Indeed / Greenhouse / Lever / Default** to **1**, **2**, or **3**.
 3. Values above 3 are rejected by the UI and storage normalizer.
 4. Click **Save runner config**.
-5. The side panel mirrors the same inputs (changes auto-save).
+5. Caps and delay live in **Options** (side panel is lean — open Options to edit).
 
 **Ashby note in the UI:** *Ashby allows at most 3 apps / 60 days; we default to 2.*
 
@@ -45,12 +54,12 @@ Stored under `chrome.storage.local` key `fillApply.applyHistory`.
 Fill & Apply supports **multiple applicant profiles** (v1.9+):
 
 1. Open **Options** → **Profiles** (top of the page).
-2. Use **New profile** / **Rename** / **Duplicate** / **Delete** / **Set active**, or pick a name from the dropdown (sets active).
+2. Use profile **chips** + **Set active / Rename / Duplicate / Delete / Create-Reset Zahid**, or **+ Create new profile**.
 3. Edit Identity / Location / Links / Q&A and click **Save profile** — writes the **active** profile only.
 4. The runner and side panel always use the active profile (`getProfile()`).
-5. Data is stored in `chrome.storage.local` keys `fillApply.profiles` and `fillApply.activeProfileId` so it **survives extension updates**. A legacy single profile migrates into **"Default"** when the multi store is empty.
+5. Data is stored in `chrome.storage.local` keys `fillApply.profiles` and `fillApply.activeProfileId` so it **survives extension updates**. A legacy single profile migrates into **"Mock"** when the multi store is empty (Default is renamed to Mock).
 6. **Documents** (resume/cover) are **shared across profiles for now**. Export of profiles is TBD.
-7. **Zahid General** — built-in one-click template for Chaudhary Zahid Ali (Options → **Create / Reset Zahid General profile**). Creates or resets a named profile, sets it **active**, and persists fields in `chrome.storage.local`. Does not overwrite Default / sample Alex. Backup JSON: `profiles/zahid-general.json`.
+7. **Zahid General** — built-in one-click template for Chaudhary Zahid Ali (Options → **Create / Reset Zahid General profile**). Creates or resets a named profile, sets it **active**, and persists fields in `chrome.storage.local`. Does not overwrite Mock / sample Alex. Backup JSON: `profiles/zahid-general.json`.
 
 ## No invented answers (v1.9.9+)
 
