@@ -4,9 +4,9 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
-**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile prerequisite, per-source caps, Options configuration, diversity survey policy.
+**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.7.1** — Hardened Ashby adapter, per-source apply caps (default 2 / hard max 3), Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
+**Version 1.8.0** — NaukriGulf Easy Apply (on-page modal screening + Submit & Apply), Ashby caps, Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
 
 ## Load unpacked
 
@@ -47,7 +47,7 @@ adapters/
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
   ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS
-  boards/       Indeed (multi-step), LinkedIn, Wellfound, Remote OK, …
+  boards/       Indeed (multi-step), NaukriGulf (Easy Apply modal), LinkedIn, Wellfound, Remote OK, …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
@@ -182,7 +182,7 @@ Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhou
 
 ## NaukriGulf prerequisite
 
-Before queueing NaukriGulf jobs, your **NaukriGulf profile must be 100% complete**. Incomplete profiles redirect to profile completion instead of the job/apply page. Details: [docs/APPLICATION_GUIDE.md](docs/APPLICATION_GUIDE.md#naukrigulf--profile-completeness-required).
+Before queueing NaukriGulf jobs, your **NaukriGulf profile must be 100% complete**. Incomplete profiles redirect to profile completion instead of the job/apply page. Easy Apply uses an on-page screening modal (**Submit & Apply**). Details: [docs/APPLICATION_GUIDE.md](docs/APPLICATION_GUIDE.md#naukrigulf--profile-completeness-required) and [Easy Apply](docs/APPLICATION_GUIDE.md#naukrigulf-easy-apply).
 
 ## Ashby apply flow
 
@@ -270,7 +270,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 ## Reload test (Indeed + Cloudflare)
 
-1. `chrome://extensions` → **Reload** Fill & Apply (v1.7.0).
+1. `chrome://extensions` → **Reload** Fill & Apply (v1.8.0).
 2. Options → seed sample profile (includes `phoneCountry`, UAE location, Driving License / car / contracting `customAnswers`) → Save.
 3. Paste an `https://ae.indeed.com/…` or `https://pk.indeed.com/…` (or www) job URL into Mock queue → Save.
 4. Side panel → **Auto Ready** or **Auto Submit** → Start.
@@ -287,9 +287,19 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 5. Optional: try **Auto Ready** (tabs stay open) / **Auto Submit** (PDF report + keep-N tab prune) on further URLs.
 
 
+## Reload test (NaukriGulf Easy Apply)
+
+1. `chrome://extensions` → **Reload** Fill & Apply (v1.8.0).
+2. Confirm NaukriGulf profile is **100% complete** on naukrigulf.com (incomplete → profile redirect pause).
+3. Options → seed sample profile (UAE location helps “located in UAE”) → add `customAnswers` for employed / industry questions if you use them → Save.
+4. Paste a NaukriGulf job URL that shows **Easy Apply** into Mock queue → Save.
+5. Side panel → **Auto Fill** or **Auto Ready** → Start. Confirm: Easy Apply opens on-page modal, Yes/No answered, **Submit & Apply** not clicked.
+6. Optional: **Auto Submit** → Confirm **Submit & Apply** is clicked; unknown unmapped required question → pause with structure-drift message.
+7. If modal never appears → pause asking you to open Easy Apply manually, then Resume.
+
 ## Reload test (Ashby + caps)
 
-1. `chrome://extensions` → **Reload** Fill & Apply (v1.7.0).
+1. `chrome://extensions` → **Reload** Fill & Apply (v1.8.0).
 2. Options → set Ashby cap to **2** (default) → Save. Seed profile + upload resume.
 3. Paste a `https://jobs.ashbyhq.com/…` apply URL → Save mock queue.
 4. Side panel → **Auto Fill** → Start. Confirm Application tab, fields filled, diversity skipped, no submit.

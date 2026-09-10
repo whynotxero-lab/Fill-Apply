@@ -26,7 +26,8 @@
     'adapters/ats/smartrecruiters.js',
     'adapters/ats/workable.js',
     'adapters/ats/icims.js',
-    'adapters/boards/indeed.js'
+    'adapters/boards/indeed.js',
+    'adapters/boards/naukrigulf.js'
   ];
 
   let loopActive = false;

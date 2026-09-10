@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness and **Easy Apply**, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -93,8 +93,48 @@ If the profile is incomplete, NaukriGulf often **redirects to the profile comple
 
 ### Related
 
-- Adapter stub / host patterns: `adapters/boards/naukrigulf.js`
-- Paste-library: when hardening this source, capture both a complete-profile apply path and an incomplete-profile redirect for regression notes.
+- Adapter: `adapters/boards/naukrigulf.js` (injected like Indeed via runner / panel `INJECT_FILES`)
+- Paste-library: capture a complete-profile Easy Apply path, an incomplete-profile redirect, and a modal with Yes/No screening for regression notes.
+
+## NaukriGulf Easy Apply
+
+NaukriGulf **Easy Apply** jobs open an **on-page popup/modal** (not necessarily a new tab), rather than a multi-page ATS wizard.
+
+### What you see
+
+1. Job page (e.g. Financial Controller) with an **Easy Apply** tag/button.
+2. Clicking Easy Apply opens a modal such as:
+   - Greeting / “Confidential Company would require below details…”
+   - Screening **Yes/No** questions, for example:
+     - Are you currently employed?
+     - Are you currently located in UAE?
+     - Do you have work experience in manufacturing industry?
+   - Buttons: **Submit & Apply** | **Cancel**
+3. **Prerequisite still applies:** profile must be **100% complete** or NaukriGulf redirects to profile completion (adapter pauses — see section above). Diversity surveys are **N/A** on this flow.
+
+### Extension behavior
+
+| Mode | Behavior |
+|------|----------|
+| **fill** | Click Easy Apply if needed, answer mapped Yes/No questions in the modal, **do not** click Submit & Apply |
+| **ready** | Same as fill (modal left ready for human review) |
+| **submit** | Same answers, then click **Submit & Apply** |
+
+Answer mapping (scoped to the modal only):
+
+- Fuzzy match question label → `profile.customAnswers` / `customQA`
+- **Located in UAE** (or similar) → **Yes** when `profile.country` / `location` / city suggests UAE, Dubai, or United Arab Emirates
+- **Currently employed** → `customAnswers` or profile employment fields when set; otherwise left blank in fill/ready
+- **Work experience in … industry** → `customAnswers`; if unknown and **submit** mode → pause for human (structure drift)
+- Easy Apply modal never appears → `needsHuman` pause with a clear error
+- Unknown required screening question in **submit** → pause; in **fill** / **ready** leave unanswered
+
+### Operator tips
+
+1. Ensure NaukriGulf profile is 100% before queueing Easy Apply URLs.
+2. Seed `customAnswers` for recurring screening questions (employed, industry experience, etc.).
+3. Use **Auto Fill** / **Auto Ready** first to confirm the modal and answers; use **Auto Submit** only when mappings look correct.
+4. Reload the extension after upgrading so `adapters/boards/naukrigulf.js` is included in the inject list.
 
 ## Related docs
 

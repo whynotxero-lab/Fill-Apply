@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "Queue-driven job-application filler: Ashby adapter, per-source apply caps (max 3), submit-tab keep-N, PDF reports, Indeed multi-step, challenge pause, fill/ready/submit.",
   "permissions": [
     "storage",
