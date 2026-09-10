@@ -65,7 +65,9 @@
     'adapters/boards/naukrigulf.js',
     'adapters/boards/remoteok.js',
     'adapters/boards/weworkremotely.js',
-    'adapters/boards/workingnomads.js'
+    'adapters/boards/workingnomads.js',
+    'adapters/boards/jooble.js',
+    'adapters/boards/swooped.js'
   ];
 
   function setStatus(text, kind) {

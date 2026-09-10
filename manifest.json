@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.9.0",
-  "description": "Queue-driven job-application filler with multi-profile Options: Working Nomads→Greenhouse, hardened Greenhouse, WWR→CATS, Ashby caps, submit-tab keep-N, PDF reports, Indeed multi-step, challenge pause, fill/ready/submit.",
+  "version": "1.9.1",
+  "description": "Queue-driven job-application filler with multi-profile Options: Jooble→Swooped handoff, Working Nomads→Greenhouse, hardened Greenhouse, WWR→CATS, Ashby caps, submit-tab keep-N, PDF reports, Indeed multi-step, challenge pause, fill/ready/submit.",
   "permissions": [
     "storage",
     "activeTab",

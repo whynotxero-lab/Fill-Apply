@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Jooble → Swooped** assisted-apply handoff, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -289,6 +289,41 @@ Footer marker: **Powered by CATS**.
 - Adapter: `adapters/ats/greenhouse.js` (in runner / panel inject lists)
 - Discovery handoff: [Working Nomads → Greenhouse](#working-nomads--greenhouse-handoff)
 
+
+## Jooble → Swooped / external ATS
+
+**Status:** Discovery board (**Jooble**) + assisted-apply intermediary (**Swooped**). Same handoff pattern as We Work Remotely → CATS / Working Nomads → Greenhouse.
+
+### Operator paste (example)
+
+1. Jooble job page (e.g. a Salla role) → **Apply**
+2. Lands on **Swooped** UI (Find Jobs / Auto Apply / Track Jobs / Resumes / Cover Letters / Upgrade; filters; company job detail; **Prepare Application**)
+3. Swooped offers: "We'll build your entire application… Upload your resume…" (tailored resume/cover) **or** **Apply manually instead**
+
+### What Fill & Apply does today
+
+1. **Jooble** (`jooble.org`): clicks **Apply** / **Apply now** / **Apply for this job** (skips unrelated / Auto Apply / Upgrade chrome).
+2. On navigation **away from jooble.org**, returns `externalApply` / `deferToPageAdapter` / `handedOff`. The **runner waits for load and re-injects** so `registry.detect` picks **Swooped** or an employer ATS.
+3. **Swooped** (`swooped.co`, `www.swooped.co`, `app.swooped.co`, plus content markers such as "Auto Apply", "Prepare Application", "Apply manually instead", "We'll build your entire application"):
+   - **Does not** use Swooped **Auto Apply**, paid **Upgrade**, or auto-build application packets.
+   - Prefers **Apply manually instead** when present, then hands off again if the host changes to an employer ATS.
+   - If stuck on the Prepare Application / resume-upload wall with no manual path → `needsHuman` pause explaining the Swooped intermediary.
+   - `paidSource: false` unless an Upgrade / subscription wall blocks — then pause (never purchase).
+4. After a successful manual handoff, Fill & Apply fills the **destination ATS** (Greenhouse, Lever, company careers, …) with the saved profile.
+
+### Operator checklist
+
+1. Prefer queueing the **final employer ATS URL** when you already have it.
+2. Or queue the Jooble job page and let Apply → Swooped → **Apply manually instead** hand off.
+3. Never rely on Swooped Auto Apply / Upgrade as Fill & Apply's path.
+4. If paused on a Swooped prepare wall, open the employer apply URL (or click Apply manually instead yourself) and **Resume**.
+
+### Related
+
+- Adapters: `adapters/boards/jooble.js`, `adapters/boards/swooped.js` (injected in runner / panel `INJECT_FILES`)
+- Catalog: `jooble`, `swooped` in `adapters/catalog.js`
+- Similar patterns: [Working Nomads → Greenhouse](#working-nomads--greenhouse-handoff), [We Work Remotely — paid source](#we-work-remotely--paid-source)
+
 ## Working Nomads → Greenhouse handoff
 
 **Status:** Discovery board adapter with **external Apply handoff** (same pattern as We Work Remotely → CATS).
@@ -324,7 +359,7 @@ Registered in `adapters/catalog.js` (+ hardened overrides where noted).
 **Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, iCIMS, **CATS***
 
 ### Job boards
-LinkedIn, Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), Jooble, Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
+LinkedIn, Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
 
 ### Agencies
 Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH
@@ -345,7 +380,7 @@ If no adapter matches, Fill & Apply still attempts **inspect → fill** using th
 | Multi-step CTAs | Next, Continue, Save & continue | Synonym CTA match |
 | Final CTAs | Apply, Apply Now, Apply for this Job, Submit Application, Submit & Apply | Synonym CTA match |
 | Challenges | Cloudflare, CAPTCHA | Pause + notify (never bypass) |
-| External handoff | WWR → CATS; Working Nomads → Greenhouse | Click Apply → re-detect destination adapter |
+| External handoff | WWR → CATS; Working Nomads → Greenhouse; Jooble → Swooped → ATS | Click Apply / Apply manually instead → re-detect destination adapter |
 
 Profile keys commonly mapped: first/last/full name, email, phone (+ country), location/city/state/country/zip/street, LinkedIn, portfolio, website, GitHub, resume URL/summary, work history, education, cover letter, work authorization, sponsorship, `customAnswers` / `customQA`.
 

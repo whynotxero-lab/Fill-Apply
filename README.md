@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.9.0** — **Multi-profile** in Options (create / rename / duplicate / delete / set active; `chrome.storage.local` persists across updates); Working Nomads → Greenhouse; Greenhouse harden; WWR → CATS; NaukriGulf Easy Apply; Ashby caps; Submit keep-N; PDF reports.
+**Version 1.9.1** — **Jooble → Swooped** handoff (Apply manually instead; no Auto Apply / Upgrade); multi-profile Options; Working Nomads → Greenhouse; Greenhouse harden; WWR → CATS; NaukriGulf Easy Apply; Ashby caps; Submit keep-N; PDF reports.
 
 ## Load unpacked
 
@@ -60,7 +60,7 @@ adapters/
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
   ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS, CATS
-  boards/       Indeed (multi-step), NaukriGulf (Easy Apply modal), LinkedIn, Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), …
+  boards/       Indeed (multi-step), NaukriGulf (Easy Apply modal), LinkedIn, Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), Jooble (→ Swooped/ATS), Swooped (Apply manually instead), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
@@ -192,6 +192,10 @@ Greenhouse “Attach” is often a visible button + hidden `input[type=file]`, o
 
 Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhouse.io` (v1.8.5): preferred name, city/country/phone-country, sponsorship / work-auth / prior employer / US-based / employment-agreement Yes–No selects, why-join long text from `coverLetter`/`customAnswers`, team-interest radios, EEO skip, **Apply for this job** / **Submit application**. Paste examples (GitLab / Figma Strategic Finance) in [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#greenhouse--hardened-ats).
 
+## Jooble → Swooped / external ATS
+
+Jooble is a **discovery** aggregator; **Apply** often opens **Swooped** (assisted-apply intermediary) or an employer ATS. Fill & Apply clicks Jooble Apply, re-detects on the new host, prefers Swooped **Apply manually instead** (never Auto Apply / Upgrade / auto-build), then fills the destination ATS after handoff. See [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#jooble--swooped--external-ats).
+
 ## Working Nomads → Greenhouse
 
 Working Nomads is a **discovery** board; **Apply** often opens **Greenhouse**. The board adapter clicks Apply (not unrelated CTAs), hands off on host change, and the runner re-injects so Greenhouse fills. See [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#working-nomads--greenhouse-handoff).
@@ -265,7 +269,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 **ATS:** Greenhouse, Ashby, Lever, Workable, Workday, SmartRecruiters, iCIMS, CATS  
 
-**Boards / aggregators:** LinkedIn, Upwork, NaukriGulf, Remote OK, We Work Remotely, Working Nomads (→ Greenhouse), Indeed, eFinancialCareers, FreeHire, Jooble, Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In  
+**Boards / aggregators:** LinkedIn, Upwork, NaukriGulf, Remote OK, We Work Remotely, Working Nomads (→ Greenhouse), Indeed, eFinancialCareers, FreeHire, Jooble (→ Swooped/ATS), Swooped (Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In  
 
 **Agencies:** Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH  
 

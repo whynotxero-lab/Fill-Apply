@@ -62,6 +62,7 @@
     { id: 'freehire', name: 'FreeHire', category: 'board', hosts: ['freehire.com', 'www.freehire.com'], hostRe: /freehire\.com/i },
     { id: 'workingnomads', name: 'Working Nomads', category: 'board', hosts: ['workingnomads.com', 'www.workingnomads.com'], hostRe: /workingnomads\.com/i },
     { id: 'jooble', name: 'Jooble', category: 'board', hosts: ['jooble.org', 'www.jooble.org'], hostRe: /jooble\.org/i },
+    { id: 'swooped', name: 'Swooped', category: 'board', hosts: ['swooped.co', 'www.swooped.co', 'app.swooped.co'], hostRe: /swooped\.co/i },
     { id: 'bayt', name: 'Bayt', category: 'board', hosts: ['bayt.com', 'www.bayt.com'], hostRe: /bayt\.com/i },
     { id: 'gulftalent', name: 'GulfTalent', category: 'board', hosts: ['gulftalent.com', 'www.gulftalent.com'], hostRe: /gulftalent\.com/i },
     { id: 'glassdoor', name: 'Glassdoor', category: 'board', hosts: ['glassdoor.com', 'www.glassdoor.com'], hostRe: /glassdoor\.com/i },
