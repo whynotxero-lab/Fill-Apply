@@ -35,6 +35,7 @@
 
   const TEXT_FIELDS = [
     'firstName', 'lastName', 'fullName', 'email', 'phone', 'phoneCountry',
+    'nationality', 'gender', 'noticePeriod',
     'location', 'street', 'city', 'state',
     'country', 'zip', 'postcode', 'linkedin', 'portfolio', 'website', 'github', 'resumeUrl',
     'resumeSummary', 'workHistory', 'education', 'coverLetter',

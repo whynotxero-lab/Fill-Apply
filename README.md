@@ -6,9 +6,9 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Adaptive fill:** synonym CTAs (Apply/Apply Now/…) and Resume≈CV via `lib/synonyms.js` + generic fallback for unknown hosts.
 
-**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo→iCIMS), NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
+**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.9.4** — **iCIMS** multi-step Candidate Profile (resume DataTransfer, profile fields) + **Create a login / Returning Candidate** human gate (never invent passwords); EEO skip/decline; Questions via customAnswers + Yes/No; generic **auth-walls** helper; LinkedIn External Apply → iCIMS; hCaptcha pause; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
+**Version 1.9.5** — **iCIMS** richer Candidate Profile (Riyadh Air: **CV** label, passport names, nationality/gender/notice period, employment/education blocks, marketing consent prefer No) + **SSO Connected/Disconnect** skips auth pause; Create-login human gate unchanged when passwords present; LinkedIn External Apply → iCIMS; hCaptcha pause; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
 
 ## Load unpacked
 
@@ -329,7 +329,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 ## Reload test (LinkedIn Easy Apply)
 
-1. `chrome://extensions` → **Reload** Fill & Apply (**v1.9.4**).
+1. `chrome://extensions` → **Reload** Fill & Apply (**v1.9.5**).
 2. Sign in to LinkedIn in the same browser profile (login wall → pause).
 3. Options → seed profile + upload resume → add `customAnswers` for employer Qs (conflict of interest, PIF, salaries, DOB, nationality, privacy, criminal) → Save.
 4. Paste a LinkedIn job URL that shows **Easy Apply** into Mock queue → Save.

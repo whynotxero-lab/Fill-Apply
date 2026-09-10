@@ -199,7 +199,7 @@ Extension behavior:
 
 1. If **Easy Apply** is present → path A above.
 2. Else if external **Apply** → click Apply → handle Share your profile (prefer **Off**, then Continue) → on **host change** return WWR-style handoff (`externalApply` / `deferToPageAdapter` / `handedOff`) so the runner re-injects and re-detects (careers / **iCIMS**).
-3. Destination **iCIMS** adapter fills welcome (Email, I accept, Next), pauses on **hCaptcha** and on **Create a login / Returning Candidate** (human gate), then fills Candidate Profile (resume + profile fields). **fill** / **ready** never Submit Profile / final-submit; **submit** submits when auth is cleared and the form looks complete. EEO skip/decline only — never invented.
+3. Destination **iCIMS** adapter fills welcome (Email, I accept, Next), pauses on **hCaptcha** and on **Create a login / Returning Candidate** (human gate) unless **SSO Connected / Disconnect** is shown (then treat as authenticated). Then fills Candidate Profile (CV/Resume + richer demographics / employment / education when present). **fill** / **ready** never Submit Profile / final-submit; **submit** submits when auth is cleared and the form looks complete. EEO skip/decline only — never invented.
 
 Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframes, **Protected by hCaptcha** with a visible widget) → `needsHuman` pause (complete manually, then Resume).
 
@@ -208,12 +208,15 @@ Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframe
 1. Stay signed in to LinkedIn; complete your LinkedIn profile so Easy Apply cards prefill.
 2. Upload a resume in Options before queueing applies.
 3. For External Apply jobs, expect a careers host + ATS (often iCIMS); complete hCaptcha when paused.
-4. Use **Auto Fill** / **Auto Ready** first; **Auto Submit** only when Review / final form looks correct.
-5. Adapter: `adapters/boards/linkedin.js`; destination: `adapters/ats/icims.js`.
+4. For LinkedIn→iCIMS automation, **complete an iCIMS candidate profile / SSO once** (Returning Candidate Log back in). Richer portals (**Riyadh Air**) need nationality, gender, notice period, education/employment in the active Fill-Apply profile + `customAnswers`.
+5. Use **Auto Fill** / **Auto Ready** first; **Auto Submit** only when Review / final form looks correct.
+6. Adapter: `adapters/boards/linkedin.js`; destination: `adapters/ats/icims.js`.
 
 ## iCIMS — ATS (Software Powered by ICIMS)
 
-**Status:** Multi-step hardened (welcome → Candidate Profile → Questions / EEO / Questionnaire). Often reached via **LinkedIn External Apply** (PepsiCo / `globalcareers-pepsico.icims.com` / `pepsicojobs.com`) or direct `*.icims.com` links.
+**Status:** Multi-step hardened (welcome → Candidate Profile → Questions / EEO / Questionnaire). Often reached via **LinkedIn External Apply** (PepsiCo / `globalcareers-pepsico.icims.com` / `pepsicojobs.com`, or richer portals like **Riyadh Air** careers → iCIMS) or direct `*.icims.com` links.
+
+**Operator tip:** For LinkedIn→iCIMS automation, **complete an iCIMS candidate profile / SSO once** (Returning Candidate Log back in). Richer portals (Riyadh Air) need **nationality**, **gender**, **notice period**, **education/employment** in the active Fill-Apply profile + `customAnswers`.
 
 ### Detection
 
@@ -229,38 +232,46 @@ Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframe
 | **Next** | Click to advance |
 | **Protected by hCaptcha** | `needsHuman` pause — do not bypass |
 
-### Step 1/5 Candidate Profile (operator paste)
+### Candidate Profile (operator paste — PepsiCo + richer Riyadh Air)
 
 | Control | Behavior |
 |---------|----------|
 | **Returning Candidate? Log back in!** | **Manual** — `needsHuman` auth-wall pause |
-| Resume upload* (max 5MB) | DataTransfer to file input from documents |
-| **Create a login:** Login* / Password* / Password Re-enter* | **MANUAL — never invent passwords / never create accounts** |
-| First / Last Name*, Email*, Preferred Language | Active profile (+ English language heuristic) |
-| Phone Country Code*, Phone Type*, Number* | `phoneCountry` / Mobile / `phone` |
-| Address Type*, Address*, City*, Zip*, Country*, State | Home / street / city / zip / country / state |
-| Privacy agree → **Submit Profile** | Agree checked; **Submit Profile** only in **submit** mode and only when Create-login fields are **not** visible |
+| **SSO Connected / Disconnect** (no Password Re-enter) | Treat as **authenticated** — **skip** auth pause |
+| **CV** / Resume upload* (max 5MB) | DataTransfer; Resume≈CV synonyms (`lib/synonyms.js`) |
+| **Create a login:** Login* / Password* / Password Re-enter* | **MANUAL — never invent passwords / never create accounts** (still auth pause if present; skipped when SSO Connected) |
+| First / Last Name* (as in passport) | `firstName` / `lastName` |
+| Nationality*, Gender* | `nationality` / `gender` (+ `customAnswers`); gender here is profile demographic, not EEO invent |
+| Email*, Mobile Phone Country Code* + number* | `email` / `phoneCountry` / `phone` |
+| Residential Address: City*, Country/Region* | `city` / `country` |
+| Notice period* | `noticePeriod` / `customAnswers` (e.g. **I can start immediately**) |
+| Employment Details | From `profile.workHistory` if empty; **do not wipe** if populated |
+| Education blocks | From `profile.education` (qualification type/title/institution/dates/city/country/full-time) |
+| Previously employed by company / Relative employed?* | Default **No** via `customAnswers` heuristics |
+| Marketing consent* | Prefer **No** unless `customAnswers` says Yes (privacy) |
+| Privacy agree → **Submit Profile** | Agree checked; **Submit Profile** only in **submit** mode and only when auth pause is cleared |
 
-**User rule:** Sign Up / Sign In / Register / Login / Create a login / Returning Candidate Log back in = manual attention signals → pause + notify.
+**User rule:** Sign Up / Sign In / Register / Login / Create a login / Returning Candidate Log back in = manual attention signals → pause + notify — **except** when Connected / Disconnect SSO chrome is shown without Password Re-enter.
 
 ### Later steps
 
 | Step | Behavior |
 |------|----------|
-| Candidate Questions / Questionnaire | `customAnswers` + Yes/No heuristics; unknown **required** → pause in **submit** |
+| Candidate Questions (e.g. over age of 18*) | `customAnswers` / profile heuristics (default **Yes** for 18+); **Finish Later** vs **Submit** — fill/ready never Submit; **submit** clicks Submit |
+| Job Specific Questions | `customAnswers`; unknown **required** → pause in **submit** |
+| Questionnaire / Portal Specific Forms | Fallback + customAnswers; pause on unknown required in submit |
 | EEO | Skip / decline / prefer-not when available — **never invent** |
-| Portal Specific Forms | Fallback + customAnswers; pause on unknown required in submit |
-| hCaptcha | Pause throughout (`lib/challenges.js`) |
+| hCaptcha | Pause throughout (`lib/challenges.js`) — unchanged |
 
 ### Modes
 
-- **fill** / **ready**: fill fields + Next/Continue — **no** Submit Profile / final submit. If Create-login fields present → always pause first.
-- **submit**: fill, Submit Profile (when auth cleared), advance, submit when complete.
+- **fill** / **ready**: fill fields + Next/Continue — **no** Submit Profile / final Submit / Finish Later as submit. If Create-login password fields present (and not SSO Connected) → always pause first.
+- **submit**: fill, Submit Profile (when auth cleared / SSO connected), advance, Submit when complete.
 
 ### Related
 
 - Adapter: `adapters/ats/icims.js`
-- Auth helper: `lib/auth-walls.js` (generic; also bridged from `lib/challenges.js`)
+- Auth helper: `lib/auth-walls.js` (`isSsoConnected`; also bridged from `lib/challenges.js`)
 - Discovery: [LinkedIn Easy Apply vs External Apply](#linkedin-easy-apply-vs-external-apply)
 - Challenges: `lib/challenges.js` (hCaptcha)
 
