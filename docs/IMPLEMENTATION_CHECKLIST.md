@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.13.0** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.14.0** on `main`.
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -33,7 +33,8 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 | Adapter | Status | Notes |
 |---------|--------|-------|
 | Greenhouse | ✅ | GitLab / Figma pastes; file Attach; selects; EEO skip |
-| Indeed | ✅ | Multi-step contact→review; Cloudflare pause |
+| Indeed | ✅ | Multi-step contact→review; Cloudflare pause; fill→Continue→rescan |
+| Glassdoor Easy Apply | ✅ | v1.14.0 — Indeed-backed steps + frame-churn retry |
 | Ashby | ✅ | + published caps |
 | NaukriGulf | ✅ | 100% profile gate + Easy Apply modal |
 | Remote OK | ✅ | Paid / paywall / geolock pause (no full unlocked form yet) |
@@ -67,7 +68,8 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 | Number / salary sanitize (`25000 AED` → number) | ✅ | v1.12.0 |
 | Source-based profiles + Start gate | ✅ | v1.13.0 — already in tree (`lib/source-profiles.js`) |
 | Batch-by-source queue sort | ✅ | v1.13.0 |
-| Mock seed source answers (Teamtailor/Indeed/…) | ✅ | v1.13.0 |
+| Mock seed source answers (Teamtailor/Indeed/Glassdoor/…) | ✅ | v1.13.0 + Glassdoor in 1.14.0 |
+| Frame-removed / No-tab retry on Easy Apply Continue | ✅ | v1.14.0 — runner + panel |
 | Zahid empty source shells (fill when needed) | ✅ | v1.13.0 |
 
 ---
@@ -123,4 +125,4 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
 ---
 
-*Last reviewed against repo `main` at docs-pack commit (v1.13.0 codebase).*
+*Last reviewed against repo `main` at v1.14.0 (Glassdoor Easy Apply).*

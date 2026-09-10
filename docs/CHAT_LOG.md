@@ -234,6 +234,14 @@ Chronological narrative of the Fill & Apply build conversation between **User** 
 
 ---
 
+
+## Glassdoor Easy Apply 1.14
+
+**User:** Glassdoor Easy Apply (Indeed-backed) multi-step paste; Ready error `Frame with ID 0 was removed`; Continue not treated as step navigation; bump 1.14.0.
+
+**Assistant:** Hardened `adapters/boards/glassdoor.js` + shared `lib/easy-apply-steps.js`; Indeed fill→Continue→rescan; runner/panel frame-churn re-inject retry (no markFailed solely for frame removal); glassdoor source profile + Mock seeds; docs — **v1.14.0**.
+
+
 ## Notes for readers
 
 - Timestamps omitted; order follows the agent transcript turn sequence.

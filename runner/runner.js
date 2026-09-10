@@ -19,6 +19,7 @@
     'lib/files.js',
     'lib/auth-walls.js',
     'lib/challenges.js',
+    'lib/easy-apply-steps.js',
     'content/focus-hud.js',
     'content/fill.js',
     'adapters/registry.js',
@@ -35,6 +36,7 @@
     'adapters/ats/recruitee.js',
     'adapters/ats/teamtailor.js',
     'adapters/boards/indeed.js',
+    'adapters/boards/glassdoor.js',
     'adapters/boards/linkedin.js',
     'adapters/boards/naukrigulf.js',
     'adapters/boards/remoteok.js',
@@ -69,6 +71,69 @@
     }
   }
 
+  /** Frame/tab invalidated after Easy Apply Continue / navigation. */
+  function isFrameInvalidError(err) {
+    if (global.FillApplyEasyApplySteps && global.FillApplyEasyApplySteps.isFrameInvalidError) {
+      return global.FillApplyEasyApplySteps.isFrameInvalidError(err);
+    }
+    var msg = String((err && err.message) || err || '');
+    return (
+      /Frame with ID\s+\d+\s+was removed/i.test(msg) ||
+      /No tab with id/i.test(msg) ||
+      /No frame with id/i.test(msg) ||
+      /The tab was closed/i.test(msg) ||
+      /Cannot access contents of (the page|url)/i.test(msg) ||
+      /Frame does not exist/i.test(msg)
+    );
+  }
+
+  /**
+   * After navigation, tab id may still be valid but frame 0 was removed.
+   * Prefer existing tabId; else find a tab matching the job URL host.
+   */
+  async function resolveFreshTabId(job, preferredTabId) {
+    if (preferredTabId != null) {
+      try {
+        const t = await chrome.tabs.get(preferredTabId);
+        if (t && t.id != null) return t.id;
+      } catch (_e) {
+        /* fall through */
+      }
+    }
+    if (!job || !job.url) return preferredTabId;
+    let host = '';
+    try {
+      host = new URL(job.url).hostname;
+    } catch (_u) {
+      host = '';
+    }
+    try {
+      const tabs = await chrome.tabs.query({});
+      for (let i = 0; i < tabs.length; i++) {
+        const t = tabs[i];
+        if (!t || t.id == null || !t.url) continue;
+        try {
+          const th = new URL(t.url).hostname;
+          if (
+            (host && (th === host || th.endsWith('.' + host.replace(/^www\./, '')))) ||
+            /glassdoor\.com|indeed\.com/i.test(th)
+          ) {
+            if (job.url && (t.url === job.url || t.url.indexOf(host) !== -1)) return t.id;
+          }
+        } catch (_e2) {
+          /* ignore */
+        }
+      }
+      // Second pass: any glassdoor/indeed tab from this session
+      for (let j = 0; j < tabs.length; j++) {
+        const t2 = tabs[j];
+        if (t2 && t2.url && /glassdoor\.com|indeed\.com/i.test(t2.url)) return t2.id;
+      }
+    } catch (_q) {
+      /* ignore */
+    }
+    return preferredTabId;
+  }
 
   async function waitPageSettle(tabId, settleMin, settleMax) {
     settleMin = settleMin != null ? settleMin : 800;
@@ -546,7 +611,7 @@
     return getStatusSnapshot();
   }
 
-  async function injectAndFill(tabId, profile, documents, runMode, config) {
+  async function injectAndFillOnce(tabId, profile, documents, runMode, config) {
     await focusTab(tabId);
     await waitPageSettle(tabId, 800, 1500);
     if (config) {
@@ -574,7 +639,7 @@
 
     const results = await chrome.scripting.executeScript({
       target: { tabId: tabId },
-      func: function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg, focusHudArg, paceArg) {
+      func: async function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg, focusHudArg, paceArg) {
         if (globalThis.FillApplyFocusHud && globalThis.FillApplyFocusHud.setEnabled) {
           globalThis.FillApplyFocusHud.setEnabled(focusHudArg !== false);
         }
@@ -599,7 +664,7 @@
           };
         }
         if (typeof adapter.fill === 'function') {
-          return adapter.fill({
+          var out = adapter.fill({
             profile: profileArg,
             documents: documentsArg,
             runMode: runModeArg || 'fill',
@@ -622,6 +687,8 @@
             fileInputHints: adapter.fileInputHints,
             fieldMaps: adapter.fieldMaps
           });
+          if (out && typeof out.then === 'function') out = await out;
+          return out;
         }
         return {
           ok: false,
@@ -644,6 +711,54 @@
         total: 0
       }
     );
+  }
+
+  /**
+   * injectAndFill with frame-churn retries (Easy Apply Continue navigations).
+   * Does not mark failed solely for "Frame with ID … removed" / "No tab with id".
+   * Returns { result, tabId } when opts.returnTabId; else result (compat).
+   */
+  async function injectAndFill(tabId, profile, documents, runMode, config, job, opts) {
+    opts = opts || {};
+    const maxAttempts = opts.maxAttempts != null ? opts.maxAttempts : 4;
+    let currentTabId = tabId;
+    let lastErr = null;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const result = await injectAndFillOnce(
+          currentTabId,
+          profile,
+          documents,
+          runMode,
+          config
+        );
+        if (opts.returnTabId) return { result: result, tabId: currentTabId };
+        return result;
+      } catch (e) {
+        lastErr = e;
+        if (!isFrameInvalidError(e) || attempt >= maxAttempts - 1) {
+          throw e;
+        }
+        await sleep(600 + attempt * 400 + Math.floor(Math.random() * 300));
+        const fresh = await resolveFreshTabId(job || null, currentTabId);
+        if (fresh != null) currentTabId = fresh;
+        try {
+          await waitTabComplete(currentTabId, 20000);
+        } catch (_w) {
+          /* continue retry */
+        }
+        await sleep(400 + Math.floor(Math.random() * 300));
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: currentTabId },
+            files: INJECT_FILES
+          });
+        } catch (_reinj) {
+          /* next attempt */
+        }
+      }
+    }
+    throw lastErr || new Error('injectAndFill failed after frame retries');
   }
 
   async function getStatusSnapshot() {
@@ -848,6 +963,8 @@
         let tab = null;
         let fillResult = null;
         let moved = false;
+        let profile = null;
+        let documents = null;
         try {
           // Reuse tab left open from a human pause when URL still matches
           if (resumeTabId != null) {
@@ -895,7 +1012,7 @@
             return getStatusSnapshot();
           }
 
-          var profile = P ? await P.getProfile() : await B.getProfile();
+          profile = P ? await P.getProfile() : await B.getProfile();
           if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.getEffectiveProfile) {
             try {
               profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);
@@ -903,7 +1020,7 @@
               /* keep base */
             }
           }
-          let documents = await B.getDocuments();
+          documents = await B.getDocuments();
           // Best-effort Drive/direct URL → blob before attach (CORS may still fail → needsHuman)
           try {
             if (
@@ -927,7 +1044,19 @@
             preHandoffUrl = (preTab && preTab.url) || '';
           } catch (_ePre) {}
 
-          fillResult = await injectAndFill(tab.id, profile, documents, runMode, config);
+          {
+            const packed = await injectAndFill(
+              tab.id,
+              profile,
+              documents,
+              runMode,
+              config,
+              job,
+              { returnTabId: true, maxAttempts: 4 }
+            );
+            fillResult = packed.result;
+            if (packed.tabId != null) tab.id = packed.tabId;
+          }
 
           // External Apply handoff OR universal Apply-start (same-host modal / form open):
           // wait for load/overlay, then re-detect / fill. Host-change required for pure
@@ -964,7 +1093,17 @@
               const sameHostOpen =
                 !!(fillResult.clickedApplyStart || fillResult.reDetect);
               if (hostChanged || sameHostOpen) {
-                const handed = await injectAndFill(tab.id, profile, documents, runMode, config);
+                const handedPack = await injectAndFill(
+                  tab.id,
+                  profile,
+                  documents,
+                  runMode,
+                  config,
+                  job,
+                  { returnTabId: true, maxAttempts: 4 }
+                );
+                const handed = handedPack && handedPack.result;
+                if (handedPack && handedPack.tabId != null) tab.id = handedPack.tabId;
                 if (handed) {
                   if (hostChanged) handed.externalApply = true;
                   if (fillResult.clickedApplyStart) handed.fromApplyStart = true;
@@ -981,13 +1120,17 @@
                   ) {
                     try {
                       await sleep(900 + Math.floor(Math.random() * 500));
-                      const handed2 = await injectAndFill(
+                      const handed2Pack = await injectAndFill(
                         tab.id,
                         profile,
                         documents,
                         runMode,
-                        config
+                        config,
+                        job,
+                        { returnTabId: true, maxAttempts: 3 }
                       );
+                      const handed2 = handed2Pack && handed2Pack.result;
+                      if (handed2Pack && handed2Pack.tabId != null) tab.id = handed2Pack.tabId;
                       if (handed2 && (handed2.filled > 0 || handed2.needsHuman || handed2.submitted)) {
                         fillResult = handed2;
                         if (hostChanged) fillResult.externalApply = true;
@@ -1211,25 +1354,121 @@
           tab = null;
         } catch (e) {
           const msg = String(e && e.message ? e.message : e);
-          await S.appendSessionLog({ type: 'error', jobId: job.id, error: msg });
-          await S.setQueueStatus({ lastError: msg });
-
-          if (!moved) {
+          // Frame churn after Continue (Glassdoor/Indeed Easy Apply) — retry, do not markFailed
+          if (isFrameInvalidError(e) && job && !moved) {
+            await S.appendSessionLog({
+              type: 'frame_retry',
+              jobId: job.id,
+              error: msg,
+              note: 'Frame/tab invalidated after navigation — re-inject and continue'
+            });
+            await S.setQueueStatus({ lastError: null });
             try {
-              await B.markApplied(job.id, {
-                error: msg,
-                failed: true,
-                runMode: runMode,
-                url: job.url
-              });
-              moved = true;
-            } catch (_e2) {
-              /* ignore */
+              await sleep(800 + Math.floor(Math.random() * 500));
+              const freshId = await resolveFreshTabId(job, tab && tab.id);
+              if (freshId != null) {
+                try {
+                  tab = await chrome.tabs.get(freshId);
+                } catch (_gt) {
+                  tab = { id: freshId };
+                }
+              }
+              const packedRetry = await injectAndFill(
+                tab && tab.id,
+                profile,
+                documents,
+                runMode,
+                config,
+                job,
+                { returnTabId: true, maxAttempts: 3 }
+              );
+              fillResult = packedRetry.result;
+              if (packedRetry.tabId != null && tab) tab.id = packedRetry.tabId;
+
+              if (fillResult && fillResult.needsHuman) {
+                await pauseForHuman(job, tab && tab.id, fillResult.pauseReason || 'challenge', {
+                  message: fillResult.error || 'Paused — verify Cloudflare/CAPTCHA',
+                  challenge: fillResult.challenge || null,
+                  missingProfileFields: fillResult.missingProfileFields || null
+                });
+                return getStatusSnapshot();
+              }
+
+              const failedRetry = isCriticalFailure(fillResult);
+              if (!failedRetry) {
+                await B.markApplied(job.id, {
+                  fillResult: fillResult,
+                  submitted: !!(fillResult && fillResult.submitted),
+                  advanced: !!(fillResult && fillResult.advanced),
+                  runMode: runMode,
+                  resumeAttached: !!(fillResult && fillResult.resumeAttached),
+                  url: job.url
+                });
+                moved = true;
+                currentJobId = null;
+                tab = null;
+              } else {
+                await B.markApplied(job.id, {
+                  error: (fillResult && fillResult.error) || msg,
+                  failed: true,
+                  runMode: runMode,
+                  url: job.url
+                });
+                moved = true;
+                currentJobId = null;
+                tab = null;
+              }
+            } catch (retryErr) {
+              const rmsg = String(retryErr && retryErr.message ? retryErr.message : retryErr);
+              await S.appendSessionLog({ type: 'error', jobId: job.id, error: rmsg });
+              await S.setQueueStatus({ lastError: rmsg });
+              if (!moved) {
+                try {
+                  // Only hard-fail if retry also failed for a non-frame reason
+                  if (!isFrameInvalidError(retryErr)) {
+                    await B.markApplied(job.id, {
+                      error: rmsg,
+                      failed: true,
+                      runMode: runMode,
+                      url: job.url
+                    });
+                    moved = true;
+                  } else {
+                    // Keep queued — pause for human so Ready loop can resume
+                    await pauseForHuman(job, tab && tab.id, 'frame_churn', {
+                      message:
+                        'Paused — page navigated during Easy Apply (frame removed). Confirm the apply form, then Resume.'
+                    });
+                    return getStatusSnapshot();
+                  }
+                } catch (_e2) {
+                  /* ignore */
+                }
+              }
+              currentJobId = null;
+              tab = null;
             }
+          } else {
+            await S.appendSessionLog({ type: 'error', jobId: job.id, error: msg });
+            await S.setQueueStatus({ lastError: msg });
+
+            if (!moved) {
+              try {
+                await B.markApplied(job.id, {
+                  error: msg,
+                  failed: true,
+                  runMode: runMode,
+                  url: job.url
+                });
+                moved = true;
+              } catch (_e2) {
+                /* ignore */
+              }
+            }
+            currentJobId = null;
+            // Failed / exception path: never auto-close (keep context for debugging)
+            tab = null;
           }
-          currentJobId = null;
-          // Failed / exception path: never auto-close (keep context for debugging)
-          tab = null;
         }
 
         if (!(await S.isRunning())) break;

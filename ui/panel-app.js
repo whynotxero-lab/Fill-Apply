@@ -1,6 +1,6 @@
 /**
  * Shared panel UI logic for sidepanel/ (and popup/ markup).
- * v1.13 — source profiles gate, batch-by-source, App Settings rename, missing-fields modal.
+ * v1.14 — Glassdoor Easy Apply, frame-churn retry, shared easy-apply-steps.
  */
 (function () {
   'use strict';
@@ -65,6 +65,7 @@
     'lib/files.js',
     'lib/auth-walls.js',
     'lib/challenges.js',
+    'lib/easy-apply-steps.js',
     'content/focus-hud.js',
     'content/fill.js',
     'adapters/registry.js',
@@ -81,6 +82,7 @@
     'adapters/ats/recruitee.js',
     'adapters/ats/teamtailor.js',
     'adapters/boards/indeed.js',
+    'adapters/boards/glassdoor.js',
     'adapters/boards/linkedin.js',
     'adapters/boards/naukrigulf.js',
     'adapters/boards/remoteok.js',
@@ -92,6 +94,32 @@
   ];
 
   let lastCounts = { queued: 0, applied: 0, failed: 0, cancelled: 0 };
+
+  function isFrameInvalidError(err) {
+    var msg = String((err && err.message) || err || '');
+    return (
+      /Frame with ID\s+\d+\s+was removed/i.test(msg) ||
+      /No tab with id/i.test(msg) ||
+      /No frame with id/i.test(msg) ||
+      /The tab was closed/i.test(msg) ||
+      /Cannot access contents of (the page|url)/i.test(msg) ||
+      /Frame does not exist/i.test(msg)
+    );
+  }
+
+  async function refreshTabRef(tab) {
+    if (!tab || tab.id == null) return tab;
+    try {
+      return await chrome.tabs.get(tab.id);
+    } catch (_e) {
+      try {
+        var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        return tabs && tabs[0] ? tabs[0] : tab;
+      } catch (_e2) {
+        return tab;
+      }
+    }
+  }
 
   function setStatus(text, kind) {
     if (!statusEl) return;
@@ -839,8 +867,43 @@
         return result;
       }
 
+      async function injectFillWithFrameRetry(label) {
+        var maxAttempts = 4;
+        var lastErr = null;
+        for (var attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            return await injectFillOnce();
+          } catch (e) {
+            lastErr = e;
+            if (!isFrameInvalidError(e) || attempt >= maxAttempts - 1) throw e;
+            await liveLog(
+              'frame_retry',
+              (label || 'fill') +
+                ': frame/tab invalidated — wait, re-inject, retry (' +
+                (attempt + 1) +
+                '/' +
+                maxAttempts +
+                ')'
+            );
+            await new Promise(function (r) {
+              setTimeout(r, 700 + attempt * 400 + Math.floor(Math.random() * 300));
+            });
+            tab = await refreshTabRef(tab);
+            try {
+              await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: INJECT_FILES
+              });
+            } catch (_re) {
+              /* next attempt */
+            }
+          }
+        }
+        throw lastErr || new Error('injectFillWithFrameRetry failed');
+      }
+
       await liveLog('detecting', 'Detecting adapter on ' + String(tab.url || '').slice(0, 80));
-      let result = await injectFillOnce();
+      let result = await injectFillWithFrameRetry('detect');
       if (result && result.adapterId) {
         await liveLog('adapter', 'Using adapter: ' + result.adapterId);
       }
@@ -889,7 +952,7 @@
         } catch (_w) {}
         await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
         await liveLog('filling', 'Re-detect / fill attempt ' + (attempt + 2));
-        const next = await injectFillOnce();
+        const next = await injectFillWithFrameRetry('redetect-' + (attempt + 2));
         if (next) result = next;
       }
 
@@ -964,8 +1027,17 @@
         await refreshLiveLog();
       } catch (_e) { /* ignore */ }
     } catch (e) {
-      setStatus('Error: ' + (e && e.message ? e.message : String(e)), 'err');
-      await liveLog('error', e && e.message ? e.message : String(e));
+      var emsg = e && e.message ? e.message : String(e);
+      if (isFrameInvalidError(e)) {
+        setStatus(
+          'Page navigated during Easy Apply (frame removed). Wait for the form, then click Fill again / Resume.',
+          'warn'
+        );
+        await liveLog('frame_retry', emsg);
+      } else {
+        setStatus('Error: ' + emsg, 'err');
+        await liveLog('error', emsg);
+      }
     } finally {
       if (btnFill) btnFill.disabled = false;
       await refreshStatus();

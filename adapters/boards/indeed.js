@@ -202,6 +202,10 @@
 
   function findApplyWithIndeedButton(doc) {
     doc = doc || document;
+    if (global.FillApplyEasyApplySteps && global.FillApplyEasyApplySteps.findEasyApplyButton) {
+      var eaBtn = global.FillApplyEasyApplySteps.findEasyApplyButton(doc, { preferIndeed: true });
+      if (eaBtn) return eaBtn;
+    }
     var nodes = doc.querySelectorAll(
       'button, a, input[type="button"], input[type="submit"], [role="button"]'
     );
@@ -507,6 +511,9 @@
   }
 
   function clickContinue() {
+    if (global.FillApplyEasyApplySteps && global.FillApplyEasyApplySteps.clickContinue) {
+      return global.FillApplyEasyApplySteps.clickContinue(document);
+    }
     if (global.__fillApply && global.__fillApply.clickContinueButtons) {
       var clicked = global.__fillApply.clickContinueButtons();
       if (clicked && clicked.length) return true;
@@ -920,7 +927,7 @@
         var submitted = false;
         var lastStep = 'unknown';
         var resumeAttached = false;
-        var maxHops = runMode === 'fill' ? 1 : 10;
+        var maxHops = runMode === 'fill' ? 2 : 12;
 
         for (var hop = 0; hop < maxHops; hop++) {
           if (global.FillApplyChallenges && global.FillApplyChallenges.detectChallenge) {
@@ -1084,11 +1091,23 @@
             };
           }
 
-          // ready | submit — advance one step
+          // ready | submit — fill then Continue, wait for progress/DOM change, rescan
+          var prevProgress = flow.progress;
+          var prevUrl = '';
+          try {
+            prevUrl = location.href;
+          } catch (_u) {
+            prevUrl = '';
+          }
           var went = clickContinue();
           if (went) {
             advanced = true;
-            await sleep(humanDelay(650));
+            if (global.FillApplyEasyApplySteps && global.FillApplyEasyApplySteps.waitForStepChange) {
+              await global.FillApplyEasyApplySteps.waitForStepChange(prevProgress, prevUrl, 9000);
+              await sleep(humanDelay(300));
+            } else {
+              await sleep(humanDelay(650));
+            }
           } else {
             // Stuck — pause for human (needsHuman) instead of hard-fail when possible
             return {

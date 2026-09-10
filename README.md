@@ -10,7 +10,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
-**Version 1.13.0** — **Source profiles** (`lib/source-profiles.js`): per-platform compulsory fields, `fillApply.sourceProfiles` + `fillApply.selectedSourceId`, Start gate until complete, merge-over-base at fill time. **Batch-by-source** sorts the queue so the same ATS/board runs consecutively (`batch_source · indeed (N jobs)`). **Options → App Settings** rename (UI titles, side panel “Open App Settings”; path still `options/options.html`). **Mock** seeds Teamtailor/Indeed/etc. answers for pause-free demos; Zahid keeps empty source shells. Prior **1.12.0** missing-fields popup + Single settle/pace + number sanitize; **1.11.1** locked Mock + Teamtailor Apply-start.
+**Version 1.14.0** — **Glassdoor Easy Apply** (Indeed-backed): contact → location → resume → review + reCAPTCHA `needsHuman`; shared `lib/easy-apply-steps.js`; host-change handoff to Indeed. **Frame-churn retry** in runner + panel (`Frame with ID … removed` / `No tab with id` → re-query tab, re-inject, continue — Ready does not markFailed solely for frame churn). Indeed fill→Continue→rescan aligned. Source profile + Mock seeds for `glassdoor`. Prior **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename; **1.12.0** missing-fields popup + settle/pace.
 
 ## Load unpacked
 

@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** App Settings, **source profiles**, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Recruitee → Apply with Indeed** (Cloudflare pause → Indeed Easy Apply), **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, **Teamtailor** career-site modal apply, **universal Apply-start** CTAs, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** App Settings, **source profiles**, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Recruitee → Apply with Indeed** (Cloudflare pause → Indeed Easy Apply), **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, **Teamtailor** career-site modal apply, **universal Apply-start** CTAs, **Glassdoor Easy Apply** (Indeed-backed multi-step + reCAPTCHA pause), and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -608,6 +608,51 @@ Hosts often: `*.recruitee.com` or company career sites powered by Recruitee (Rec
 
 
 
+
+## Glassdoor Easy Apply (Indeed-backed)
+
+**Status:** Hardened from live paste (`adapters/boards/glassdoor.js` + shared `lib/easy-apply-steps.js`).
+
+Hosts: `glassdoor.com` / `www.glassdoor.com`. Apply chrome may stay on Glassdoor or **shift to indeed.com** — on host change the runner re-injects and the **Indeed** adapter takes over.
+
+### Flow (progress %)
+
+1. Job page → click **Easy Apply** (never “Is my resume a good match?” / AI Upload widgets).
+2. **~11% Add your contact information** — First*, Last*, Email, Phone (country + number) → **Continue**.
+3. **~33% Add your location** — Country, Postal code, City, Street (not shown to employers) → **Continue**.
+4. **~44% Add a resume** — prefer **Upload a resume** (PDF/DOCX/RTF/TXT); Build an Indeed Resume is optional → **Continue**.
+5. **Review** — contact + resume summary; supporting documents optional; **I am not a robot** / reCAPTCHA → **`needsHuman` pause** (never solve).
+6. Final **Submit** / Submit application only in **submit** mode after captcha cleared by human.
+
+### Modes
+
+| Mode | Behavior |
+|------|----------|
+| **fill** | Easy Apply if needed; fill **current step only**; do not Continue / Submit |
+| **ready** | Fill → Continue → wait for progress/DOM change → rescan until Review; stop before Submit and before unsolved captcha |
+| **submit** | Same loop, then Submit after captcha cleared |
+
+### Runner / panel hardening
+
+- `Frame with ID … was removed` / `No tab with id` after Continue → wait, refresh tabId, re-inject `INJECT_FILES`, retry fill (up to N). Continuous Ready **does not** markFailed solely for frame churn.
+- Indeed adapter aligned to the same fill→Continue→rescan loop; advance failure → pause+Resume when possible.
+
+### Operator checklist
+
+1. Reload extension **v1.14.0**.
+2. Select source **Glassdoor** in App Settings (contact + location + resume fields) or rely on base profile merge.
+3. Queue a Glassdoor Easy Apply job URL → **Ready**.
+4. Expect: Easy Apply → contact → location → resume → Review; captcha → notification → solve manually → **Resume**; Submit only in submit mode.
+5. If chrome jumps to indeed.com, runner should hand off automatically.
+
+### Related
+
+- Adapter: `adapters/boards/glassdoor.js`
+- Shared steps: `lib/easy-apply-steps.js`
+- Destination handoff: `adapters/boards/indeed.js`
+- Challenges: `lib/challenges.js`
+
+
 ## Teamtailor (career site modal)
 
 **Status:** Hardened from live paste (`careers.learnatnoon.com` Mentorship Manager — footer *Applicant tracking system by Teamtailor*).
@@ -662,7 +707,7 @@ Registered in `adapters/catalog.js` (+ hardened overrides where noted).
 **Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (multi-step + account human-gate + hCaptcha), **CATS***, **Recruitee*** (Apply with Indeed → Cloudflare → Indeed Easy Apply), **Teamtailor*** (Apply for this job → modal)
 
 ### Job boards
-**LinkedIn*** (Easy Apply + External Apply handoff), Upwork, **NaukriGulf***, Indeed*, **eFinancialCareers*** (account-first + modal → employer handoff), FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
+**LinkedIn*** (Easy Apply + External Apply handoff), Upwork, **NaukriGulf***, Indeed*, **eFinancialCareers*** (account-first + modal → employer handoff), FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, **Glassdoor*** (Easy Apply / Indeed-backed), Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
 
 ### Agencies
 Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH

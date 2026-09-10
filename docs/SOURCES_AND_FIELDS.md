@@ -127,6 +127,25 @@ Published **apply caps** (default 2, max 3 per source) enforced by the extension
 
 ---
 
+
+
+## Glassdoor — Easy Apply (Indeed-backed)
+
+**Hosts:** `glassdoor.com`. Apply UI may remain on Glassdoor or move to `indeed.com` (handoff → Indeed adapter).
+
+**Flow:** Easy Apply → multi-step with progress %:
+
+| Step | Progress | Fields |
+|------|----------|--------|
+| Add your contact information | ~11% | First*, Last*, Email, Phone (country select + number) → Continue |
+| Add your location | ~33% | Country, Postal code, City, Street address (not shown to employers) → Continue |
+| Add a resume | ~44% | Upload resume (PDF/DOCX/RTF/TXT) or Build Indeed Resume → Continue |
+| Review | ~100% | Contact + resume summary; supporting docs optional; reCAPTCHA → needsHuman; Submit only in submit mode |
+
+**Source profile keys:** firstName, lastName, email, phone, phoneCountry, country, postcode, city, street (optional), resumeUrl.
+
+**Anti-patterns:** do not click “Is my resume a good match?” / AI upload widgets as Apply; never bypass reCAPTCHA.
+
 ## NaukriGulf
 
 **Prerequisite:** platform profile **100% complete** or redirect to profile → pause.

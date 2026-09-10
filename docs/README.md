@@ -11,4 +11,4 @@ Index of project docs for the **Fill & Apply** Chrome MV3 extension.
 | [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) | Honest status of what was shipped (✅ / 🚧 / ⏳) |
 | [../README.md](../README.md) | Root README — load unpacked, architecture, run modes, queue, adapters |
 
-**Repo:** [whynotxero-lab/Fill-Apply](https://github.com/whynotxero-lab/Fill-Apply) · **Current version:** 1.13.0
+**Repo:** [whynotxero-lab/Fill-Apply](https://github.com/whynotxero-lab/Fill-Apply) · **Current version:** 1.14.0
