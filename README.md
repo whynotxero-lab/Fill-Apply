@@ -6,7 +6,9 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Adaptive fill:** synonym CTAs (Apply / Apply Now / Start Apply / Apply for this Job / …) and Resume≈CV via `lib/synonyms.js` + **universal Apply-start** (click Apply to open the form when still on a job overview) + generic fallback for unknown hosts.
 
-**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
+**Docs:** [Docs index](docs/README.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
+
+Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
 **Version 1.13.0** — **Source profiles** (`lib/source-profiles.js`): per-platform compulsory fields, `fillApply.sourceProfiles` + `fillApply.selectedSourceId`, Start gate until complete, merge-over-base at fill time. **Batch-by-source** sorts the queue so the same ATS/board runs consecutively (`batch_source · indeed (N jobs)`). **Options → App Settings** rename (UI titles, side panel “Open App Settings”; path still `options/options.html`). **Mock** seeds Teamtailor/Indeed/etc. answers for pause-free demos; Zahid keeps empty source shells. Prior **1.12.0** missing-fields popup + Single settle/pace + number sanitize; **1.11.1** locked Mock + Teamtailor Apply-start.
 
