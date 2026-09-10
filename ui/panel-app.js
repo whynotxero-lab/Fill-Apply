@@ -62,6 +62,7 @@
     'adapters/ats/workable.js',
     'adapters/ats/icims.js',
     'adapters/ats/cats.js',
+    'adapters/ats/recruitee.js',
     'adapters/boards/indeed.js',
     'adapters/boards/linkedin.js',
     'adapters/boards/naukrigulf.js',

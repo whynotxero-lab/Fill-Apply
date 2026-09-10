@@ -59,7 +59,7 @@ adapters/
   registry.js   register / detect
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
-  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS (multi-step + account human-gate + hCaptcha), CATS
+  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS (multi-step + account human-gate + hCaptcha), CATS, Recruitee (Apply with Indeed → Indeed)
   boards/       Indeed (multi-step), LinkedIn (Easy Apply + External Apply → iCIMS), NaukriGulf (Easy Apply modal), eFinancialCareers (account-first modal → employer), Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), Jooble (→ Swooped/ATS), Swooped (Apply manually instead), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
@@ -258,6 +258,16 @@ With mock mode (or empty base URL), `lib/backend.js` serves the in-extension **q
 
 Browsers block setting a file path on `<input type="file">`. We store resume/cover as **base64 in `chrome.storage`**, rebuild a `File` / `Blob`, and assign via **`DataTransfer`** (`lib/files.js` → `assignFilesToInput`). Blobs may also come from the backend `getDocuments()` response.
 
+## Recruitee → Apply with Indeed
+
+Hosts: `*.recruitee.com` and Recruitee-powered company careers pages.
+
+1. Detect Recruitee; prefer **Apply with Indeed** when present (`preferIndeedApply` default **true**).
+2. Handoff → Indeed adapter (Cloudflare pause via `challenges.js` if shown).
+3. Else click **Apply** and fill native Recruitee form via fallback.
+
+See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
+
 ## How to add a platform adapter
 
 1. Pick a slug (`myats`) and category (`ats` | `board` | `agency`).
@@ -268,7 +278,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 ### Supported platforms (catalog)
 
-**ATS:** Greenhouse, Ashby, Lever, Workable, Workday, SmartRecruiters, iCIMS, CATS  
+**ATS:** Greenhouse, Ashby, Lever, Workable, Workday, SmartRecruiters, iCIMS, CATS, Recruitee (→ Apply with Indeed)  
 
 **Boards / aggregators:** LinkedIn (Easy Apply + External Apply → careers/iCIMS), Upwork, NaukriGulf, Remote OK, We Work Remotely, Working Nomads (→ Greenhouse), Indeed, eFinancialCareers (account-first → employer), FreeHire, Jooble (→ Swooped/ATS), Swooped (Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In  
 

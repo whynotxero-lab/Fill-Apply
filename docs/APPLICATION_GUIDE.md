@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Recruitee → Apply with Indeed** (Cloudflare pause → Indeed Easy Apply), **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -531,12 +531,47 @@ Working Nomads (`workingnomads.com`) is often a **job discovery** board. The on-
 - Destination: [Greenhouse — hardened ATS](#greenhouse--hardened-ats)
 - Similar pattern: [We Work Remotely — paid source](#we-work-remotely--paid-source) (WWR → CATS)
 
+## Recruitee → Apply with Indeed
+
+**Status:** ATS adapter with **Apply with Indeed** preference + native form fallback (`adapters/ats/recruitee.js`).
+
+Hosts often: `*.recruitee.com` or company career sites powered by Recruitee (Recruitee-style layout, footer / “Powered by Recruitee”, optional **Apply with Indeed** widget).
+
+### Operator paste (SFORS / Recruitee careers)
+
+- CTAs: **Apply** OR **Apply with Indeed**
+- User preference: when an Indeed account exists, prefer **Apply with Indeed**
+- Then Indeed may show **Cloudflare** → existing `challenges.js` pause → **Indeed** multi-step adapter
+
+### What Fill & Apply does today
+
+1. Detects Recruitee hosts (`recruitee.com` / `*.recruitee.com`) and Recruitee-powered markers (including **Apply with Indeed** on branded careers pages).
+2. Config flag **`preferIndeedApply`** (default **`true`**): if **Apply with Indeed** is present, click it and return a WWR-style handoff (`externalApply` / `deferToPageAdapter` / `handedOff`).
+3. Runner waits for load / re-injects → `registry.detect` picks the **Indeed** adapter for the Easy Apply multi-step flow.
+4. Cloudflare / Turnstile on Indeed → existing challenge pause (never bypass) → Resume continues.
+5. If `preferIndeedApply` is **false**, or only native **Apply** exists → click **Apply** and fill the Recruitee form via fallback (synonyms already cover Apply).
+
+### Operator checklist
+
+1. Prefer being logged into **Indeed** before queuing Recruitee jobs that offer Apply with Indeed.
+2. Queue the Recruitee job URL (or company careers URL powered by Recruitee).
+3. Expect: Recruitee → **Apply with Indeed** → possible Cloudflare pause → Indeed contact / resume / employer Qs → Review; Submit only in **submit** mode.
+4. Set `preferIndeedApply: false` in run config only if you want the native Recruitee form instead of Indeed.
+
+### Related
+
+- Adapter: `adapters/ats/recruitee.js` (injected in runner / panel `INJECT_FILES`)
+- Catalog: `recruitee` in `adapters/catalog.js`
+- Destination: Indeed board adapter (`adapters/boards/indeed.js`)
+- Challenges: `lib/challenges.js`
+- Similar patterns: [Working Nomads → Greenhouse handoff](#working-nomads--greenhouse-handoff), [We Work Remotely — paid source](#we-work-remotely--paid-source)
+
 ## Configured sources (catalog)
 
 Registered in `adapters/catalog.js` (+ hardened overrides where noted).
 
 ### ATS (apply engines)
-**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (multi-step + account human-gate + hCaptcha), **CATS***
+**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (multi-step + account human-gate + hCaptcha), **CATS***, **Recruitee*** (Apply with Indeed → Cloudflare → Indeed Easy Apply)
 
 ### Job boards
 **LinkedIn*** (Easy Apply + External Apply handoff), Upwork, **NaukriGulf***, Indeed*, **eFinancialCareers*** (account-first + modal → employer handoff), FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
@@ -560,7 +595,7 @@ If no adapter matches, Fill & Apply still attempts **inspect → fill** using th
 | Multi-step CTAs | Next, Continue, Save & continue | Synonym CTA match |
 | Final CTAs | Apply, Apply Now, Apply for this Job, Submit Application, Submit & Apply | Synonym CTA match |
 | Challenges | Cloudflare, CAPTCHA, **hCaptcha** (Protected by hCaptcha) | Pause + notify (never bypass) |
-| External handoff | WWR → CATS; Working Nomads → Greenhouse; Jooble → Swooped → ATS; LinkedIn External Apply → careers/iCIMS; eFinancialCareers modal Apply → employer careers | Click Apply / Apply manually instead → re-detect destination adapter |
+| External handoff | WWR → CATS; Working Nomads → Greenhouse; **Recruitee → Apply with Indeed → Indeed**; Jooble → Swooped → ATS; LinkedIn External Apply → careers/iCIMS; eFinancialCareers modal Apply → employer careers | Click Apply / Apply with Indeed / Apply manually instead → re-detect destination adapter |
 
 Profile keys commonly mapped: first/last/full name, email, phone (+ country), location/city/state/country/zip/street, LinkedIn, portfolio, website, GitHub, resume URL/summary, work history, education, cover letter, work authorization, sponsorship, `customAnswers` / `customQA`.
 
@@ -584,7 +619,7 @@ Build a complete **platform account/profile** before queuing applies on:
 - LinkedIn, Indeed, Upwork, Bayt, GulfTalent, Glassdoor, Wellfound
 - We Work Remotely, Remote OK, FlexJobs (also **paid** access where marked)
 
-Sources that mainly deep-link into Greenhouse/Ashby/Lever/CATS may need little/no board account beyond reaching the ATS form.
+Sources that mainly deep-link into Greenhouse/Ashby/Lever/CATS may need little/no board account beyond reaching the ATS form. **Recruitee** often routes through **Indeed** — keep an Indeed session ready when `preferIndeedApply` is on (default).
 
 ## Related docs
 

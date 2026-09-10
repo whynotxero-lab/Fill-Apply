@@ -30,6 +30,7 @@
     'adapters/ats/workable.js',
     'adapters/ats/icims.js',
     'adapters/ats/cats.js',
+    'adapters/ats/recruitee.js',
     'adapters/boards/indeed.js',
     'adapters/boards/linkedin.js',
     'adapters/boards/naukrigulf.js',
@@ -396,7 +397,7 @@
     return getStatusSnapshot();
   }
 
-  async function injectAndFill(tabId, profile, documents, runMode) {
+  async function injectAndFill(tabId, profile, documents, runMode, config) {
     await focusTab(tabId);
     await sleep(150 + Math.floor(Math.random() * 200));
 
@@ -405,9 +406,12 @@
       files: INJECT_FILES
     });
 
+    const preferIndeedApply =
+      config && typeof config.preferIndeedApply === 'boolean' ? config.preferIndeedApply : true;
+
     const results = await chrome.scripting.executeScript({
       target: { tabId: tabId },
-      func: function (profileArg, documentsArg, runModeArg) {
+      func: function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg) {
         const registry = globalThis.FillApplyRegistry;
         if (!registry) {
           return {
@@ -434,7 +438,13 @@
             documents: documentsArg,
             runMode: runModeArg || 'fill',
             autoSubmit: runModeArg === 'submit',
-            options: { highlightUnmatched: false, runMode: runModeArg || 'fill' },
+            preferIndeedApply: preferIndeedApplyArg !== false,
+            options: {
+              highlightUnmatched: false,
+              runMode: runModeArg || 'fill',
+              preferIndeedApply: preferIndeedApplyArg !== false
+            },
+            config: { preferIndeedApply: preferIndeedApplyArg !== false },
             adapterId: adapter.id,
             submitSelector: adapter.submitSelector,
             fileInputHints: adapter.fileInputHints,
@@ -450,7 +460,7 @@
           total: 0
         };
       },
-      args: [profile, documents, runMode || 'fill']
+      args: [profile, documents, runMode || 'fill', preferIndeedApply]
     });
 
     return (
@@ -721,7 +731,7 @@
             preHandoffUrl = (preTab && preTab.url) || '';
           } catch (_ePre) {}
 
-          fillResult = await injectAndFill(tab.id, profile, documents, runMode);
+          fillResult = await injectAndFill(tab.id, profile, documents, runMode, config);
 
           // WWR (and similar boards): Apply now opened an external ATS host —
           // wait for navigation and re-detect / fill with the destination adapter (e.g. CATS).
@@ -752,7 +762,7 @@
                 hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
               }
               if (hostChanged) {
-                const handed = await injectAndFill(tab.id, profile, documents, runMode);
+                const handed = await injectAndFill(tab.id, profile, documents, runMode, config);
                 if (handed) {
                   handed.externalApply = true;
                   handed.fromBoardHandoff = (fillResult && fillResult.adapterId) || true;
