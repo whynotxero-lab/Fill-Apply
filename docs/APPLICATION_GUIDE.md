@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -233,15 +233,87 @@ Footer marker: **Powered by CATS**.
 - Paste additional live DOM selectors later for further hardening if CATS markup drifts.
 - Adapter: `adapters/ats/cats.js` (registered in catalog + runner / panel inject lists).
 
+## Greenhouse — hardened ATS
+
+**Status:** Hardened ATS adapter (`adapters/ats/greenhouse.js`). Hosts: `boards.greenhouse.io`, `job-boards.greenhouse.io`, `*.greenhouse.io`. Often reached via **Working Nomads** (and other boards) when **Apply** opens an external Greenhouse URL.
+
+### Paste-library examples
+
+#### 1) GitLab — Manager, Strategic Finance (classic Greenhouse)
+
+- Classic GH fields + many **required Selects**: country of residence, sponsorship, prior GitLab employment, US-based, employment agreements, etc.
+- **Resume/CV\*** + **Cover** (Attach / DataTransfer), LinkedIn, **preferred name**, accessibility text (from `customAnswers` only — never invent).
+- **Skip voluntary EEO** / diversity (Prefer not to answer).
+
+#### 2) Figma — Strategic Finance (Greenhouse embed)
+
+- Autofill optional (dismiss / ignore).
+- First / Last / Email / Phone Country / Phone / **Location City\***.
+- **Resume\***, LinkedIn, Other Website.
+- **Why join Figma\*** — 3–4 sentences from `coverLetter` or `customAnswers` keyed by question snippet.
+- Work-from city/state\*, preferred first name, **authorized to work\***, **worked at Figma before\***.
+- Team interest radios (Corporate / GTM / Growth) via `customAnswers`; if required and unmapped in **submit** → pause.
+- **Submit application**. Skip EEO.
+
+### What Fill & Apply fills
+
+| Area | Behavior |
+|------|----------|
+| Resume/CV + Cover | DataTransfer on `#resume` / `#cover_letter` / name hints + Attach buttons |
+| Preferred name | `preferredName` / `preferredFirstName` or `firstName` |
+| Location | City, state, country of residence, phone country selects |
+| Yes/No / Selects | Sponsorship, authorized to work, previously worked, employment agreements, based in US — fuzzy from profile + `customAnswers` |
+| Long text | Why join / additional info ← `coverLetter` or `customAnswers`; accessibility ← `customAnswers` only |
+| Radios | Team interest ← `customAnswers` only |
+| EEO / diversity | Skipped / Prefer not — **never invent** |
+| Submit synonyms | **Apply for this job** / **Submit application** (submit mode only) |
+
+### Modes
+
+- **fill** / **ready**: fields + files; do **not** click final Apply/Submit.
+- **submit**: fill then click Apply/Submit synonym.
+
+### Related
+
+- Adapter: `adapters/ats/greenhouse.js` (in runner / panel inject lists)
+- Discovery handoff: [Working Nomads → Greenhouse](#working-nomads--greenhouse-handoff)
+
+## Working Nomads → Greenhouse handoff
+
+**Status:** Discovery board adapter with **external Apply handoff** (same pattern as We Work Remotely → CATS).
+
+Working Nomads (`workingnomads.com`) is often a **job discovery** board. The on-site **Apply** control commonly opens an **external ATS** — frequently **Greenhouse** (examples above: GitLab / Figma Strategic Finance roles).
+
+### What Fill & Apply does today
+
+1. Detects Working Nomads hosts.
+2. Clicks **Apply** / **Apply now** / **Apply for this job** only — skips unrelated CTAs (subscribe, share, post a job, etc.).
+3. When Apply targets a **different host**, returns `externalApply` / `deferToPageAdapter` / `handedOff`. The **runner waits for load and re-injects** so `registry.detect` picks the destination (e.g. **Greenhouse**) and calls its `fill`.
+4. If the host already changed in the same tab, re-detects and fills the destination adapter immediately when possible.
+5. If a rare on-site form exists, fills via generic fallback.
+
+### Operator checklist
+
+1. Prefer queueing the **final Greenhouse apply URL** when you already have it.
+2. Or queue the Working Nomads job page and let Apply hand off.
+3. Map Figma “Why join” / team interest / GitLab selects in **customAnswers** before **Auto Submit**.
+4. Respect per-source caps (Greenhouse default 2, max 3).
+
+### Related
+
+- Adapter: `adapters/boards/workingnomads.js` (injected in runner / panel `INJECT_FILES`)
+- Destination: [Greenhouse — hardened ATS](#greenhouse--hardened-ats)
+- Similar pattern: [We Work Remotely — paid source](#we-work-remotely--paid-source) (WWR → CATS)
+
 ## Configured sources (catalog)
 
 Registered in `adapters/catalog.js` (+ hardened overrides where noted).
 
 ### ATS (apply engines)
-Greenhouse*, Ashby*, Lever, Workable, Workday, SmartRecruiters, iCIMS, **CATS***
+**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, iCIMS, **CATS***
 
 ### Job boards
-LinkedIn, Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, Working Nomads, Jooble, Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
+LinkedIn, Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), Jooble, Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
 
 ### Agencies
 Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH
@@ -262,7 +334,7 @@ If no adapter matches, Fill & Apply still attempts **inspect → fill** using th
 | Multi-step CTAs | Next, Continue, Save & continue | Synonym CTA match |
 | Final CTAs | Apply, Apply Now, Apply for this Job, Submit Application, Submit & Apply | Synonym CTA match |
 | Challenges | Cloudflare, CAPTCHA | Pause + notify (never bypass) |
-| External handoff | WWR → CATS | Click Apply → re-detect destination adapter |
+| External handoff | WWR → CATS; Working Nomads → Greenhouse | Click Apply → re-detect destination adapter |
 
 Profile keys commonly mapped: first/last/full name, email, phone (+ country), location/city/state/country/zip/street, LinkedIn, portfolio, website, GitHub, resume URL/summary, work history, education, cover letter, work authorization, sponsorship, `customAnswers` / `customQA`.
 

@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.8.4** — WWR external Apply handoff (not AI Auto-Apply) + CATS ATS adapter, NaukriGulf Easy Apply, Ashby caps, Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
+**Version 1.8.5** — Working Nomads → Greenhouse handoff; Greenhouse hardened (GitLab/Figma paste patterns); WWR → CATS; NaukriGulf Easy Apply; Ashby caps; Application Guide; Submit keep-N; PDF reports; Indeed multi-step; Cloudflare pause.
 
 ## Load unpacked
 
@@ -49,7 +49,7 @@ adapters/
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
   ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS, CATS
-  boards/       Indeed (multi-step), NaukriGulf (Easy Apply modal), LinkedIn, Wellfound, Remote OK, We Work Remotely (external Apply handoff), …
+  boards/       Indeed (multi-step), NaukriGulf (Easy Apply modal), LinkedIn, Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
@@ -179,8 +179,11 @@ Greenhouse “Attach” is often a visible button + hidden `input[type=file]`, o
 - Match resume vs cover by label / accept / name.
 - Fill result reports `resumeAttached` / `coverAttached` booleans.
 
-Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhouse.io` apply forms.
+Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhouse.io` (v1.8.5): preferred name, city/country/phone-country, sponsorship / work-auth / prior employer / US-based / employment-agreement Yes–No selects, why-join long text from `coverLetter`/`customAnswers`, team-interest radios, EEO skip, **Apply for this job** / **Submit application**. Paste examples (GitLab / Figma Strategic Finance) in [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#greenhouse--hardened-ats).
 
+## Working Nomads → Greenhouse
+
+Working Nomads is a **discovery** board; **Apply** often opens **Greenhouse**. The board adapter clicks Apply (not unrelated CTAs), hands off on host change, and the runner re-injects so Greenhouse fills. See [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#working-nomads--greenhouse-handoff).
 
 ## We Work Remotely — paid source
 
@@ -251,7 +254,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 **ATS:** Greenhouse, Ashby, Lever, Workable, Workday, SmartRecruiters, iCIMS, CATS  
 
-**Boards / aggregators:** LinkedIn, Upwork, NaukriGulf, Remote OK, We Work Remotely, Indeed, eFinancialCareers, FreeHire, Working Nomads, Jooble, Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In  
+**Boards / aggregators:** LinkedIn, Upwork, NaukriGulf, Remote OK, We Work Remotely, Working Nomads (→ Greenhouse), Indeed, eFinancialCareers, FreeHire, Jooble, Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In  
 
 **Agencies:** Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH  
 
@@ -288,13 +291,13 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 6. Confirm steps: Apply with Indeed → contact/location/work-auth/resume/employer Qs → review; Submit only in submit mode; resume file left alone if already shown.
 7. Unknown required employer question → pause with “Indeed form changed — review required”.
 
-## Reload test (Greenhouse)
+## Reload test (Greenhouse + Working Nomads)
 
-1. `chrome://extensions` → **Reload** Fill & Apply.
-2. Options → paste a real `https://boards.greenhouse.io/…` (or `job-boards.greenhouse.io`) apply URL → Save → confirm Queued count ≥ 1 (no `chrome-extension:` lines).
-3. Upload resume/cover → Save documents. Seed sample profile.
-4. Click the toolbar icon → side panel → **Auto Fill** → Start. Confirm: text/selects filled, work-auth dropdowns leave “Select…”, resume/cover no longer “No file chosen”, job moves Queued → Applied (or Failed with an error), tab **stays open** in Fill mode, URL does not loop.
-5. Optional: try **Auto Ready** (tabs stay open) / **Auto Submit** (PDF report + keep-N tab prune) on further URLs.
+1. `chrome://extensions` → **Reload** Fill & Apply (**v1.8.5**).
+2. Options → paste a real `https://boards.greenhouse.io/…` or `job-boards.greenhouse.io` apply URL (GitLab/Figma-style) **or** a Working Nomads job URL that Apply-opens Greenhouse → Save → confirm Queued count ≥ 1.
+3. Upload resume/cover → Save documents. Seed sample profile; map `customAnswers` for why-join / team interest / prior employer if using **Auto Submit**.
+4. Side panel → **Auto Fill** → Start. Confirm: preferred name / city / selects / resume+cover attached; EEO left alone; Working Nomads Apply hands off to Greenhouse when applicable; tab **stays open** in Fill mode.
+5. Optional: **Auto Ready** / **Auto Submit** (Submit application / Apply for this job only in submit; PDF + keep-N).
 
 
 ## Reload test (NaukriGulf Easy Apply)

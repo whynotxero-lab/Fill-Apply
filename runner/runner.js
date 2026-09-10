@@ -32,7 +32,8 @@
     'adapters/boards/indeed.js',
     'adapters/boards/naukrigulf.js',
     'adapters/boards/remoteok.js',
-    'adapters/boards/weworkremotely.js'
+    'adapters/boards/weworkremotely.js',
+    'adapters/boards/workingnomads.js'
   ];
 
   let loopActive = false;
