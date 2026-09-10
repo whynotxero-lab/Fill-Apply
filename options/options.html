@@ -68,17 +68,23 @@
         <summary>Profile settings / Identity <span class="section-sub" id="formActiveProfileHint"></span></summary>
         <div class="sec-body">
           <form id="profileForm">
+            <p class="hint" id="profileCompleteness">Completeness: —</p>
+
             <h3 class="subhead">Identity</h3>
             <div class="grid">
+              <label>Salutation <input name="salutation" placeholder="Mr." autocomplete="honorific-prefix" /></label>
+              <label>Preferred name <input name="preferredName" placeholder="What colleagues call you" autocomplete="nickname" /></label>
               <label>First name <input name="firstName" autocomplete="given-name" /></label>
+              <label>Middle name <input name="middleName" autocomplete="additional-name" /></label>
               <label>Last name <input name="lastName" autocomplete="family-name" /></label>
-              <label class="span2">Full name <input name="fullName" autocomplete="name" /></label>
+              <label>Full name <input name="fullName" autocomplete="name" /></label>
+              <label class="span2">Headline <input name="headline" placeholder="Strategic Finance &amp; FP&amp;A Professional — CMA, ACCA" /></label>
               <label>Email <input name="email" type="email" autocomplete="email" /></label>
               <label>Phone <input name="phone" type="tel" autocomplete="tel" /></label>
               <label>Phone country code <input name="phoneCountry" placeholder="+971" autocomplete="tel-country-code" /></label>
+              <label>Date of birth <input name="dateOfBirth" type="date" autocomplete="bday" /></label>
               <label>Nationality <input name="nationality" placeholder="e.g. Pakistan" autocomplete="country-name" /></label>
               <label>Gender <input name="gender" placeholder="Optional" autocomplete="sex" /></label>
-              <label class="span2">Notice period <input name="noticePeriod" placeholder="I can start immediately" /></label>
             </div>
 
             <h3 class="subhead">Location</h3>
@@ -102,6 +108,41 @@
               </label>
             </div>
 
+            <h3 class="subhead">Professional</h3>
+            <div class="grid">
+              <label class="span2">Current / most recent job title <input name="currentTitle" /></label>
+              <label class="span2">Current / most recent employer <input name="currentCompany" /></label>
+              <label>Years of experience <input name="yearsExperience" placeholder="15" /></label>
+              <label>Languages <input name="languages" placeholder="English" /></label>
+              <label class="span2">Skills <textarea name="skills" rows="2"></textarea></label>
+              <label class="span2">Certifications <textarea name="certifications" rows="2"></textarea></label>
+              <label class="span2">References <input name="references" placeholder="Available on request" /></label>
+            </div>
+
+            <h3 class="subhead">Education</h3>
+            <div class="grid">
+              <label>Highest education <input name="highestEducation" placeholder="Master's Degree" /></label>
+              <label>Degree <input name="degree" placeholder="MBA Executive" /></label>
+              <label class="span2">School / university <input name="school" /></label>
+              <label>Field of study <input name="fieldOfStudy" placeholder="Finance" /></label>
+              <label>Graduation year <input name="graduationYear" placeholder="2018" /></label>
+              <label>GPA / grade <input name="gpa" placeholder="3.75" /></label>
+            </div>
+            <p class="hint" id="educationEntriesHint"></p>
+
+            <h3 class="subhead">Availability, compensation &amp; preferences</h3>
+            <div class="grid">
+              <label class="span2">Notice period <input name="noticePeriod" placeholder="I can start immediately" /></label>
+              <label>Available from <input name="availableFrom" type="date" /></label>
+              <label>Willing to relocate <input name="willingToRelocate" placeholder="Yes" /></label>
+              <label>Remote preference <input name="remotePreference" placeholder="Onsite / Hybrid / Remote" /></label>
+              <label>Driver's license <input name="driversLicense" placeholder="Yes / No" /></label>
+              <label>Current salary <input name="currentSalary" /></label>
+              <label>Expected salary <input name="expectedSalary" /></label>
+              <label>Salary currency <input name="salaryCurrency" placeholder="SAR" /></label>
+              <label class="span2">How did you hear about us <input name="referralSource" placeholder="Job board" /></label>
+            </div>
+
             <h3 class="subhead">Links</h3>
             <div class="grid">
               <label class="span2">LinkedIn <input name="linkedin" type="url" placeholder="https://linkedin.com/in/…" /></label>
@@ -119,6 +160,7 @@
             <label>Work history summary
               <textarea name="workHistory" rows="4"></textarea>
             </label>
+            <p class="hint" id="experienceEntriesHint"></p>
             <label>Education
               <textarea name="education" rows="2"></textarea>
             </label>

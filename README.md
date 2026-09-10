@@ -10,6 +10,8 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
+**Version 1.15.2** — **full applicant profile**. The Zahid General record now carries every field ATS forms are known to ask for as its own value — school, degree, field of study, graduation year, years of experience, current title, and the rest — instead of burying them in a paragraph the engine cannot split. Selects, radios and listboxes resolve buckets (`15` → `10+ years`), education levels (`Master's / MBA` → `Master's Degree`, falling back to `Bachelor's` when that is the highest option offered) and demonyms (`Pakistan` → `Pakistani`). Blank salary and date of birth stay blank. See [Fill engine](docs/FILL_ENGINE.md).
+
 **Version 1.15.1** — **value formats + preloaded documents**. Every value is now shaped for the control receiving it: `lib/format.js` reads the `type`, `pattern`, `maxlength`, `inputmode`, `step` and placeholder mask a field advertises, so a phone number arrives as `+971501234567` in a single field but as `501234567` where the form has its own country-code selector, and as ten bare digits where the control declares `pattern="\d{10}"`. Postal codes, dates, URLs and numbers follow the same rule, and selects try alternate spellings (`United Arab Emirates` → `AE`). The **resume and cover letter loaded in App Settings are attached by the engine itself**, on whichever step asks for them, without ever opening the operating system's file chooser. See [Fill engine](docs/FILL_ENGINE.md).
 
 **Version 1.15.0** — **fill engine rebuild**. Injection now runs in **all frames**, so ATS forms embedded in iframes (Greenhouse / Lever / Workable / SmartRecruiters embeds, iCIMS, Glassdoor→Indeed) are reachable for the first time. Form detection is **signal-scored** instead of matching a container whitelist, so React-rendered forms (Ashby, Lever, Teamtailor, Workday) are recognised. The fill pass is **async**, so custom dropdown options are awaited rather than queried in the same tick — previously no custom dropdown could ever be filled. New `lib/dom-deep.js` pierces shadow roots, resolves labels from wrapper divs, and clicks with real pointer events. Source-profile answers under `customAnswers` now reach reworded page labels.
@@ -36,7 +38,7 @@ App Settings → **Profiles** (collapsible; expanded by default):
 - Side panel shows active applicant `Person · email` only (not chip·person·email)
 - Storage: `fillApply.profiles` + `fillApply.activeProfileId`. Legacy migrates to **"Mock"**. Section open-state: `fillApply.ui.sections`.
 - **Documents**: file upload + optional Resume/Cover Drive/URL (`resumeLink`/`coverLink` + profile `resumeUrl`/`coverUrl`). Fetch→blob is best-effort; Drive auth/CORS → pause + manual upload.
-- **Zahid General**: Create/Reset loads Chaudhary Zahid Ali’s KSA FP&A template (see `profiles/zahid-general.json`).
+- **Zahid General**: Create/Reset loads Chaudhary Zahid Ali’s full KSA FP&A profile — every ATS field type, not just contact + a paragraph (see `profiles/zahid-general.json`). Salary, date of birth and driving licence stay blank until supplied.
 - **Missing profile fields**: never invented — OS notification + **in-panel popup** to type values → Save & continue writes the active profile, then Resume (batch) or re-runs Single.
 
 ## Single vs Batch (v1.12)
@@ -151,7 +153,7 @@ The extension has no build step; `package.json` exists only for the test harness
 
 ```bash
 npm install
-npm test                      # jsdom suites: detection, fill engine, value formats, documents
+npm test                      # jsdom suites: detection, fill engine, value formats, documents, full profile
 node scripts/browser-e2e.js   # real Chrome + unpacked extension (needs a display)
 ```
 

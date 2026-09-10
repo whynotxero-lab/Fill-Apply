@@ -267,7 +267,7 @@
       return true;
     }
 
-    if (type === 'radio') return selectRadioInGroup(el, value);
+    if (type === 'radio') return selectRadioInGroup(el, value, kindOf(el, context));
 
     var sanitized = sanitizeForInput(el, value, context);
     if (sanitized.skip) return false;
@@ -281,6 +281,9 @@
       for (let v = 0; v < variants.length; v++) {
         if (matchSelectOption(el, variants[v])) return true;
       }
+      // Buckets and levels: "15" belongs in "10+ years", "Master's / MBA" in
+      // "Master's Degree". Neither is reachable by comparing strings.
+      if (selectByOptionMatch(el, finalValue, sanitized.kind)) return true;
       if (D && D.setValue) D.setValue(el, finalValue);
       else el.value = finalValue;
       return String(el.value || '') !== '';
@@ -304,6 +307,51 @@
     });
   }
 
+  /** What shape of answer a control wants, for option matching. */
+  function kindOf(el, context) {
+    const fmt = global.FillApplyFormat;
+    if (!fmt || typeof fmt.fieldKind !== 'function') return null;
+    const D = dom();
+    const descriptor = D && D.describeField ? D.describeField(el) : el;
+    return fmt.fieldKind(descriptor, context && context.key);
+  }
+
+  /** Real options of a select, placeholders dropped, with their indexes kept. */
+  function realOptions(selectEl) {
+    const out = [];
+    if (!selectEl || !selectEl.options) return out;
+    for (let i = 0; i < selectEl.options.length; i++) {
+      const opt = selectEl.options[i];
+      const text = (opt.textContent || '').trim();
+      const value = String(opt.value || '').trim();
+      if (!value && /^(select|choose|please select|--|–|—)/i.test(text)) continue;
+      if (/^select\s*[….]{0,3}$/i.test(text)) continue;
+      out.push({ index: i, label: text || value });
+    }
+    return out;
+  }
+
+  /**
+   * Choose a select option by bucket or level rather than by text similarity.
+   */
+  function selectByOptionMatch(selectEl, value, kind) {
+    const fmt = global.FillApplyFormat;
+    if (!fmt || typeof fmt.matchOptionIndex !== 'function') return false;
+    const options = realOptions(selectEl);
+    if (!options.length) return false;
+    const hit = fmt.matchOptionIndex(
+      options.map(function (o) {
+        return o.label;
+      }),
+      value,
+      kind
+    );
+    if (!hit) return false;
+    selectEl.selectedIndex = options[hit.index].index;
+    fireChange(selectEl);
+    return true;
+  }
+
   function fireChange(el) {
     try {
       el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -314,7 +362,7 @@
   }
 
   /** Pick the radio in `el`'s group whose label or value matches `value`. */
-  function selectRadioInGroup(el, value) {
+  function selectRadioInGroup(el, value, kind) {
     const want = String(value).toLowerCase().trim();
     const group = radioGroupFor(el);
     if (!group.length) return false;
@@ -338,13 +386,28 @@
       }
     });
 
-    if (!best || bestScore < 60) return false;
+    if (!best || bestScore < 60) {
+      // Radio groups carry buckets and levels as often as selects do:
+      // "0-2 / 3-5 / 6-9 / 10+" is the same question either way.
+      best = radioByOptionMatch(group, value, kind);
+      if (!best) return false;
+    }
     realClick(best);
     if (!best.checked) {
       best.checked = true;
       fireChange(best);
     }
     return true;
+  }
+
+  function radioByOptionMatch(group, value, kind) {
+    const fmt = global.FillApplyFormat;
+    if (!fmt || typeof fmt.matchOptionIndex !== 'function') return null;
+    const labels = group.map(function (radio) {
+      return getLabelText(radio) || String(radio.value || '');
+    });
+    const hit = fmt.matchOptionIndex(labels, value, kind);
+    return hit ? group[hit.index] : null;
   }
 
   function radioGroupFor(el) {
@@ -672,6 +735,7 @@
     }
 
     let picked = pickBestOptionAny(options, wants);
+    if (!picked) picked = pickByOptionMatch(options, want, opts.kind);
 
     // Typeahead comboboxes only render matching options once text is entered.
     if (!picked) {
@@ -687,6 +751,7 @@
             { timeoutMs: 2000, pollMs: 80 }
           )) || visibleOptions();
         picked = pickBestOptionAny(filtered, wants);
+        if (!picked) picked = pickByOptionMatch(filtered, want, opts.kind);
         if (!picked && filtered.length === 1) picked = filtered[0];
       }
     }
@@ -720,6 +785,20 @@
       if (picked) return picked;
     }
     return null;
+  }
+
+  /** Bucket / level matching over rendered listbox options. */
+  function pickByOptionMatch(options, want, kind) {
+    const fmt = global.FillApplyFormat;
+    if (!fmt || typeof fmt.matchOptionIndex !== 'function' || !options.length) return null;
+    const hit = fmt.matchOptionIndex(
+      options.map(function (el) {
+        return textOf(el);
+      }),
+      want,
+      kind
+    );
+    return hit ? options[hit.index] : null;
   }
 
   /** The text input a combobox trigger types into, if it has one. */

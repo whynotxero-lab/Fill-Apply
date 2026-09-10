@@ -272,6 +272,18 @@ Documents: only site adapters attached them, and in a single pass before any Con
 
 ---
 
+## Full applicant profile 1.15.2
+
+**User:** Use this CV to build a single full profile usable across all job sources that can fill any and all fields. Make sure it can fill checks, yes/no, dropdown, radio, date, educational and the other listed field types accurately.
+
+**Assistant:** The Zahid General record was a contact card with a work-history paragraph. ATS forms do not ask for a paragraph — they ask for school, degree, field of study, graduation year, years of experience as a bucket, highest education as a select, nationality as a demonym. Those values were not stored, so the engine had nothing to write.
+
+Expanded the profile schema and App Settings form to the fields every listed source asks for. Stored each of them on Zahid General from the CV (seven roles, two degrees, CMA/ACCA, 15 years, Master's, Riyadh, Pakistani, immediately available). Left salary, date of birth and driving licence blank on purpose.
+
+The fill engine now matches the option the form offers: `15` lands in `10+`, `Master's` finds `Master's Degree` and falls back to `Bachelor's` when that is the highest option, `Pakistan` finds `Pakistani`, `I can start immediately` finds Teamtailor `Onspot`. Radio groups are mapped from the question (the legend), not from the first option's text. Short control ids like `edu` no longer steal the education paragraph because they happen to sit inside the word "education". Consent and EEO are still skipped. `npm test` is 7 suites / 184 assertions — **v1.15.2**. See [FILL_ENGINE.md](FILL_ENGINE.md).
+
+---
+
 ## Notes for readers
 
 - Timestamps omitted; order follows the agent transcript turn sequence.

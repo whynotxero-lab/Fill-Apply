@@ -41,6 +41,41 @@ const ATS_FORM = `<!doctype html><html><body>
     <div class="_fieldEntry"><div class="_label">LinkedIn URL</div><div><input id="li" type="url" /></div></div>
     <div class="_fieldEntry"><div class="_label">Expected salary</div><div><input id="sal" type="number" /></div></div>
     <div class="_fieldEntry">
+      <div class="_label">Years of experience</div>
+      <div>
+        <select id="yoe">
+          <option value="">Select...</option>
+          <option>0-2</option>
+          <option>3-5</option>
+          <option>6-9</option>
+          <option>10+</option>
+        </select>
+      </div>
+    </div>
+    <div class="_fieldEntry">
+      <div class="_label">Highest level of education</div>
+      <div>
+        <select id="edu">
+          <option value="">Select...</option>
+          <option>High School</option>
+          <option>Bachelor's Degree</option>
+          <option>Master's Degree</option>
+          <option>Doctorate</option>
+        </select>
+      </div>
+    </div>
+    <div class="_fieldEntry">
+      <div class="_label">Nationality</div>
+      <div>
+        <select id="nat">
+          <option value="">Select...</option>
+          <option>Saudi</option>
+          <option>Pakistani</option>
+          <option>Indian</option>
+        </select>
+      </div>
+    </div>
+    <div class="_fieldEntry">
       <div class="_label">Resume</div>
       <div><button id="attach" type="button">Attach resume</button> <span id="cvname"></span></div>
     </div>
@@ -115,6 +150,9 @@ const PROFILE = {
   phoneCountry: '+966',
   zip: '10018-1234',
   linkedin: 'https://linkedin.com/in/zahid',
+  nationality: 'Pakistan',
+  yearsExperience: '15',
+  highestEducation: "Master's Degree",
   authorizedToWork: 'Yes',
   customAnswers: { expectedSalary: '25000 SAR' },
   customQA: [{ question: 'Why should we hire you', answer: 'Fifteen years in FP&A.' }]
@@ -255,6 +293,9 @@ function check(condition, message) {
         zip: val('zip'),
         li: val('li'),
         sal: val('sal'),
+        yoe: val('yoe'),
+        edu: val('edu'),
+        nat: val('nat'),
         why: val('why'),
         auth: document.getElementById('auth').textContent.trim(),
         resume: cv && cv.files && cv.files[0] ? cv.files[0].name : null,
@@ -271,6 +312,9 @@ function check(condition, message) {
     check(values.zip === '10018', 'postal code shortened to the field maxlength');
     check(values.li === PROFILE.linkedin, 'linkedin filled');
     check(values.sal === '25000', 'salary coerced for a number input');
+    check(values.yoe === '10+', '15 years of experience lands in the 10+ bucket');
+    check(values.edu === "Master's Degree", 'highest education select resolved to Master\'s Degree');
+    check(values.nat === 'Pakistani', 'nationality select uses the demonym');
     check(values.why === 'Fifteen years in FP&A.', 'free-text question answered from customQA');
     check(values.auth === 'Yes', 'async portalled listbox option selected');
     check(values.resume === 'zahid-ali-cv.pdf', 'the preloaded resume is attached to the upload control');

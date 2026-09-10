@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.1** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.2** on `main`.
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -27,7 +27,7 @@ Everything below fixes a defect that made forms unreadable or invisible regardle
 | `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
 | Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
 | Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
-| jsdom test suites | ✅ | `npm test` — 6 suites, 110 assertions |
+| jsdom test suites | ✅ | `npm test` — 7 suites, 184 assertions |
 | Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
 
 ---
@@ -67,6 +67,23 @@ Preloaded documents are attached by the engine itself, on whichever step asks fo
 | Content type inferred from filename | ✅ | Forms validate `File.type`; a `.docx` with no type was rejected |
 | Idempotent across re-detect passes | ✅ | Attached inputs are marked |
 | Dropzone drop synthesis | ✅ | Only when no input exists |
+
+## Full applicant profile (v1.15.2)
+
+A CV paragraph cannot fill Workday's four education controls or Teamtailor's years-of-experience radios. The profile now stores each of those as its own value, and the engine matches the option the form actually offers.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Split education / professional fields on the profile | ✅ | school, degree, fieldOfStudy, graduationYear, yearsExperience, currentTitle, currentCompany, … |
+| App Settings form + completeness readout | ✅ | Names what is still blank; blank salary/DOB is deliberate |
+| Structured work and education entries | ✅ | Seven roles, two degrees — preserved on save |
+| Years-of-experience buckets | ✅ | `15` → `10+` / `10+ years` |
+| Education level matching + fallback | ✅ | `Master's` finds `Master's Degree`; falls back to `Bachelor's` when that is the highest option |
+| Nationality demonym | ✅ | `Pakistan` → `Pakistani` |
+| Immediate notice wordings | ✅ | `I can start immediately` → `Immediately` / Teamtailor `Onspot` |
+| Radio group question (not first option text) | ✅ | Legend / radiogroup mapped; option then clicked |
+| Short name/id no longer steals education/employment | ✅ | `edu` inside `education`, `emp` inside `employment` |
+| Never invent salary / DOB / licence | ✅ | Left blank; run pauses |
 
 ---
 
@@ -125,7 +142,7 @@ Preloaded documents are attached by the engine itself, on whichever step asks fo
 | Item | Status | Notes |
 |------|--------|-------|
 | Multi-profile (create / select / save / switch) | ✅ | v1.9.0 |
-| Zahid General built-in template | ✅ | v1.9.8 — `profiles/zahid-general.json` |
+| Zahid General built-in template | ✅ | v1.15.2 — full ATS field set in `profiles/zahid-general.json`; App Settings completeness readout |
 | Mock locked complete demo (non-deletable) | ✅ | v1.11.1 |
 | No invented answers + high-alert pause | ✅ | v1.9.9 |
 | Missing-fields in-panel popup | ✅ | v1.12.0 — Save & continue |
@@ -189,4 +206,4 @@ Preloaded documents are attached by the engine itself, on whichever step asks fo
 
 ---
 
-*Last reviewed against repo `main` at v1.15.1 (value formatting + preloaded document attach).*
+*Last reviewed against repo at v1.15.2 (full applicant profile across ATS field types).*

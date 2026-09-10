@@ -13,7 +13,8 @@ const SUITES = [
   'smoke-form-detection.js',
   'smoke-fill-engine.js',
   'smoke-value-format.js',
-  'smoke-documents.js'
+  'smoke-documents.js',
+  'smoke-profile-fill.js'
 ];
 
 let failed = 0;

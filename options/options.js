@@ -58,15 +58,28 @@
   const btnCopySourceFromProfile = document.getElementById('btnCopySourceFromProfile');
   const btnSeedMockSources = document.getElementById('btnSeedMockSources');
 
+  // Must mirror the inputs in #profileForm.
   const TEXT_FIELDS = [
-    'firstName', 'lastName', 'fullName', 'email', 'phone', 'phoneCountry',
-    'nationality', 'gender', 'noticePeriod',
-    'location', 'street', 'city', 'state',
-    'country', 'zip', 'postcode', 'linkedin', 'portfolio', 'website', 'github',
-    'resumeUrl', 'coverUrl',
-    'resumeSummary', 'workHistory', 'education', 'coverLetter',
-    'authorizedToWork', 'requiresSponsorship'
+    'salutation', 'preferredName', 'firstName', 'middleName', 'lastName', 'fullName',
+    'headline', 'email', 'phone', 'phoneCountry', 'dateOfBirth',
+    'nationality', 'gender',
+    'location', 'street', 'city', 'state', 'country', 'zip', 'postcode',
+    'authorizedToWork', 'requiresSponsorship',
+    'currentTitle', 'currentCompany', 'yearsExperience', 'languages', 'skills',
+    'certifications', 'references',
+    'highestEducation', 'degree', 'school', 'fieldOfStudy', 'graduationYear', 'gpa',
+    'noticePeriod', 'availableFrom', 'willingToRelocate', 'remotePreference',
+    'driversLicense', 'currentSalary', 'expectedSalary', 'salaryCurrency', 'referralSource',
+    'linkedin', 'portfolio', 'website', 'github', 'resumeUrl', 'coverUrl',
+    'resumeSummary', 'workHistory', 'education', 'coverLetter'
   ];
+
+  /**
+   * The profile the form was last loaded from. Kept so a save carries over the
+   * parts of the profile this form does not render — the structured work and
+   * education entries, and the answer aliases that never had a Q&A row.
+   */
+  let loadedProfile = null;
 
   let dirty = false;
   let suppressDirty = false;
@@ -176,6 +189,7 @@
 
   function fillForm(profile) {
     suppressDirty = true;
+    loadedProfile = profile || {};
     TEXT_FIELDS.forEach(function (name) {
       const el = form.elements.namedItem(name);
       if (el) el.value = profile[name] || '';
@@ -184,22 +198,81 @@
     const list = Array.isArray(profile.customQA) ? profile.customQA : [];
     if (!list.length) addQARow('', '');
     else list.forEach(function (qa) { addQARow(qa.question, qa.answer); });
+    renderEntriesHint('experienceEntriesHint', profile.experienceEntries, function (row) {
+      return [row.title, row.company, [row.start, row.end].filter(Boolean).join(' – ')]
+        .filter(Boolean)
+        .join(' · ');
+    }, 'roles');
+    renderEntriesHint('educationEntriesHint', profile.educationEntries, function (row) {
+      return [row.degree, row.school, row.end].filter(Boolean).join(' · ');
+    }, 'degrees');
+    renderCompleteness(profile);
     suppressDirty = false;
     clearDirty();
   }
 
+  /** Structured history is filled from the profile but not editable here. */
+  function renderEntriesHint(elementId, entries, describe, noun) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const list = Array.isArray(entries) ? entries : [];
+    if (!list.length) {
+      el.textContent = '';
+      return;
+    }
+    el.textContent =
+      list.length + ' structured ' + noun + ' kept with this profile: ' +
+      list.map(describe).filter(Boolean).join(' | ');
+  }
+
+  function renderCompleteness(profile) {
+    const el = document.getElementById('profileCompleteness');
+    if (!el || !window.FillApplyProfile || !FillApplyProfile.profileGaps) return;
+    const gaps = FillApplyProfile.profileGaps(profile);
+    if (!gaps.groups.length) {
+      el.textContent = 'Completeness: 100% — every commonly-asked field has an answer.';
+      return;
+    }
+    el.textContent =
+      'Completeness: ' + gaps.percent + '% (' + gaps.filled + '/' + gaps.total + '). ' +
+      'Still blank — the run pauses and asks rather than guessing: ' +
+      gaps.groups
+        .map(function (g) {
+          return g.group + ' (' + g.missing.join(', ') + ')';
+        })
+        .join('; ');
+  }
+
   function readForm() {
-    const profile = {};
+    // Start from the loaded record so structured entries and answer aliases
+    // are not dropped by a form that does not render them.
+    const profile = Object.assign({}, loadedProfile || {});
+    delete profile.id;
+    delete profile.name;
     TEXT_FIELDS.forEach(function (name) {
       const el = form.elements.namedItem(name);
       profile[name] = el ? el.value.trim() : '';
     });
+    const previousQA = Array.isArray(loadedProfile && loadedProfile.customQA)
+      ? loadedProfile.customQA
+      : [];
     profile.customQA = readQA();
+
+    // Keep alias keys, drop answers whose Q&A row the user just removed.
     const answers = {};
+    const wasQARow = {};
+    previousQA.forEach(function (qa) {
+      if (qa && qa.question) wasQARow[qa.question] = true;
+    });
+    const loadedAnswers = (loadedProfile && loadedProfile.customAnswers) || {};
+    Object.keys(loadedAnswers).forEach(function (key) {
+      if (!wasQARow[key]) answers[key] = loadedAnswers[key];
+    });
     profile.customQA.forEach(function (qa) {
       if (qa.question) answers[qa.question] = qa.answer;
     });
     profile.customAnswers = answers;
+
     if (profile.postcode && !profile.zip) profile.zip = profile.postcode;
     if (profile.zip && !profile.postcode) profile.postcode = profile.zip;
     return profile;
@@ -383,6 +456,8 @@
     try {
       var data = readForm();
       await FillApplyProfile.saveProfile(data);
+      loadedProfile = Object.assign({}, loadedProfile || {}, data);
+      renderCompleteness(data);
       // Mirror resume/cover URLs onto documents links when set
       try {
         var patch = {};

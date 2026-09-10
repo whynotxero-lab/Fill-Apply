@@ -96,9 +96,9 @@ Steps 3 and 4 compare *content words* in both directions rather than requiring a
 | text / email / tel / url / textarea | Shaped by `lib/format.js`, then native setter + `input`/`change` |
 | number / range / numeric tel | Currency stripped (`25000 AED` → `25000`), rounded to the step, clamped to min/max |
 | date | ISO for `type=date`, otherwise the order the placeholder shows |
-| select | Exact → case-insensitive → substring → Yes/No fuzzy, then alternate spellings |
+| select | Exact → case-insensitive → substring → Yes/No fuzzy → alternate spellings → **buckets and education levels** (`15` → `10+ years`, `Master's / MBA` → `Master's Degree`) |
 | checkbox | Real click, so framework state updates |
-| radio | Best match across the group by label and value, then real click |
+| radio | Group question (legend / radiogroup) is mapped, then the matching option is clicked — including buckets and Yes/No |
 | contenteditable | `textContent` + input events |
 | combobox / listbox | Open, await options, match, or type and await |
 | file | See [Documents](#documents) — never the operating system's file chooser |
@@ -119,7 +119,26 @@ Every value is shaped against the constraints the control advertises — `type`,
 | number | Currency stripped, rounded to the step, clamped to `min`/`max` |
 | text | Long answers cut on a word boundary rather than mid-word |
 
-Selects and listboxes also try alternate spellings, so a profile saying `United Arab Emirates` finds an option labelled `AE`, and `California` finds `CA`.
+Selects and listboxes also try alternate spellings, so a profile saying `United Arab Emirates` finds an option labelled `AE`, and `California` finds `CA`. Nationality selects list the demonym, so `Pakistan` finds `Pakistani`.
+
+Years, education and notice period are not string-equal to the options forms offer. `lib/format.js` now also:
+
+| Stored answer | Form option |
+|---------------|-------------|
+| `15` / `15+` years | Teamtailor / Indeed buckets `0-2`, `3-5`, `6-9`, `10+` — tightest bucket that contains the number |
+| `Master's Degree` / `Master's / MBA` | `Master's Degree`; if the form does not offer that level, the highest level *below* it (the applicant also holds a Bachelor's) |
+| `I can start immediately` | `Immediately`, `Onspot`, `Available immediately`, `Less than 15 days` |
+| `Yes` / `No` | checkbox, radio, or select — never a neighbouring option that happens to contain the letters |
+
+A radio group's *question* is read from the `<legend>`, `[role=radiogroup]`, or the caption above the options. Mapping against the first option's text (`0-2`) is how those questions used to be missed.
+
+## Full applicant profile (v1.15.2)
+
+ATS forms split what a CV writes as prose. Workday asks for school, degree, field of study and graduation year as four controls; Teamtailor asks years of experience as a bucketed radio; Greenhouse asks highest education as a select. The Zahid General profile (`profiles/zahid-general.json`, also `FillApplyProfile.ZAHID_GENERAL_PROFILE`) now stores each of those as its own value, plus seven structured work entries and two education entries.
+
+App Settings → Profile settings exposes the same fields, with a completeness readout that names what is still blank. Blank is deliberate: salary, date of birth, driving licence and similar answers are the applicant's to give, and the engine pauses rather than guessing.
+
+**Create / Reset Zahid** reseeds the record from that JSON. Documents stay in the shared Documents section — they are not stored on the profile.
 
 The phone rules are the ones that matter most in practice: Greenhouse and Lever take a single field, while Indeed, LinkedIn and iCIMS render a country-code selector beside the number — and sending the international form into the second shape produces `+971 +971501234567`.
 
@@ -183,7 +202,7 @@ Every run reports what the engine actually saw, which is what makes a failure ex
 
 ```bash
 npm install
-npm test                      # 6 suites, 110 assertions, jsdom
+npm test                      # 7 suites, 184 assertions, jsdom
 node scripts/browser-e2e.js   # real Chrome, needs a display
 ```
 
@@ -193,6 +212,7 @@ node scripts/browser-e2e.js   # real Chrome, needs a display
 | `smoke-fill-engine.js` | Labels, control types, async dropdowns, answer resolution, never-invented policy |
 | `smoke-value-format.js` | Phone, postal, date, url, number and text shaping, and select spellings |
 | `smoke-documents.js` | Preloaded document attach, picker suppression, accept mismatch, existing uploads, multi-step |
+| `smoke-profile-fill.js` | Full Zahid profile across text, select, radio, checkbox, buckets, education levels, demonyms; blanks, consent and EEO left alone |
 
 `scripts/browser-e2e.js` is the honest end-to-end check. It serves a career page on one origin whose application form lives in an iframe on a **different** origin — a shape no same-document traversal can reach — installs the unpacked extension, and drives the real runner injection path from the extension's own service worker. It asserts that the cross-origin form is filled, that the async portalled listbox option is selected, that the winning result came from the sub-frame, that the phone number is split across the country-code control and the number field, that the preloaded resume lands on an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog while doing it.
 

@@ -245,6 +245,7 @@ Per-source apply caps still apply.
 | Notice period | — | Teamtailor*, iCIMS* |
 | Current / expected salary | — | Teamtailor*, Indeed*, LinkedIn Easy, Swooped OTE |
 | Years experience | — | Teamtailor buckets; LinkedIn Easy; Indeed |
+| Highest Education | — | LinkedIn Easy, Indeed, iCIMS; stored as a level (`Master's Degree`) so selects resolve |
 | Gender / DOB / salutation | — | LinkedIn Easy / iCIMS / Indeed (optional or * per paste) |
 | Based in Riyadh / UAE / KSA | — | Teamtailor Riyadh; NaukriGulf UAE; Swooped KSA |
 | Team size / cert / tools rating | — | Teamtailor Noon screening |
