@@ -12,7 +12,8 @@ const SUITES = [
   'smoke-glassdoor-inflow.js',
   'smoke-form-detection.js',
   'smoke-fill-engine.js',
-  'smoke-value-format.js'
+  'smoke-value-format.js',
+  'smoke-documents.js'
 ];
 
 let failed = 0;

@@ -814,6 +814,45 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * Documents
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Put the documents already loaded in the extension onto this page's upload
+   * controls. Returns null when the caller supplied none, so a report can tell
+   * "nothing to attach" apart from "could not attach".
+   */
+  async function attachStoredDocuments(options) {
+    options = options || {};
+    const documents = options.documents;
+    const files = global.FillApplyFiles;
+    if (!documents || !files) return null;
+    if (!documents.resume && !documents.cover) return null;
+
+    const hints = options.fileInputHints || [];
+    try {
+      if (typeof files.attachDocumentsAsync === 'function') {
+        return await files.attachDocumentsAsync(documents, hints, {
+          timeoutMs: options.documentWaitMs
+        });
+      }
+      return files.attachDocuments(documents, hints);
+    } catch (e) {
+      return {
+        ok: false,
+        attached: [],
+        alreadyAttached: [],
+        rejected: [],
+        errors: [String((e && e.message) || e)],
+        pending: ['resume', 'cover'],
+        needsManual: true,
+        resumeAttached: false,
+        coverAttached: false
+      };
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
    * Apply-start
    * ------------------------------------------------------------------ */
 
@@ -927,6 +966,22 @@
     const fields = collectFields();
 
     if (!fields.length) {
+      // A step whose only control is the resume upload is still work we can do.
+      const uploadOnly = await attachStoredDocuments(options);
+      if (uploadOnly && (uploadOnly.attached.length || uploadOnly.alreadyAttached.length)) {
+        return {
+          ok: true,
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          filesAttached: uploadOnly,
+          documentStep: true,
+          formSignals: formSignals,
+          inspection: summarizeInspection(inspectForm())
+        };
+      }
+
       const startButtons = syn && syn.findApplyStartButtons ? syn.findApplyStartButtons(document) : [];
       return {
         ok: false,
@@ -937,6 +992,7 @@
         unmatched: 0,
         total: 0,
         submitted: false,
+        filesAttached: uploadOnly,
         formSignals: formSignals,
         inspection: summarizeInspection(inspectForm())
       };
@@ -1043,6 +1099,15 @@
       return !c.already;
     }).length;
 
+    // Documents the applicant loaded into the extension go on now, so the
+    // upload step never asks them to find the file again.
+    const filesAttached = await attachStoredDocuments(options);
+    if (filesAttached && filesAttached.needsManual) {
+      filesAttached.errors.forEach(function (message) {
+        skipped.push({ label: 'document upload', reason: 'document_type_rejected', detail: message });
+      });
+    }
+
     const applicationFields = [];
     details.forEach(function (d) {
       if (d && d.ok && (d.label || d.key)) {
@@ -1065,6 +1130,9 @@
       customDropdownsFilled: customFilled,
       applicationFields: applicationFields,
       applicationReport: { fields: applicationFields, steps: [] },
+      filesAttached: filesAttached,
+      resumeAttached: !!(filesAttached && filesAttached.resumeAttached),
+      coverAttached: !!(filesAttached && filesAttached.coverAttached),
       formSignals: formSignals,
       clickedApplyStart: !!applyStart,
       inspection: summarizeInspection(inspection)

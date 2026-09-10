@@ -893,7 +893,10 @@
             // Host-preferring detect; never force Indeed on unknown hosts (registry already host-first)
             if (!adapter || typeof adapter.fill !== 'function') {
               if (!globalThis.__fillApply) return { ok: false, error: 'Fill helper missing' };
-              return globalThis.__fillApply.run(profileArg, opts);
+              return globalThis.__fillApply.run(
+                profileArg,
+                Object.assign({}, opts, { documents: documentsArg })
+              );
             }
             var out = adapter.fill({
               profile: profileArg,
@@ -924,7 +927,13 @@
 
             if (adapterFoundNothing && globalThis.__fillApply) {
               try {
-                const generic = await globalThis.__fillApply.run(profileArg, opts);
+                const generic = await globalThis.__fillApply.run(
+                  profileArg,
+                  Object.assign({}, opts, {
+                    documents: documentsArg,
+                    fileInputHints: adapter.fileInputHints
+                  })
+                );
                 if (generic && generic.filled > 0) {
                   generic.adapterId = adapterId;
                   generic.usedGenericFallback = true;

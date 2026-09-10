@@ -795,7 +795,9 @@
             try {
               const generic = await globalThis.__fillApply.run(profileArg, {
                 highlightUnmatched: false,
-                runMode: runModeArg || 'fill'
+                runMode: runModeArg || 'fill',
+                documents: documentsArg,
+                fileInputHints: adapter.fileInputHints
               });
               if (generic && generic.filled > 0) {
                 generic.adapterId = adapter.id;

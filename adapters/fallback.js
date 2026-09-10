@@ -56,7 +56,11 @@
     const fillResult = await global.__fillApply.run(profile, {
       highlightUnmatched: !!options.highlightUnmatched,
       minOpenFormFields: options.minOpenFormFields,
-      formWaitMs: options.formWaitMs
+      formWaitMs: options.formWaitMs,
+      // The engine waits for the upload control and attaches the documents the
+      // applicant already loaded, rather than leaving it to a later blind pass.
+      documents: documents,
+      fileInputHints: fileInputHints
     });
 
     // Apply-start open step: form not open yet — runner / Fill once should wait + re-detect
@@ -84,15 +88,20 @@
       };
     }
 
-    let filesAttached = {
-      ok: true,
-      attached: [],
-      inputCount: 0,
-      resumeAttached: false,
-      coverAttached: false
-    };
-    if (global.FillApplyFiles && typeof global.FillApplyFiles.attachDocuments === 'function') {
-      filesAttached = global.FillApplyFiles.attachDocuments(documents, fileInputHints);
+    const Files = global.FillApplyFiles;
+    let filesAttached = fillResult.filesAttached || null;
+    if (!filesAttached && Files && typeof Files.attachDocuments === 'function') {
+      filesAttached = Files.attachDocuments(documents, fileInputHints);
+    }
+    if (!filesAttached) {
+      filesAttached = {
+        ok: true,
+        attached: [],
+        alreadyAttached: [],
+        inputCount: 0,
+        resumeAttached: false,
+        coverAttached: false
+      };
     }
 
     let advanced = false;
@@ -103,6 +112,21 @@
       if (global.__fillApply.clickContinueButtons) {
         const clicked = global.__fillApply.clickContinueButtons();
         advanced = !!(clicked && clicked.length);
+      }
+    }
+
+    // Multi-step applications keep the resume step behind Continue, so the
+    // upload control often only exists after advancing.
+    if (
+      advanced &&
+      Files &&
+      typeof Files.attachDocumentsAsync === 'function' &&
+      filesAttached.pending &&
+      filesAttached.pending.length
+    ) {
+      const afterStep = await Files.attachDocumentsAsync(documents, fileInputHints, { timeoutMs: 2000 });
+      if (afterStep && (afterStep.attached.length || afterStep.alreadyAttached.length)) {
+        filesAttached = afterStep;
       }
     }
 
@@ -189,6 +213,8 @@
       filesAttached: filesAttached,
       resumeAttached: !!(filesAttached && filesAttached.resumeAttached),
       coverAttached: !!(filesAttached && filesAttached.coverAttached),
+      documentsPending: filesAttached.pending || [],
+      documentsNeedManual: !!filesAttached.needsManual,
       inspection: fillResult.inspection || null,
       formSignals: fillResult.formSignals || null,
       skipped: fillResult.skipped || [],
