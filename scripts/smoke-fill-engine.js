@@ -10,6 +10,7 @@ const { createPage, createSuite } = require('./test-harness');
 
 const LIBS = [
   'lib/dom-deep.js',
+  'lib/format.js',
   'lib/synonyms.js',
   'lib/field-map.js',
   'lib/files.js',

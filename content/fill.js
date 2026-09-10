@@ -178,14 +178,26 @@
   }
 
   /**
-   * Coerce profile values for the target input type.
-   * number/range/tel(numeric): strip currency → digits only; empty → skip.
-   * date: normalize to the yyyy-mm-dd the control expects.
+   * Shape a profile value for the control it is about to be written into.
+   *
+   * Knowing which field we found is not enough: a phone number that a single
+   * Greenhouse field accepts as +971501234567 has to arrive as 501234567 when
+   * the form renders its own country-code selector, and as 5551234567 when the
+   * control declares pattern="\d{10}". FillApplyFormat reads those constraints
+   * off the control; this stays as the local fallback for the numeric and date
+   * cases when it is not loaded.
    */
-  function sanitizeForInput(el, value) {
+  function sanitizeForInput(el, value, context) {
     if (value == null) return { value: '', skip: true };
     var str = String(value);
     if (!el) return { value: str, skip: false };
+
+    var fmt = global.FillApplyFormat;
+    if (fmt && typeof fmt.formatForField === 'function') {
+      var shaped = fmt.formatForField(el, str, context || {});
+      if (shaped) return { value: shaped.value, skip: !!shaped.skip, format: shaped.format, kind: shaped.kind };
+    }
+
     var type = String(el.type || '').toLowerCase();
     var inputMode = (el.getAttribute && (el.getAttribute('inputmode') || '')).toLowerCase();
     var pattern = (el.getAttribute && el.getAttribute('pattern')) || '';
@@ -240,7 +252,7 @@
    * Write a value into any control type. Checkboxes and radios go through a real
    * click so framework state updates; everything else uses the native setter.
    */
-  function setNativeValue(el, value) {
+  function setNativeValue(el, value, context) {
     const D = dom();
     const tag = el.tagName;
     const type = String(el.type || '').toLowerCase();
@@ -257,12 +269,18 @@
 
     if (type === 'radio') return selectRadioInGroup(el, value);
 
-    var sanitized = sanitizeForInput(el, value);
+    var sanitized = sanitizeForInput(el, value, context);
     if (sanitized.skip) return false;
     const finalValue = sanitized.value;
 
     if (tag === 'SELECT') {
       if (matchSelectOption(el, finalValue)) return true;
+      // Selects spell countries and states either way round: a profile saying
+      // "United Arab Emirates" has to find an option labelled "AE".
+      const variants = selectVariants(finalValue, sanitized.kind);
+      for (let v = 0; v < variants.length; v++) {
+        if (matchSelectOption(el, variants[v])) return true;
+      }
       if (D && D.setValue) D.setValue(el, finalValue);
       else el.value = finalValue;
       return String(el.value || '') !== '';
@@ -275,6 +293,15 @@
       fireChange(el);
     }
     return true;
+  }
+
+  /** Alternate spellings of a value that a select might use as its option text. */
+  function selectVariants(value, kind) {
+    const fmt = global.FillApplyFormat;
+    if (!fmt || typeof fmt.valueVariants !== 'function') return [];
+    return fmt.valueVariants(value, kind).filter(function (v) {
+      return v && v !== value;
+    });
   }
 
   function fireChange(el) {
@@ -621,6 +648,10 @@
     const want = String(value);
     const timeoutMs = opts.timeoutMs != null ? opts.timeoutMs : 2500;
 
+    // Country and state listboxes label their options either way round, so an
+    // "AE" option still has to be reachable from "United Arab Emirates".
+    const wants = [want].concat(selectVariants(want, opts.kind));
+
     const before = visibleOptions().length;
     realClick(trigger);
 
@@ -640,7 +671,7 @@
       options = visibleOptions();
     }
 
-    let picked = pickBestOption(options, want);
+    let picked = pickBestOptionAny(options, wants);
 
     // Typeahead comboboxes only render matching options once text is entered.
     if (!picked) {
@@ -655,7 +686,7 @@
             },
             { timeoutMs: 2000, pollMs: 80 }
           )) || visibleOptions();
-        picked = pickBestOption(filtered, want);
+        picked = pickBestOptionAny(filtered, wants);
         if (!picked && filtered.length === 1) picked = filtered[0];
       }
     }
@@ -681,6 +712,14 @@
       }
     }
     return bestScore >= 60 ? best : null;
+  }
+
+  function pickBestOptionAny(options, wants) {
+    for (let i = 0; i < wants.length; i++) {
+      const picked = pickBestOption(options, wants[i]);
+      if (picked) return picked;
+    }
+    return null;
   }
 
   /** The text input a combobox trigger types into, if it has one. */
@@ -758,7 +797,14 @@
         global.FillApplyFocusHud.mark(trigger, { scroll: true });
       }
 
-      const result = await pickFromDropdown(trigger, answer.value, options);
+      const fmt = global.FillApplyFormat;
+      const result = await pickFromDropdown(
+        trigger,
+        answer.value,
+        Object.assign({}, options, {
+          kind: fmt ? fmt.fieldKind(descriptor, answer.key) : null
+        })
+      );
       if (result.ok) {
         filled.push({ label: label, key: answer.key, value: answer.value });
       }
@@ -899,6 +945,13 @@
     const inspection = inspectForm();
     clearHighlights();
 
+    // A form with its own country-code control needs the national number in the
+    // phone box; one without it needs the full international number.
+    const hasPhoneCountryField = fields.some(function (el) {
+      const fmt = global.FillApplyFormat;
+      return !!fmt && fmt.fieldKind(D && D.describeField ? D.describeField(el) : el) === 'phoneCountry';
+    });
+
     let filled = 0;
     let unmatched = 0;
     const details = [];
@@ -941,7 +994,7 @@
           details.push(filledDetail(descriptor, answer));
         } else {
           // Fall back to plain text — some comboboxes accept free entry.
-          if (setNativeValue(el, answer.value)) {
+          if (setNativeValue(el, answer.value, { key: answer.key, profile: profile })) {
             filled += 1;
             details.push(filledDetail(descriptor, answer));
           } else {
@@ -966,7 +1019,11 @@
         global.FillApplyFocusHud.mark(el, { scroll: true });
       }
 
-      const setOk = setNativeValue(el, answer.value);
+      const setOk = setNativeValue(el, answer.value, {
+        key: answer.key,
+        profile: profile,
+        hasPhoneCountryField: hasPhoneCountryField
+      });
       if (setOk === false) {
         unmatched += 1;
         details.push(unmatchedDetail(descriptor, 'value_rejected'));

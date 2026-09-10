@@ -60,6 +60,7 @@
 
   const INJECT_FILES = [
     'lib/dom-deep.js',
+    'lib/format.js',
     'lib/synonyms.js',
     'lib/pace.js',
     'lib/field-map.js',

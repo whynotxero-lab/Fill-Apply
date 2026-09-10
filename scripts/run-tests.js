@@ -11,7 +11,8 @@ const SUITES = [
   'smoke-apply-start-synonyms.js',
   'smoke-glassdoor-inflow.js',
   'smoke-form-detection.js',
-  'smoke-fill-engine.js'
+  'smoke-fill-engine.js',
+  'smoke-value-format.js'
 ];
 
 let failed = 0;
