@@ -9,7 +9,7 @@
     return true;
   }
 
-  function fill(ctx) {
+  async function fill(ctx) {
     ctx = ctx || {};
     const profile = ctx.profile || {};
     const options = ctx.options || {};
@@ -37,16 +37,26 @@
 
     if (fieldMaps && global.FillApplyFieldMap && Array.isArray(fieldMaps)) {
       try {
+        const registry = global.FillApplyFieldMap.FIELD_MAP;
         fieldMaps.forEach(function (entry) {
-          if (entry && entry.key) global.FillApplyFieldMap.FIELD_MAP.push(entry);
+          if (!entry || !entry.key) return;
+          // fill() runs repeatedly on the same page during re-detect retries;
+          // without this guard the shared FIELD_MAP grows on every pass.
+          const already = registry.some(function (existing) {
+            return existing && existing.key === entry.key && existing.__adapterId === ctx.adapterId;
+          });
+          if (already) return;
+          registry.push(Object.assign({ __adapterId: ctx.adapterId }, entry));
         });
       } catch (_e) {
         /* ignore */
       }
     }
 
-    const fillResult = global.__fillApply.run(profile, {
-      highlightUnmatched: !!options.highlightUnmatched
+    const fillResult = await global.__fillApply.run(profile, {
+      highlightUnmatched: !!options.highlightUnmatched,
+      minOpenFormFields: options.minOpenFormFields,
+      formWaitMs: options.formWaitMs
     });
 
     // Apply-start open step: form not open yet — runner / Fill once should wait + re-detect
@@ -180,6 +190,9 @@
       resumeAttached: !!(filesAttached && filesAttached.resumeAttached),
       coverAttached: !!(filesAttached && filesAttached.coverAttached),
       inspection: fillResult.inspection || null,
+      formSignals: fillResult.formSignals || null,
+      skipped: fillResult.skipped || [],
+      missingRequired: fillResult.missingRequired || [],
       customDropdownsFilled: fillResult.customDropdownsFilled || [],
       runMode: runMode,
       advanced: advanced,

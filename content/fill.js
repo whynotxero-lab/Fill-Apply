@@ -1,7 +1,16 @@
 /**
- * Form field detection + fill heuristics + inspectForm.
- * Expects FillApplyFieldMap to be loaded first when injected as files.
- * Exposes globalThis.__fillApply.run(profile, options) and inspectForm.
+ * Form field detection + fill engine.
+ *
+ * Built on FillApplyDom, so every lookup pierces open shadow roots and
+ * same-origin iframes, and every interaction emits the events frameworks
+ * listen for.
+ *
+ * `run()` is async on purpose: application forms render their controls, their
+ * listbox options and their conditional follow-up questions on later ticks, so
+ * a single synchronous pass sees only part of the form (and never sees a
+ * portalled dropdown option at all).
+ *
+ * Exposes globalThis.__fillApply.
  */
 (function (global) {
   'use strict';
@@ -9,58 +18,109 @@
   const HIGHLIGHT_ATTR = 'data-fill-apply-unmatched';
   const FILLED_ATTR = 'data-fill-apply-filled';
 
+  /** Voluntary self-identification — reported, never answered. */
+  const DIVERSITY_RE =
+    /diversity|equal opportunity|\beeo\b|race|ethnicity|gender identity|\bveteran\b|disability|sexual orientation|hispanic|latino|\blgbt|decline to (self-)?identify|voluntary self.?identif|self.?identification/i;
+
+  /** Agreements a human must make for themselves. */
+  const CONSENT_RE =
+    /\b(i agree|i accept|i consent|i acknowledge|i certify|i confirm|terms|privacy policy|data protection|gdpr|declaration)\b/i;
+
+  function dom() {
+    return global.FillApplyDom || null;
+  }
+
+  function sleep(ms) {
+    const D = dom();
+    if (D && D.sleep) return D.sleep(ms);
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  function queryAll(selector, root) {
+    const D = dom();
+    if (D && D.queryAll) return D.queryAll(selector, root);
+    try {
+      return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function isVisible(el) {
+    const D = dom();
+    return D && D.isVisible ? D.isVisible(el) : !!el;
+  }
+
+  function textOf(el) {
+    const D = dom();
+    if (D && D.textOf) return D.textOf(el);
+    return String((el && (el.innerText || el.textContent)) || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function realClick(el) {
+    const D = dom();
+    if (D && D.realClick) return D.realClick(el);
+    try {
+      el.click();
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /**
+   * Label text for a control. Kept on the public API because every adapter
+   * delegates to it.
+   */
   function getLabelText(el) {
+    const D = dom();
+    if (D && D.labelFor) return D.labelFor(el);
     if (!el) return '';
-    if (el.id) {
-      try {
-        const byFor = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
-        if (byFor) return byFor.textContent.trim();
-      } catch (_e) {
-        /* ignore */
-      }
-    }
-    const parentLabel = el.closest('label');
-    if (parentLabel) {
-      const clone = parentLabel.cloneNode(true);
-      clone.querySelectorAll('input, textarea, select').forEach(function (n) {
-        n.remove();
-      });
-      return clone.textContent.trim();
-    }
-    const aria = el.getAttribute('aria-label');
-    if (aria) return aria.trim();
-    const labelledBy = el.getAttribute('aria-labelledby');
-    if (labelledBy) {
-      return labelledBy
-        .split(/\s+/)
-        .map(function (id) {
-          const node = document.getElementById(id);
-          return node ? node.textContent.trim() : '';
-        })
-        .filter(Boolean)
-        .join(' ');
-    }
-    const prev = el.previousElementSibling;
-    if (prev && /^(LABEL|SPAN|DIV|P|STRONG|LEGEND)$/i.test(prev.tagName)) {
-      return prev.textContent.trim();
-    }
-    // Fieldset legend
-    const fs = el.closest('fieldset');
-    if (fs) {
-      const leg = fs.querySelector('legend');
-      if (leg) return leg.textContent.trim();
-    }
-    return '';
+    const aria = el.getAttribute && el.getAttribute('aria-label');
+    return aria ? aria.trim() : '';
+  }
+
+  function isRequiredField(el, label) {
+    const D = dom();
+    if (D && D.isRequired) return D.isRequired(el, label);
+    return !!(el && el.required);
   }
 
   function isFillable(el) {
-    if (!el || el.disabled || el.readOnly) return false;
-    if (el.type === 'hidden' || el.type === 'submit' || el.type === 'button' || el.type === 'image') {
-      return false;
-    }
-    if (el.type === 'file' || el.type === 'password') return false;
+    if (!el || el.disabled) return false;
+    const type = String(el.type || '').toLowerCase();
+    if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'image') return false;
+    if (type === 'file' || type === 'password') return false;
+    if (el.readOnly && !isComboboxInput(el)) return false;
     const tag = el.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    return !!(el.getAttribute && el.getAttribute('contenteditable') === 'true');
+  }
+
+  /**
+   * A text input that drives a listbox rather than accepting free text
+   * (Greenhouse location, Workday country, react-select).
+   */
+  function isComboboxInput(el) {
+    if (!el || el.tagName !== 'INPUT') return false;
+    const role = el.getAttribute('role') || '';
+    if (role === 'combobox') return true;
+    if (el.getAttribute('aria-autocomplete')) return true;
+    if (el.getAttribute('aria-haspopup') === 'listbox') return true;
+    if (el.getAttribute('aria-controls') && el.readOnly) return true;
+    return false;
+  }
+
+  function normalizeText(str) {
+    return String(str || '')
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   /**
@@ -102,6 +162,16 @@
 
     if (bestIdx >= 0 && bestScore >= 60) {
       selectEl.selectedIndex = bestIdx;
+      const D = dom();
+      if (D && D.setValue) {
+        // Fire the same event pair a user selection produces.
+        try {
+          selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+          selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (_e) {
+          /* ignore */
+        }
+      }
       return true;
     }
     return false;
@@ -110,21 +180,34 @@
   /**
    * Coerce profile values for the target input type.
    * number/range/tel(numeric): strip currency → digits only; empty → skip.
+   * date: normalize to the yyyy-mm-dd the control expects.
    */
   function sanitizeForInput(el, value) {
     if (value == null) return { value: '', skip: true };
     var str = String(value);
     if (!el) return { value: str, skip: false };
     var type = String(el.type || '').toLowerCase();
-    var inputMode = (el.getAttribute('inputmode') || '').toLowerCase();
-    var pattern = el.getAttribute('pattern') || '';
+    var inputMode = (el.getAttribute && (el.getAttribute('inputmode') || '')).toLowerCase();
+    var pattern = (el.getAttribute && el.getAttribute('pattern')) || '';
+
+    if (type === 'date') {
+      var iso = toIsoDate(str);
+      return iso ? { value: iso, skip: false } : { value: '', skip: true };
+    }
+
     var wantsNumber =
       type === 'number' ||
       type === 'range' ||
       (type === 'tel' && (/[0-9]/.test(pattern) || inputMode === 'numeric' || inputMode === 'decimal')) ||
       inputMode === 'numeric' ||
       inputMode === 'decimal';
-    if (!wantsNumber) return { value: str, skip: false };
+    if (!wantsNumber) {
+      var maxLength = Number(el.maxLength);
+      if (Number.isFinite(maxLength) && maxLength > 0 && str.length > maxLength) {
+        str = str.slice(0, maxLength);
+      }
+      return { value: str, skip: false };
+    }
     var num = '';
     if (global.FillApplyProfile && typeof global.FillApplyProfile.numericAmount === 'function') {
       num = global.FillApplyProfile.numericAmount(str);
@@ -141,76 +224,128 @@
     return { value: num, skip: false };
   }
 
-  function setNativeValue(el, value) {
-    const tag = el.tagName;
-    const type = (el.type || '').toLowerCase();
-    var sanitized = sanitizeForInput(el, value);
-    if (sanitized.skip) return false;
-    value = sanitized.value;
+  function toIsoDate(str) {
+    var s = String(str || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var parsed = Date.parse(s);
+    if (Number.isNaN(parsed)) return '';
+    var d = new Date(parsed);
+    var pad = function (n) {
+      return String(n).padStart(2, '0');
+    };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
 
-    if (tag === 'SELECT') {
-      const matched = matchSelectOption(el, value);
-      if (!matched) {
-        el.value = value;
+  /**
+   * Write a value into any control type. Checkboxes and radios go through a real
+   * click so framework state updates; everything else uses the native setter.
+   */
+  function setNativeValue(el, value) {
+    const D = dom();
+    const tag = el.tagName;
+    const type = String(el.type || '').toLowerCase();
+
+    if (type === 'checkbox') {
+      const want = /^(yes|true|1|on|y|checked)$/i.test(String(value));
+      if (el.checked !== want) realClick(el);
+      if (el.checked !== want) {
+        el.checked = want;
+        fireChange(el);
       }
-    } else if (type === 'checkbox') {
-      const truthy = /^(yes|true|1|on|y)$/i.test(String(value));
-      el.checked = truthy;
-    } else if (type === 'radio') {
-      const want = String(value).toLowerCase();
-      const name = el.name;
-      if (name) {
-        const radios = document.querySelectorAll(
-          'input[type="radio"][name="' + CSS.escape(name) + '"]'
-        );
-        radios.forEach(function (r) {
-          const label = getLabelText(r).toLowerCase();
-          const rv = String(r.value || '').toLowerCase();
-          const hit =
-            rv === want ||
-            label === want ||
-            label.indexOf(want) !== -1 ||
-            (/^(yes|y)$/i.test(want) && /^(yes|y)$/i.test(rv + label)) ||
-            (/^(no|n)$/i.test(want) && /^(no|n)$/i.test(rv) && !/not/i.test(label));
-          r.checked = !!hit;
-          if (r.checked) {
-            r.dispatchEvent(new Event('input', { bubbles: true }));
-            r.dispatchEvent(new Event('change', { bubbles: true }));
-            try {
-              r.click();
-            } catch (_e) {
-              /* ignore */
-            }
-          }
-        });
-        return true;
-      }
-      el.checked = true;
-    } else {
-      const proto =
-        tag === 'TEXTAREA'
-          ? window.HTMLTextAreaElement.prototype
-          : window.HTMLInputElement.prototype;
-      const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
-      if (descriptor && descriptor.set) {
-        descriptor.set.call(el, value);
-      } else {
-        el.value = value;
-      }
+      return true;
     }
 
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.dispatchEvent(new Event('blur', { bubbles: true }));
+    if (type === 'radio') return selectRadioInGroup(el, value);
+
+    var sanitized = sanitizeForInput(el, value);
+    if (sanitized.skip) return false;
+    const finalValue = sanitized.value;
+
+    if (tag === 'SELECT') {
+      if (matchSelectOption(el, finalValue)) return true;
+      if (D && D.setValue) D.setValue(el, finalValue);
+      else el.value = finalValue;
+      return String(el.value || '') !== '';
+    }
+
+    if (D && D.setValue) {
+      D.setValue(el, finalValue);
+    } else {
+      el.value = finalValue;
+      fireChange(el);
+    }
     return true;
   }
 
+  function fireChange(el) {
+    try {
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
+  /** Pick the radio in `el`'s group whose label or value matches `value`. */
+  function selectRadioInGroup(el, value) {
+    const want = String(value).toLowerCase().trim();
+    const group = radioGroupFor(el);
+    if (!group.length) return false;
+
+    let best = null;
+    let bestScore = 0;
+    group.forEach(function (radio) {
+      const label = getLabelText(radio).toLowerCase().trim();
+      const raw = String(radio.value || '').toLowerCase().trim();
+      let score = 0;
+      if (raw === want || label === want) score = 100;
+      else if (label.indexOf(want) !== -1 || want.indexOf(label) !== -1) score = 70;
+      else if (raw.indexOf(want) !== -1) score = 60;
+      else if (/^(yes|y)$/i.test(want) && /^(yes|y|true)$/i.test(raw || label)) score = 85;
+      else if (/^(no|n)$/i.test(want) && /^(no|n|false)$/i.test(raw || label) && !/not/i.test(label)) {
+        score = 85;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = radio;
+      }
+    });
+
+    if (!best || bestScore < 60) return false;
+    realClick(best);
+    if (!best.checked) {
+      best.checked = true;
+      fireChange(best);
+    }
+    return true;
+  }
+
+  function radioGroupFor(el) {
+    if (!el) return [];
+    const D = dom();
+    const name = el.getAttribute && el.getAttribute('name');
+    if (name) {
+      const escaped = D && D.cssEscape ? D.cssEscape(name) : name;
+      const found = queryAll('input[type="radio"][name="' + escaped + '"]');
+      if (found.length) return found;
+    }
+    const container = el.closest ? el.closest('fieldset, [role="radiogroup"], .field, [class*="field"]') : null;
+    if (container) {
+      try {
+        return Array.prototype.slice.call(container.querySelectorAll('input[type="radio"]'));
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return [el];
+  }
+
   function clearHighlights() {
-    document.querySelectorAll('[' + HIGHLIGHT_ATTR + ']').forEach(function (el) {
+    queryAll('[' + HIGHLIGHT_ATTR + ']').forEach(function (el) {
       el.removeAttribute(HIGHLIGHT_ATTR);
       el.style.outline = '';
     });
-    document.querySelectorAll('[' + FILLED_ATTR + ']').forEach(function (el) {
+    queryAll('[' + FILLED_ATTR + ']').forEach(function (el) {
       el.removeAttribute(FILLED_ATTR);
       el.style.outline = '';
     });
@@ -226,16 +361,27 @@
     }
   }
 
-  function collectFields() {
-    const nodes = document.querySelectorAll('input, textarea, select');
+  /**
+   * Every fillable control on the page, deduplicated by radio group and with
+   * page furniture (search, newsletter, sign-in) filtered out.
+   */
+  function collectFields(root) {
+    const syn = global.FillApplySynonyms;
+    const nodes = queryAll('input, textarea, select, [contenteditable="true"]', root);
     const list = [];
+    const seenRadioGroups = {};
+
     nodes.forEach(function (el) {
       if (!isFillable(el)) return;
-      if ((el.type || '').toLowerCase() === 'radio' && el.name) {
-        const first = document.querySelector(
-          'input[type="radio"][name="' + CSS.escape(el.name) + '"]'
-        );
-        if (first !== el) return;
+      if (!isVisible(el)) return;
+      if (syn && syn.isSearchLikeField && syn.isSearchLikeField(el)) return;
+      if (syn && syn.isInsideLoginForm && syn.isInsideLoginForm(el)) return;
+
+      if (String(el.type || '').toLowerCase() === 'radio') {
+        const name = el.getAttribute('name') || '';
+        const groupKey = name || 'radio:' + list.length;
+        if (seenRadioGroups[groupKey]) return;
+        seenRadioGroups[groupKey] = true;
       }
       list.push(el);
     });
@@ -243,10 +389,11 @@
   }
 
   /**
-   * Catalog form controls before filling.
+   * Catalog every control on the page — the diagnostic view of what the engine
+   * can actually see, surfaced in the run report.
    */
-  function inspectForm(doc) {
-    doc = doc || document;
+  function inspectForm(root) {
+    const D = dom();
     const summary = {
       inputs: [],
       textareas: [],
@@ -255,6 +402,7 @@
       fileInputs: [],
       attachButtons: [],
       customDropdowns: [],
+      buttons: [],
       counts: {
         input: 0,
         textarea: 0,
@@ -262,102 +410,81 @@
         contenteditable: 0,
         file: 0,
         attachButton: 0,
-        customDropdown: 0
+        customDropdown: 0,
+        button: 0,
+        required: 0
       }
     };
 
-    doc.querySelectorAll('input').forEach(function (el) {
-      const type = (el.type || 'text').toLowerCase();
+    queryAll('input', root).forEach(function (el) {
+      const type = String(el.type || 'text').toLowerCase();
       if (type === 'file') {
         summary.fileInputs.push({
           type: type,
           name: el.name || '',
           id: el.id || '',
           accept: el.getAttribute('accept') || '',
-          required: !!el.required,
+          required: isRequiredField(el),
           label: getLabelText(el),
-          hidden: el.offsetParent === null || el.hidden
+          hidden: !isVisible(el)
         });
         summary.counts.file += 1;
         return;
       }
       if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'image') return;
-      summary.inputs.push({
-        type: type,
-        name: el.name || '',
-        id: el.id || '',
-        autocomplete: el.getAttribute('autocomplete') || '',
-        label: getLabelText(el),
-        required: !!el.required,
-        accept: el.getAttribute('accept') || ''
-      });
+      const described = D && D.describeField ? D.describeField(el) : { type: type, label: getLabelText(el) };
+      summary.inputs.push(described);
       summary.counts.input += 1;
+      if (described.required) summary.counts.required += 1;
     });
 
-    doc.querySelectorAll('textarea').forEach(function (el) {
-      summary.textareas.push({
-        type: 'textarea',
-        name: el.name || '',
-        id: el.id || '',
-        autocomplete: el.getAttribute('autocomplete') || '',
-        label: getLabelText(el),
-        required: !!el.required
-      });
+    queryAll('textarea', root).forEach(function (el) {
+      const described = D && D.describeField ? D.describeField(el) : { type: 'textarea', label: getLabelText(el) };
+      summary.textareas.push(described);
       summary.counts.textarea += 1;
+      if (described.required) summary.counts.required += 1;
     });
 
-    doc.querySelectorAll('select').forEach(function (el) {
-      const options = [];
-      for (let i = 0; i < el.options.length; i++) {
-        options.push({
-          value: el.options[i].value,
-          text: (el.options[i].textContent || '').trim()
-        });
-      }
-      summary.selects.push({
-        type: 'select',
-        name: el.name || '',
-        id: el.id || '',
-        label: getLabelText(el),
-        required: !!el.required,
-        options: options
-      });
+    queryAll('select', root).forEach(function (el) {
+      const described = D && D.describeField ? D.describeField(el) : { type: 'select', label: getLabelText(el) };
+      summary.selects.push(described);
       summary.counts.select += 1;
+      if (described.required) summary.counts.required += 1;
     });
 
-    doc.querySelectorAll('[contenteditable="true"], [contenteditable=""]').forEach(function (el) {
+    queryAll('[contenteditable="true"], [contenteditable=""]', root).forEach(function (el) {
       summary.contenteditables.push({
         type: 'contenteditable',
         id: el.id || '',
         label: getLabelText(el),
-        text: (el.textContent || '').slice(0, 80)
+        text: textOf(el).slice(0, 80)
       });
       summary.counts.contenteditable += 1;
     });
 
     const attachRe = /\b(attach|upload|choose file|browse|select file)\b/i;
-    doc.querySelectorAll('button, a, [role="button"], label').forEach(function (el) {
-      const text = ((el.textContent || '') + ' ' + (el.getAttribute('aria-label') || '')).trim();
+    queryAll('button, a, [role="button"], label', root).forEach(function (el) {
+      const text = (textOf(el) + ' ' + (el.getAttribute('aria-label') || '')).trim();
+      if (!text) return;
       if (attachRe.test(text)) {
         summary.attachButtons.push({ text: text.slice(0, 80), tag: el.tagName });
         summary.counts.attachButton += 1;
       }
+      if (summary.buttons.length < 40 && isVisible(el)) {
+        summary.buttons.push({ tag: el.tagName, text: text.slice(0, 60), disabled: !!el.disabled });
+        summary.counts.button += 1;
+      }
     });
 
-    doc
-      .querySelectorAll(
-        '[role="listbox"], [role="combobox"], button[aria-haspopup="listbox"], [aria-haspopup="listbox"], [class*="select"], [class*="dropdown"]'
-      )
-      .forEach(function (el) {
-        if (el.tagName === 'SELECT') return;
-        summary.customDropdowns.push({
-          tag: el.tagName,
-          role: el.getAttribute('role') || '',
-          label: getLabelText(el) || (el.getAttribute('aria-label') || '').slice(0, 80),
-          text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60)
-        });
-        summary.counts.customDropdown += 1;
+    findCustomDropdownTriggers(root).forEach(function (el) {
+      summary.customDropdowns.push({
+        tag: el.tagName,
+        role: el.getAttribute('role') || '',
+        label: getLabelText(el) || (el.getAttribute('aria-label') || '').slice(0, 80),
+        text: textOf(el).slice(0, 60)
       });
+      summary.counts.customDropdown += 1;
+    });
 
     return summary;
   }
@@ -376,132 +503,277 @@
   }
 
   /**
-   * Fill custom listbox/combobox widgets (Greenhouse-style).
+   * Find the profile answer for a control, widest net first.
+   *
+   * Source profiles store most answers under `profile.customAnswers`, so the
+   * `answerForLabel` step is what lets per-source answers actually reach the
+   * page.
    */
-  function fillCustomDropdowns(profile, map) {
-    const filled = [];
-    const triggers = document.querySelectorAll(
-      'button[aria-haspopup="listbox"], [role="combobox"], [aria-haspopup="listbox"], button.select__button, .select-style, [class*="select__control"], [data-testid*="select"]'
-    );
+  function answerFor(profile, descriptor, map) {
+    const label = descriptor.label || '';
+    const labLower = label.toLowerCase();
 
-    triggers.forEach(function (trigger) {
-      const label = (
-        getLabelText(trigger) ||
-        trigger.getAttribute('aria-label') ||
-        (trigger.textContent || '')
-      )
+    let key = map.bestKeyForField(descriptor);
+    let value = resolveValue(profile, key);
+    if (value) return { key: key, value: value, source: 'fieldMap' };
+
+    if (/authoriz|eligible.*work|legally.*work|work.*auth|right to work|permitted to work/.test(labLower)) {
+      value = resolveValue(profile, 'authorizedToWork');
+      if (value) return { key: 'authorizedToWork', value: value, source: 'workAuth' };
+    }
+    if (/sponsor|visa|require.*sponsor|need.*sponsor/.test(labLower)) {
+      value = resolveValue(profile, 'requiresSponsorship');
+      if (value) return { key: 'requiresSponsorship', value: value, source: 'sponsorship' };
+    }
+
+    if (label && typeof map.answerForLabel === 'function') {
+      const looked = map.answerForLabel(profile, label);
+      if (looked && !looked.missing && looked.value) {
+        return { key: looked.key || 'customAnswers', value: looked.value, source: looked.source || 'answerForLabel' };
+      }
+    }
+
+    const qa = map.matchCustomQA(profile.customQA, label, descriptor.placeholder);
+    if (qa) return { key: 'customQA', value: qa, source: 'customQA' };
+
+    return { key: key || null, value: '', source: null };
+  }
+
+  function isDiversityControl(el, label) {
+    if (DIVERSITY_RE.test(String(label || ''))) return true;
+    if (!el || !el.closest) return false;
+    try {
+      const section = el.closest(
+        'section, fieldset, [class*="eeo" i], [id*="eeo" i], [class*="demographic" i], [id*="demographic" i], [class*="diversity" i], [class*="self-identif" i]'
+      );
+      if (!section) return false;
+      const heading = section.querySelector('h1, h2, h3, h4, legend, .section-header');
+      return DIVERSITY_RE.test(textOf(heading || section).slice(0, 400));
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Custom dropdowns and comboboxes
+   * ------------------------------------------------------------------ */
+
+  const DROPDOWN_TRIGGER_SELECTOR = [
+    'button[aria-haspopup="listbox"]',
+    '[aria-haspopup="listbox"]',
+    '[role="combobox"]',
+    'button.select__button',
+    '.select-style',
+    '[class*="select__control"]',
+    '[class*="Select__control"]',
+    '[data-testid*="select" i]'
+  ].join(', ');
+
+  const OPTION_SELECTOR = [
+    '[role="option"]',
+    '[role="listbox"] li',
+    'ul[role="listbox"] li',
+    '.select__option',
+    '[class*="select__option"]',
+    '[class*="Select__option"]',
+    'li[data-value]',
+    'div[data-value]',
+    '[class*="dropdown"] li',
+    '[class*="menu"] [role="menuitem"]'
+  ].join(', ');
+
+  function findCustomDropdownTriggers(root) {
+    return queryAll(DROPDOWN_TRIGGER_SELECTOR, root).filter(function (el) {
+      if (el.tagName === 'SELECT') return false;
+      return isVisible(el);
+    });
+  }
+
+  /** Options currently rendered anywhere on the page, including portals. */
+  function visibleOptions() {
+    return queryAll(OPTION_SELECTOR).filter(isVisible);
+  }
+
+  function scoreOption(optionEl, want) {
+    const text = normalizeText(textOf(optionEl));
+    const dataValue = normalizeText(optionEl.getAttribute && optionEl.getAttribute('data-value'));
+    const target = normalizeText(want);
+    if (!target) return 0;
+    if (text === target || dataValue === target) return 100;
+    if (text.indexOf(target) !== -1) return 80;
+    if (target.indexOf(text) !== -1 && text.length > 2) return 70;
+    if (dataValue && dataValue.indexOf(target) !== -1) return 60;
+    if (/^(yes|y)$/.test(target) && /^(yes|y)$/.test(text)) return 90;
+    if (/^(no|n)$/.test(target) && /^(no|n)$/.test(text) && !/not sure/.test(text)) return 90;
+    return 0;
+  }
+
+  /**
+   * Open a custom dropdown and pick the matching option.
+   *
+   * The wait after opening is the whole point: React renders listbox options on
+   * a later tick and usually into a portal at <body>, so querying them in the
+   * same tick as the click can never find them.
+   */
+  async function pickFromDropdown(trigger, value, opts) {
+    opts = opts || {};
+    const D = dom();
+    const want = String(value);
+    const timeoutMs = opts.timeoutMs != null ? opts.timeoutMs : 2500;
+
+    const before = visibleOptions().length;
+    realClick(trigger);
+
+    let options = [];
+    if (D && D.waitFor) {
+      options =
+        (await D.waitFor(
+          function () {
+            const current = visibleOptions();
+            return current.length && current.length !== before ? current : null;
+          },
+          { timeoutMs: timeoutMs, pollMs: 80 }
+        )) || [];
+    }
+    if (!options.length) {
+      await sleep(300);
+      options = visibleOptions();
+    }
+
+    let picked = pickBestOption(options, want);
+
+    // Typeahead comboboxes only render matching options once text is entered.
+    if (!picked) {
+      const input = comboboxInputFor(trigger);
+      if (input && D && D.typeInto) {
+        await D.typeInto(input, want, { perCharMs: 20 });
+        const filtered =
+          (await D.waitFor(
+            function () {
+              const current = visibleOptions();
+              return current.length ? current : null;
+            },
+            { timeoutMs: 2000, pollMs: 80 }
+          )) || visibleOptions();
+        picked = pickBestOption(filtered, want);
+        if (!picked && filtered.length === 1) picked = filtered[0];
+      }
+    }
+
+    if (!picked) {
+      if (D && D.pressKey) D.pressKey(trigger, 'Escape');
+      return { ok: false, reason: 'no_matching_option' };
+    }
+
+    realClick(picked);
+    await sleep(120);
+    return { ok: true, text: textOf(picked).slice(0, 80) };
+  }
+
+  function pickBestOption(options, want) {
+    let best = null;
+    let bestScore = 0;
+    for (let i = 0; i < options.length; i++) {
+      const score = scoreOption(options[i], want);
+      if (score > bestScore) {
+        bestScore = score;
+        best = options[i];
+      }
+    }
+    return bestScore >= 60 ? best : null;
+  }
+
+  /** The text input a combobox trigger types into, if it has one. */
+  function comboboxInputFor(trigger) {
+    if (!trigger) return null;
+    if (trigger.tagName === 'INPUT') return trigger;
+    let input = null;
+    try {
+      input = trigger.querySelector('input:not([type="hidden"])');
+    } catch (_e) {
+      input = null;
+    }
+    if (input) return input;
+    const owns = trigger.getAttribute && (trigger.getAttribute('aria-owns') || trigger.getAttribute('aria-controls'));
+    if (owns) {
+      const D = dom();
+      const escaped = D && D.cssEscape ? D.cssEscape(owns) : owns;
+      const panel = queryAll('#' + escaped)[0];
+      if (panel) {
+        try {
+          return panel.querySelector('input:not([type="hidden"])');
+        } catch (_e2) {
+          return null;
+        }
+      }
+    }
+    const container = trigger.closest ? trigger.closest('.field, [class*="field"], [class*="select"]') : null;
+    if (container) {
+      try {
+        return container.querySelector('input:not([type="hidden"])');
+      } catch (_e3) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Fill custom listbox / combobox widgets (Greenhouse, Ashby, Workday, Lever).
+   */
+  async function fillCustomDropdowns(profile, map, options) {
+    options = options || {};
+    const filled = [];
+    const triggers = findCustomDropdownTriggers();
+
+    for (let i = 0; i < triggers.length; i++) {
+      const trigger = triggers[i];
+      const label = (getLabelText(trigger) || trigger.getAttribute('aria-label') || textOf(trigger))
         .replace(/\s+/g, ' ')
         .trim();
-      if (!label) return;
+      if (!label) continue;
+      if (isDiversityControl(trigger, label)) continue;
 
-      let value = '';
-      const labLower = label.toLowerCase();
+      const descriptor = {
+        label: label,
+        name: trigger.getAttribute('name') || '',
+        id: trigger.id || '',
+        autocomplete: '',
+        placeholder: '',
+        type: 'select'
+      };
+      const answer = answerFor(profile, descriptor, map);
+      if (!answer.value) continue;
 
-      if (
-        /authoriz|eligible.*work|legally.*work|work.*auth|right to work|permitted to work/.test(
-          labLower
-        )
-      ) {
-        value = profile.authorizedToWork || '';
-      } else if (/sponsor|visa|require.*sponsor|need.*sponsor/.test(labLower)) {
-        value = profile.requiresSponsorship || '';
-      } else if (map) {
-        const key = map.bestKeyForField({
-          label: label,
-          name: '',
-          id: trigger.id || '',
-          autocomplete: '',
-          placeholder: '',
-          type: 'select'
-        });
-        value = resolveValue(profile, key);
-        if (!value) {
-          value = map.matchCustomQA(profile.customQA, label, '') || '';
-        }
+      // Already showing the answer — leave it alone.
+      const current = normalizeText(textOf(trigger));
+      const want = normalizeText(answer.value);
+      const isPlaceholder = /select|choose|—|--|please/.test(current);
+      if (current === want || (!isPlaceholder && current && current.indexOf(want) !== -1)) {
+        filled.push({ label: label, key: answer.key, value: answer.value, already: true });
+        continue;
       }
 
-      if (!value) {
-        // customQA fallback by label
-        if (map && map.matchCustomQA) {
-          value = map.matchCustomQA(profile.customQA, label, '') || '';
-        }
-      }
-      if (!value) return;
-
-      // Skip if already showing the answer
-      const current = (trigger.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-      if (current === String(value).toLowerCase()) {
-        filled.push({ label: label, value: value, already: true });
-        return;
-      }
-      if (!/select|choose|—|--|please/i.test(current) && current.indexOf(String(value).toLowerCase()) !== -1) {
-        filled.push({ label: label, value: value, already: true });
-        return;
+      if (global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
+        global.FillApplyFocusHud.mark(trigger, { scroll: true });
       }
 
-      try {
-        trigger.click();
-      } catch (_e) {
-        return;
+      const result = await pickFromDropdown(trigger, answer.value, options);
+      if (result.ok) {
+        filled.push({ label: label, key: answer.key, value: answer.value });
       }
-
-      // Options may appear immediately or shortly after
-      const want = String(value).toLowerCase();
-      const optionSelectors = [
-        '[role="option"]',
-        '[role="listbox"] li',
-        '[role="listbox"] [role="option"]',
-        'ul[role="listbox"] li',
-        '.select__option',
-        '[class*="option"]',
-        'li[data-value]',
-        'div[data-value]'
-      ];
-
-      let clicked = false;
-      for (let s = 0; s < optionSelectors.length && !clicked; s++) {
-        const opts = document.querySelectorAll(optionSelectors[s]);
-        for (let i = 0; i < opts.length; i++) {
-          const t = (opts[i].textContent || '').replace(/\s+/g, ' ').trim();
-          const tLower = t.toLowerCase();
-          const vAttr = String(opts[i].getAttribute('data-value') || '').toLowerCase();
-          if (
-            tLower === want ||
-            vAttr === want ||
-            tLower.indexOf(want) !== -1 ||
-            (/^(yes|y)$/i.test(want) && /^(yes|y)$/i.test(t)) ||
-            (/^(no|n)$/i.test(want) && /^(no|n)$/i.test(t) && !/not sure/i.test(t))
-          ) {
-            try {
-              opts[i].click();
-              clicked = true;
-              filled.push({ label: label, value: value });
-              break;
-            } catch (_e2) {
-              /* ignore */
-            }
-          }
-        }
-      }
-
-      // Close if we opened but didn't match — press Escape
-      if (!clicked) {
-        try {
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        } catch (_e3) {
-          /* ignore */
-        }
-      }
-    });
+    }
 
     return filled;
   }
 
+  /* ------------------------------------------------------------------ *
+   * Apply-start
+   * ------------------------------------------------------------------ */
+
   /**
-   * Open-application step: on job overview / few fillable fields, click Apply-start once.
+   * Open-application step: on a job overview, click Apply-start once.
    * Allowed in fill, ready, AND submit (opening is not final submit).
-   * Returns a result object when clicked (caller / runner should wait + re-detect);
-   * returns null when form already open or no CTA.
    */
   function tryOpenApplication(options) {
     options = options || {};
@@ -537,138 +809,192 @@
     };
   }
 
-  function run(profile, options) {
+  /**
+   * Click Apply and wait for the form to appear in this same page.
+   *
+   * Most Apply buttons open a modal or expand a section rather than navigating.
+   * Waiting here means one pass fills the form instead of handing back to the
+   * runner for a full re-injection round trip.
+   */
+  async function openApplicationAndWait(options) {
     options = options || {};
+    const syn = global.FillApplySynonyms;
+    const D = dom();
+    const opened = tryOpenApplication(options);
+    if (!opened) return { clicked: false, formOpen: false };
+
+    if (!syn || !D || !D.waitFor) return { clicked: true, formOpen: false, opened: opened };
+
+    const appeared = await D.waitFor(
+      function () {
+        return syn.isApplicationFormOpen(document, options.minOpenFormFields) ? true : null;
+      },
+      { timeoutMs: options.applyOpenTimeoutMs != null ? options.applyOpenTimeoutMs : 4000, pollMs: 150 }
+    );
+
+    return { clicked: true, formOpen: !!appeared, opened: opened };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Main entry point
+   * ------------------------------------------------------------------ */
+
+  async function run(profile, options) {
+    options = options || {};
+    profile = profile || {};
     const highlightUnmatched = !!options.highlightUnmatched;
     const map = global.FillApplyFieldMap;
+    const syn = global.FillApplySynonyms;
+    const D = dom();
     if (!map) {
       return { ok: false, error: 'FillApplyFieldMap not loaded', filled: 0, unmatched: 0 };
     }
 
-    // Before filling: open Apply when still on a job detail / overview page.
-    const opened = tryOpenApplication(options);
-    if (opened) return opened;
+    // Give a slow SPA a moment to render its form before deciding anything.
+    if (D && D.waitFor && syn) {
+      await D.waitFor(
+        function () {
+          if (syn.isApplicationFormOpen(document, options.minOpenFormFields)) return true;
+          if (syn.findApplyStartButtons(document).length) return true;
+          return null;
+        },
+        { timeoutMs: options.formWaitMs != null ? options.formWaitMs : 3000, pollMs: 150 }
+      );
+    }
 
-    const synOpen = global.FillApplySynonyms;
-    if (synOpen && typeof synOpen.isApplicationFormOpen === 'function') {
-      const formOpen = synOpen.isApplicationFormOpen(document);
-      if (!formOpen) {
-        const btns =
-          typeof synOpen.findApplyStartButtons === 'function'
-            ? synOpen.findApplyStartButtons(document)
-            : [];
-        const looksJob =
-          typeof synOpen.looksLikeJobPosting === 'function'
-            ? synOpen.looksLikeJobPosting(document)
-            : false;
-        if (!btns.length && looksJob) {
-          return {
-            ok: false,
-            error: 'No Apply button found on this page',
-            filled: 0,
-            unmatched: 0,
-            total: 0,
-            submitted: false
-          };
+    let formSignals = syn && syn.scoreApplicationForm ? syn.scoreApplicationForm(document) : null;
+    let applyStart = null;
+
+    if (!(formSignals && formSignals.open)) {
+      const openResult = await openApplicationAndWait(options);
+      if (openResult.clicked) {
+        applyStart = openResult.opened;
+        if (!openResult.formOpen) {
+          // Form did not appear here — the page is probably navigating or
+          // handing off. Let the runner re-detect on the destination.
+          return applyStart;
         }
+        formSignals = syn && syn.scoreApplicationForm ? syn.scoreApplicationForm(document) : formSignals;
       }
     }
 
-    const inspection = inspectForm(document);
+    const fields = collectFields();
+
+    if (!fields.length) {
+      const startButtons = syn && syn.findApplyStartButtons ? syn.findApplyStartButtons(document) : [];
+      return {
+        ok: false,
+        error: startButtons.length
+          ? 'Apply button found but the application form did not open'
+          : 'No application form fields found on this page',
+        filled: 0,
+        unmatched: 0,
+        total: 0,
+        submitted: false,
+        formSignals: formSignals,
+        inspection: summarizeInspection(inspectForm())
+      };
+    }
+
+    const inspection = inspectForm();
     clearHighlights();
 
-    const fields = collectFields();
     let filled = 0;
     let unmatched = 0;
     const details = [];
+    const skipped = [];
+    const missingRequired = [];
 
-    fields.forEach(function (el) {
-      const descriptor = {
-        autocomplete: el.getAttribute('autocomplete') || el.autocomplete || '',
-        name: el.getAttribute('name') || '',
-        id: el.id || '',
-        label: getLabelText(el),
-        placeholder: el.getAttribute('placeholder') || '',
-        type: (el.type || el.tagName || '').toLowerCase()
-      };
+    for (let i = 0; i < fields.length; i++) {
+      const el = fields[i];
+      const descriptor = D && D.describeField ? D.describeField(el) : legacyDescriptor(el);
+      const label = descriptor.label || '';
 
-      let key = map.bestKeyForField(descriptor);
-      let value = resolveValue(profile, key);
-
-      // Work auth / sponsorship from profile fields via label heuristics
-      if (!value) {
-        const lab = (descriptor.label || '').toLowerCase();
-        if (/authoriz|eligible.*work|legally.*work|work.*auth|right to work/.test(lab)) {
-          key = 'authorizedToWork';
-          value = resolveValue(profile, key) || '';
-        } else if (/sponsor|visa|require.*sponsor|need.*sponsor/.test(lab)) {
-          key = 'requiresSponsorship';
-          value = resolveValue(profile, key) || '';
-        }
+      if (isDiversityControl(el, label)) {
+        skipped.push({ label: label, reason: 'voluntary_self_identification' });
+        continue;
       }
 
-      if (!value) {
-        const qa = map.matchCustomQA(profile.customQA, descriptor.label, descriptor.placeholder);
-        if (qa) {
-          key = 'customQA';
-          value = qa;
+      const type = String(descriptor.type || '').toLowerCase();
+      if (type === 'checkbox' && CONSENT_RE.test(label)) {
+        // Agreements are the applicant's to make — report, never tick.
+        if (!el.checked) {
+          skipped.push({ label: label, reason: 'consent_checkbox', required: descriptor.required });
+          if (descriptor.required) missingRequired.push(label || 'consent checkbox');
         }
+        continue;
       }
 
-      if (value) {
-        var setOk = setNativeValue(el, value);
-        if (setOk === false) {
+      if (isComboboxInput(el)) {
+        const answer = answerFor(profile, descriptor, map);
+        if (!answer.value) {
           unmatched += 1;
-          details.push({ ok: false, label: descriptor.label, key: key, reason: 'sanitize_skip' });
+          if (descriptor.required) missingRequired.push(label || descriptor.name || 'required field');
+          details.push(unmatchedDetail(descriptor));
           if (highlightUnmatched) highlight(el, 'unmatched');
-          return;
+          continue;
         }
-        if (global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
-          global.FillApplyFocusHud.mark(el, { scroll: true });
+        const picked = await pickFromDropdown(el, answer.value, options);
+        if (picked.ok) {
+          filled += 1;
+          if (highlightUnmatched) highlight(el, 'filled');
+          details.push(filledDetail(descriptor, answer));
+        } else {
+          // Fall back to plain text — some comboboxes accept free entry.
+          if (setNativeValue(el, answer.value)) {
+            filled += 1;
+            details.push(filledDetail(descriptor, answer));
+          } else {
+            unmatched += 1;
+            details.push(unmatchedDetail(descriptor, 'combobox_no_option'));
+          }
         }
-        filled += 1;
-        if (highlightUnmatched) highlight(el, 'filled');
-        details.push({
-          key: key,
-          name: descriptor.name || descriptor.id,
-          label: descriptor.label || key || descriptor.name || descriptor.id,
-          value: String(value).slice(0, 500),
-          ok: true
-        });
-      } else {
-        unmatched += 1;
-        if (highlightUnmatched) highlight(el, 'unmatched');
-        details.push({
-          key: null,
-          name: descriptor.name || descriptor.id || descriptor.label.slice(0, 40),
-          label: descriptor.label || descriptor.name || descriptor.id || '',
-          value: null,
-          ok: false
-        });
+        continue;
       }
-    });
 
-    // Custom dropdowns (Greenhouse often uses these for Yes/No)
-    const customFilled = fillCustomDropdowns(profile, map);
-    filled += customFilled.length;
+      const answer = answerFor(profile, descriptor, map);
+
+      if (!answer.value) {
+        unmatched += 1;
+        if (descriptor.required) missingRequired.push(label || descriptor.name || descriptor.id || 'required field');
+        if (highlightUnmatched) highlight(el, 'unmatched');
+        details.push(unmatchedDetail(descriptor));
+        continue;
+      }
+
+      if (global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
+        global.FillApplyFocusHud.mark(el, { scroll: true });
+      }
+
+      const setOk = setNativeValue(el, answer.value);
+      if (setOk === false) {
+        unmatched += 1;
+        details.push(unmatchedDetail(descriptor, 'value_rejected'));
+        if (highlightUnmatched) highlight(el, 'unmatched');
+        continue;
+      }
+
+      filled += 1;
+      if (highlightUnmatched) highlight(el, 'filled');
+      details.push(filledDetail(descriptor, answer));
+
+      if (options.pauseBetweenFieldsMs) await sleep(options.pauseBetweenFieldsMs);
+    }
+
+    const customFilled = await fillCustomDropdowns(profile, map, options);
+    filled += customFilled.filter(function (c) {
+      return !c.already;
+    }).length;
 
     const applicationFields = [];
     details.forEach(function (d) {
       if (d && d.ok && (d.label || d.key)) {
-        applicationFields.push({
-          label: d.label || d.key,
-          key: d.key,
-          value: d.value
-        });
+        applicationFields.push({ label: d.label || d.key, key: d.key, value: d.value });
       }
     });
     customFilled.forEach(function (c) {
       if (!c) return;
-      applicationFields.push({
-        label: c.label || c.key || 'dropdown',
-        key: c.key || null,
-        value: c.value
-      });
+      applicationFields.push({ label: c.label || c.key || 'dropdown', key: c.key || null, value: c.value });
     });
 
     return {
@@ -677,29 +1003,88 @@
       unmatched: unmatched,
       total: fields.length,
       details: details,
+      skipped: skipped,
+      missingRequired: dedupe(missingRequired),
       customDropdownsFilled: customFilled,
       applicationFields: applicationFields,
-      applicationReport: {
-        fields: applicationFields,
-        steps: []
-      },
-      inspection: {
-        counts: inspection.counts,
-        selectCount: inspection.counts.select,
-        fileCount: inspection.counts.file,
-        attachButtonCount: inspection.counts.attachButton,
-        customDropdownCount: inspection.counts.customDropdown
-      }
+      applicationReport: { fields: applicationFields, steps: [] },
+      formSignals: formSignals,
+      clickedApplyStart: !!applyStart,
+      inspection: summarizeInspection(inspection)
     };
   }
+
+  function legacyDescriptor(el) {
+    return {
+      autocomplete: el.getAttribute('autocomplete') || '',
+      name: el.getAttribute('name') || '',
+      id: el.id || '',
+      label: getLabelText(el),
+      placeholder: el.getAttribute('placeholder') || '',
+      type: String(el.type || el.tagName || '').toLowerCase(),
+      required: isRequiredField(el)
+    };
+  }
+
+  function filledDetail(descriptor, answer) {
+    return {
+      ok: true,
+      key: answer.key,
+      name: descriptor.name || descriptor.id,
+      label: descriptor.label || answer.key || descriptor.name || descriptor.id,
+      type: descriptor.type,
+      required: !!descriptor.required,
+      source: answer.source,
+      value: String(answer.value).slice(0, 500)
+    };
+  }
+
+  function unmatchedDetail(descriptor, reason) {
+    return {
+      ok: false,
+      key: null,
+      name: descriptor.name || descriptor.id || String(descriptor.label || '').slice(0, 40),
+      label: descriptor.label || descriptor.name || descriptor.id || '',
+      type: descriptor.type,
+      required: !!descriptor.required,
+      reason: reason || 'no_profile_value'
+    };
+  }
+
+  function dedupe(list) {
+    const seen = {};
+    return (list || []).filter(function (item) {
+      const key = String(item);
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  }
+
+  function summarizeInspection(inspection) {
+    if (!inspection) return null;
+    return {
+      counts: inspection.counts,
+      selectCount: inspection.counts.select,
+      fileCount: inspection.counts.file,
+      attachButtonCount: inspection.counts.attachButton,
+      customDropdownCount: inspection.counts.customDropdown,
+      requiredCount: inspection.counts.required,
+      buttons: inspection.buttons.slice(0, 12)
+    };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Navigation
+   * ------------------------------------------------------------------ */
 
   /**
    * Click Next/Continue but never final Submit/Apply (for runMode=ready).
    */
   function clickContinueButtons() {
     const clicked = [];
-    const buttons = document.querySelectorAll(
-      'button, input[type="button"], input[type="submit"], a[role="button"], a.button'
+    const buttons = queryAll(
+      'button, input[type="button"], input[type="submit"], a[role="button"], a.button, [role="button"]'
     );
     const syn = global.FillApplySynonyms;
     const continueRe = (syn && syn.CONTINUE_CTA) || /\b(next|continue|save and continue|save & continue)\b/i;
@@ -710,18 +1095,14 @@
     for (let i = 0; i < buttons.length; i++) {
       const btn = buttons[i];
       if (btn.disabled) continue;
-      const text = syn && syn.buttonText ? syn.buttonText(btn) : (
-        (btn.textContent || '') + ' ' + (btn.value || '') + ' ' + (btn.getAttribute('aria-label') || '')
-      ).replace(/\s+/g, ' ').trim();
+      if (!isVisible(btn)) continue;
+      const text = syn && syn.buttonText ? syn.buttonText(btn) : textOf(btn);
       if (!text) continue;
       if (isApply(text) && !continueRe.test(text)) continue;
       if (continueRe.test(text)) {
-        try {
-          btn.click();
+        if (realClick(btn)) {
           clicked.push(text.slice(0, 40));
           break; // one step at a time
-        } catch (_e) {
-          /* ignore */
         }
       }
     }
@@ -732,43 +1113,38 @@
    * Click final Submit/Apply when confidently found (runMode=submit).
    */
   function clickSubmitButtons(submitSelector) {
+    const syn = global.FillApplySynonyms;
+
     if (submitSelector) {
-      try {
-        const nodes = document.querySelectorAll(submitSelector);
-        for (let s = 0; s < nodes.length; s++) {
-          const btn = nodes[s];
-          if (btn && !btn.disabled) {
-            btn.click();
-            return true;
-          }
+      const nodes = queryAll(submitSelector);
+      for (let s = 0; s < nodes.length; s++) {
+        const btn = nodes[s];
+        if (btn && !btn.disabled && isVisible(btn)) {
+          if (realClick(btn)) return true;
         }
-      } catch (_e) {
-        /* ignore */
       }
     }
-    const syn = global.FillApplySynonyms;
+
     const isApply = syn && syn.isApplyCta ? syn.isApplyCta : function (t) {
       return /\b(submit application|submit & apply|apply now|apply for this|send application|apply)\b/i.test(t);
     };
-    const buttons = document.querySelectorAll(
-      'button[type="submit"], input[type="submit"], button, input[type="button"], a[role="button"]'
+    const buttons = queryAll(
+      'button[type="submit"], input[type="submit"], button, input[type="button"], a[role="button"], [role="button"]'
     );
     const formOpen =
-      syn && typeof syn.isApplicationFormOpen === 'function'
-        ? syn.isApplicationFormOpen(document)
-        : true;
+      syn && typeof syn.isApplicationFormOpen === 'function' ? syn.isApplicationFormOpen(document) : true;
     const isExcluded =
       syn && syn.isExcludedApplyCta
         ? syn.isExcludedApplyCta
         : function (t) {
             return /\b(auto[- ]?apply|upgrade|subscribe)\b/i.test(t);
           };
+
     for (let i = 0; i < buttons.length; i++) {
       const btn = buttons[i];
       if (btn.disabled) continue;
-      const text = syn && syn.buttonText ? syn.buttonText(btn) : (
-        (btn.textContent || '') + ' ' + (btn.value || '') + ' ' + (btn.getAttribute('aria-label') || '') + ' ' + (btn.id || '')
-      ).replace(/\s+/g, ' ').trim();
+      if (!isVisible(btn)) continue;
+      const text = syn && syn.buttonText ? syn.buttonText(btn) : textOf(btn);
       if (isExcluded(text)) continue;
       // If form not open yet, leave Apply-start to tryOpenApplication — do not "submit" overview CTAs
       if (
@@ -782,27 +1158,47 @@
       }
       if (isApply(text) || /submit_app|submit-app|btn-submit|btn-apply/i.test(btn.id + ' ' + btn.className)) {
         if (/\bnext\b|\bcontinue\b/i.test(text) && !/\bsubmit\b|\bapply\b/i.test(text)) continue;
-        try {
-          btn.click();
-          return true;
-        } catch (_e2) {
-          /* ignore */
-        }
+        if (realClick(btn)) return true;
       }
     }
     return false;
   }
 
+  /**
+   * Attach one stored document to a specific file input. Adapters that locate
+   * their own resume input (Glassdoor, Indeed) call this directly.
+   */
+  function attachFileInput(input, documents, kind) {
+    if (!input || !documents) return false;
+    const F = global.FillApplyFiles;
+    if (!F || !F.assignFilesToInput || !F.fileFromBase64) return false;
+    const doc = documents[kind] || (kind === 'resume' ? documents.resume : documents.cover);
+    if (!doc || !doc.base64) return false;
+    const file = F.fileFromBase64(
+      doc.base64,
+      doc.name || (kind === 'cover' ? 'cover-letter.pdf' : 'resume.pdf'),
+      doc.mime || 'application/pdf'
+    );
+    const result = F.assignFilesToInput(input, file);
+    return !!(result && result.ok);
+  }
+
   global.__fillApply = {
     run: run,
     inspectForm: inspectForm,
+    collectFields: collectFields,
     clearHighlights: clearHighlights,
     matchSelectOption: matchSelectOption,
     fillCustomDropdowns: fillCustomDropdowns,
+    pickFromDropdown: pickFromDropdown,
     clickContinueButtons: clickContinueButtons,
     clickSubmitButtons: clickSubmitButtons,
     tryOpenApplication: tryOpenApplication,
+    openApplicationAndWait: openApplicationAndWait,
+    attachFileInput: attachFileInput,
     getLabelText: getLabelText,
+    isRequiredField: isRequiredField,
+    isComboboxInput: isComboboxInput,
     sanitizeForInput: sanitizeForInput,
     setNativeValue: setNativeValue,
     numericAmount: function (s) {
