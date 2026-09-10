@@ -1,8 +1,34 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.14.1** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.0** on `main`.
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
+
+---
+
+## Fill engine (v1.15.0)
+
+Everything below fixes a defect that made forms unreadable or invisible regardless of which adapter matched. See [FILL_ENGINE.md](FILL_ENGINE.md).
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Cross-frame injection (`allFrames: true`) | ✅ | Was top-frame only, so every iframed ATS form was invisible |
+| Sub-frame guard + best-frame result ranking | ✅ | Ad/tracker frames return immediately; the frame that fills wins |
+| Signal-scored form detection | ✅ | `scoreApplicationForm()` replaces the container whitelist |
+| Async fill pass | ✅ | Waits for SPA render; awaits portalled listbox options |
+| Custom dropdown / combobox filling | ✅ | Previously impossible — options were queried in the same tick as the click |
+| Typeahead combobox typing | ✅ | Character-by-character with key events |
+| Shadow-DOM traversal | ✅ | `lib/dom-deep.js` |
+| Label resolution from wrapper divs / `aria-*` | ✅ | Was `previousElementSibling` only |
+| Required-field detection (incl. trailing `*`) | ✅ | Feeds `missingRequired` |
+| Real pointer clicks for checkbox / radio / CTA | ✅ | react-select, Radix, Headless UI, MUI ignore bare `.click()` |
+| Date normalization + `maxlength` truncation | ✅ | |
+| Page-furniture exclusion (search / newsletter / sign-in) | ✅ | |
+| `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
+| Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
+| Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
+| jsdom test suites | ✅ | `npm test` — 4 suites, 44 assertions |
+| Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
 
 ---
 
@@ -125,4 +151,4 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
 ---
 
-*Last reviewed against repo `main` at v1.14.1 (Glassdoor Easy Apply click fix).*
+*Last reviewed against repo `main` at v1.15.0 (fill engine rebuild).*

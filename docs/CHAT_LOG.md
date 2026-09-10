@@ -250,6 +250,16 @@ Chronological narrative of the Fill & Apply build conversation between **User** 
 **Assistant:** Removed footer “Indeed, Inc.” from wizard detection; tightened contact markers; always click Easy Apply + `clickedApplyStart`/`reDetect` if wizard slow; Easy Apply attrs + banner skips in `findEasyApplyButton`; synonyms `isEasyApplyCta` / `isApplyStartCtaForHost`; smoke `smoke-glassdoor-inflow.js` — **v1.14.1**.
 
 
+## Fill engine rebuild 1.15.0
+
+**User:** The extension is not working as intended, even on the pages it was trained on. It does not fetch or know the actual buttons, navigations, fields or field types, despite source-based profiles and documented application structures. Read the full documentation, chat logs and structure; understand the core failure reasons and fix them.
+
+**Assistant:** Traced the failures to the shared DOM layer rather than the adapters. Four structural gaps: injection targeted the top frame only (so every iframed ATS form was invisible); `isApplicationFormOpen` matched a hard-coded container whitelist (so React-rendered forms scored zero and the engine returned "No Apply button found on this page"); the fill pass was synchronous, querying listbox options in the same tick as the click that opens them (so no custom dropdown could ever be filled); and label resolution only checked `previousElementSibling` (so the most common ATS layout produced no label and no field type). A fifth issue discarded configured answers — source profiles store under `customAnswers`, which the engine never read.
+
+Shipped `lib/dom-deep.js` (shadow/frame-piercing queries, ancestor label walk, required detection, real pointer clicks, native-setter writes, typeahead typing, MutationObserver waits), signal-scored form detection, an async type-aware fill pass, cross-frame injection with best-frame ranking, the generic engine as a fallback behind drifted adapters, run diagnostics, and both jsdom and real-Chrome tests — **v1.15.0**. See [FILL_ENGINE.md](FILL_ENGINE.md).
+
+---
+
 ## Notes for readers
 
 - Timestamps omitted; order follows the agent transcript turn sequence.

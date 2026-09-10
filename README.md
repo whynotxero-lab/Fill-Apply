@@ -6,11 +6,13 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Adaptive fill:** synonym CTAs (Apply / Apply Now / Start Apply / Apply for this Job / …) and Resume≈CV via `lib/synonyms.js` + **universal Apply-start** (click Apply to open the form when still on a job overview) + generic fallback for unknown hosts.
 
-**Docs:** [Docs index](docs/README.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
+**Docs:** [Docs index](docs/README.md) · [Fill engine](docs/FILL_ENGINE.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
-**Version 1.14.1** — **Glassdoor Easy Apply click fix**: footer `Indeed, Inc.` no longer forces `inFlow` (skipped Easy Apply); always click Easy Apply when found + `clickedApplyStart`/`reDetect` if wizard slow; tighter contact/wizard markers; Easy Apply attrs in `findEasyApplyButton`. Prior **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
+**Version 1.15.0** — **fill engine rebuild**. Injection now runs in **all frames**, so ATS forms embedded in iframes (Greenhouse / Lever / Workable / SmartRecruiters embeds, iCIMS, Glassdoor→Indeed) are reachable for the first time. Form detection is **signal-scored** instead of matching a container whitelist, so React-rendered forms (Ashby, Lever, Teamtailor, Workday) are recognised. The fill pass is **async**, so custom dropdown options are awaited rather than queried in the same tick — previously no custom dropdown could ever be filled. New `lib/dom-deep.js` pierces shadow roots, resolves labels from wrapper divs, and clicks with real pointer events. Source-profile answers under `customAnswers` now reach reworded page labels. See [Fill engine](docs/FILL_ENGINE.md).
+
+Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
 ## Load unpacked
 
@@ -95,6 +97,9 @@ adapters/
   boards/       Indeed (multi-step), LinkedIn (Easy Apply + External Apply → iCIMS), NaukriGulf (Easy Apply modal), eFinancialCareers (account-first modal → employer), Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), Jooble (→ Swooped/ATS), Swooped (Apply manually instead), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
+  dom-deep.js   deep DOM engine — shadow roots + same-origin frames, label resolution,
+                required detection, real pointer clicks, native-setter writes,
+                typeahead typing, MutationObserver waits
   types.js      shapes + storage keys + message constants + runMode + pause flags
   storage.js    run config, buckets, documents, mock URL list, applyHistory, source caps, pausedForHuman
   profile.js    multi-profile store (fillApply.profiles + activeProfileId; migrate legacy; phoneCountry, customAnswers, …)
@@ -120,6 +125,30 @@ Replace the old auto-submit checkbox with a three-way control:
 | **Auto Submit** (`submit`) | Full end-to-end, including final Submit / Apply when confidently found. |
 
 Legacy `autoSubmit: true` migrates to `runMode: 'submit'`; otherwise `fill`.
+
+## Fill engine
+
+The DOM layer every adapter builds on. Full detail in [docs/FILL_ENGINE.md](docs/FILL_ENGINE.md).
+
+- **Cross-frame** — injection runs with `allFrames: true`, so ATS forms embedded in iframes are reachable. Sub-frames with no form and no Apply CTA return immediately; the frame that fills the form wins.
+- **Signal-scored detection** — `scoreApplicationForm()` weighs named application fields, resume inputs, final-submit CTAs and field density instead of matching a container whitelist, so React-rendered forms count. Search boxes, newsletter signups and sign-in forms are excluded.
+- **Async** — the pass waits for a slow SPA to render, awaits listbox options after opening a dropdown (they render a tick later, usually portalled to `<body>`), and types into typeahead comboboxes.
+- **Deep and typed** — shadow roots are traversed, labels resolve from wrapper divs and `aria-*`, required fields are detected including a trailing `*`, and checkboxes and radios use real pointer clicks so framework state updates.
+- **Reported, never invented** — consent checkboxes and voluntary self-identification are skipped and reported; required fields with no answer are named in `missingRequired`, which drives the missing-fields popup.
+
+Every result carries `details[]`, `skipped[]`, `missingRequired[]`, `formSignals`, `inspection` and `frames[]`, so a failure shows what the engine actually saw.
+
+## Tests
+
+The extension has no build step; `package.json` exists only for the test harness.
+
+```bash
+npm install
+npm test                      # jsdom suites: form detection + fill engine
+node scripts/browser-e2e.js   # real Chrome + unpacked extension (needs a display)
+```
+
+`scripts/browser-e2e.js` serves a career page whose application form lives in an iframe on a **different** origin, installs the unpacked extension, and drives the real runner injection path from the service worker.
 
 ## Queue buckets
 
