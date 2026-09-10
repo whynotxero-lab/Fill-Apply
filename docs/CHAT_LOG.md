@@ -260,6 +260,18 @@ Shipped `lib/dom-deep.js` (shadow/frame-piercing queries, ancestor label walk, r
 
 ---
 
+## Value formats + preloaded documents 1.15.1
+
+**User:** The app has a documents section that pre-loads the applicant's documents ahead of an application. When the application reaches the CV/resume or cover-letter upload it should use the one already loaded in the app, rather than asking again to upload from storage. Also, when fields, elements and buttons are found and their names are known, there are format issues — phone, zip and others.
+
+**Assistant:** Two gaps, both downstream of detection.
+
+Formats: values were written verbatim apart from currency stripping and date normalization, so a control with real constraints rejected what it was given. Worst case was the phone number — with a country-code selector beside the number field the engine still wrote the full international number, so a form holding `+966` received `+966500000000` in the number box. Added `lib/format.js`, which shapes each value against the `type`, `pattern`, `maxlength`, `inputmode`, `step`, `min`/`max` and placeholder mask the control advertises: phone (dial-code split, masks, exact-digit patterns, trunk zero, no duplicated code), postal (US five digits, Canadian and UK spacing, compact on strict patterns), date, url (scheme or handle), number (step rounding, min/max clamping) and word-boundary truncation for long answers. Selects and listboxes also try alternate spellings, so `United Arab Emirates` finds `AE`.
+
+Documents: only site adapters attached them, and in a single pass before any Continue click. The generic engine — which runs on unknown sites and behind an adapter that matched nothing — filled the form and left the resume empty, and a multi-step application whose upload step comes later never received the file. The engine now owns attaching: it waits for the upload control, assigns the stored file through `DataTransfer`, and re-attaches after advancing a step. The native file dialog is never opened; intercepting the site's own `input.click()` still reveals which input it wanted. Also fixed: content type inferred from the filename (forms validate `File.type`), an `accept` mismatch reported for manual upload instead of counted as success, an upload the site already holds left alone and reported, attached inputs marked so re-detect passes do not attach twice, and a synthesized drop for dropzones with no input — **v1.15.1**. See [FILL_ENGINE.md](FILL_ENGINE.md).
+
+---
+
 ## Notes for readers
 
 - Timestamps omitted; order follows the agent transcript turn sequence.

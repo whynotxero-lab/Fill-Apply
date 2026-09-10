@@ -136,6 +136,7 @@ Stop → current → cancelled; remaining stay queued. Apply caps: per-source de
 | **1.13.0** | Source profiles + Start gate; batch-by-source; Options → App Settings rename |
 | **1.14.x** | Glassdoor Easy Apply multi-step, frame-churn retry, `inFlow` false-positive fix |
 | **1.15.0** | Fill engine rebuild — cross-frame injection, signal-scored form detection, async dropdown handling, deep DOM field reading, `customAnswers` reaching the page, run diagnostics, jsdom + real-Chrome tests ([FILL_ENGINE.md](FILL_ENGINE.md)) |
+| **1.15.1** | Per-control value formatting (phone country-code split, masks and patterns, postal codes, dates, URLs, numbers, country/state spellings) + preloaded resume and cover letter attached by the engine on whichever step asks for them, without the OS file chooser ([FILL_ENGINE.md](FILL_ENGINE.md)) |
 
 ## Related
 

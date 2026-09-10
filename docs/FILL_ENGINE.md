@@ -15,13 +15,24 @@ Adapters, source profiles and per-source documentation were all in place, yet ap
 
 A fifth issue discarded configured answers: source profiles store nearly everything under `profile.customAnswers`, but the engine only consulted `customQA` with strict substring matching, so `Current salary` never matched `What is your current salary?`.
 
+## Two more gaps (v1.15.1)
+
+Finding a field correctly is not the same as filling it correctly, and two gaps sat downstream of detection.
+
+| Gap | Effect |
+|-----|--------|
+| Values were written verbatim apart from currency and date handling | A phone number went in as `+971501234567` even where the form had its own country-code selector, producing `+971 +971501234567`; a field declaring `pattern="\d{10}"` rejected everything it was given |
+| Only site adapters attached documents, in one pass before any Continue click | The generic engine — which runs on unknown sites and behind an adapter that matched nothing — filled the form and left the resume empty, and multi-step applications whose upload step comes later never received the file |
+
 ## Layers
 
 ```
 lib/dom-deep.js     Find and touch things (shadow roots, frames, labels, clicks, waits)
+lib/format.js       Shape a value for the control that will receive it
 lib/synonyms.js     Decide what a page is (form open? apply CTA? job overview?)
 lib/field-map.js    Decide what an answer is (profile key, customAnswers, customQA)
-content/fill.js     Drive the pass (wait → open → collect → fill → report)
+lib/files.js        Put stored documents onto upload controls
+content/fill.js     Drive the pass (wait → open → collect → fill → attach → report)
 adapters/           Site-specific behaviour, with the generic engine behind it
 ```
 
@@ -82,14 +93,58 @@ Steps 3 and 4 compare *content words* in both directions rather than requiring a
 
 | Control | Handling |
 |---------|----------|
-| text / email / tel / url / textarea | Native setter + `input`/`change` |
-| number / range / numeric tel | Currency stripped (`25000 AED` → `25000`); skipped if no number remains |
-| date | Normalized to `yyyy-mm-dd` |
-| select | Exact → case-insensitive → substring → Yes/No fuzzy |
+| text / email / tel / url / textarea | Shaped by `lib/format.js`, then native setter + `input`/`change` |
+| number / range / numeric tel | Currency stripped (`25000 AED` → `25000`), rounded to the step, clamped to min/max |
+| date | ISO for `type=date`, otherwise the order the placeholder shows |
+| select | Exact → case-insensitive → substring → Yes/No fuzzy, then alternate spellings |
 | checkbox | Real click, so framework state updates |
 | radio | Best match across the group by label and value, then real click |
 | contenteditable | `textContent` + input events |
 | combobox / listbox | Open, await options, match, or type and await |
+| file | See [Documents](#documents) — never the operating system's file chooser |
+
+### Value formatting — `lib/format.js`
+
+Finding the right field is only half of filling it. The same phone number has to arrive three different ways depending on the control, and a value the control rejects is indistinguishable from a value that was never filled.
+
+Every value is shaped against the constraints the control advertises — `type`, `pattern`, `maxlength`, `inputmode`, `step`, `min`/`max` and a placeholder that is really an input mask:
+
+| Kind | Shaping |
+|------|---------|
+| phone | Split into dial code and national number. A form with its own country-code control gets the national number; one without gets `+971501234567`. `pattern="\d{10}"` gets ten bare digits, `placeholder="(555) 555-5555"` gets that mask. A trunk zero is dropped in front of a country code, and a code already present in the stored number is never added twice |
+| phone country code | `+971` for a text or select control, `971` where the control is numeric |
+| postal | US five digits, `A1A 1A1` for Canada, `SW1A 1AA` for the UK, compact when the pattern forbids spaces |
+| date | `yyyy-mm-dd` for `type=date`; `dd/mm/yyyy` or `mm/dd/yyyy` for a text field, read off its placeholder |
+| url | Scheme added for `type=url`; reduced to a handle when the field asks for a username |
+| number | Currency stripped, rounded to the step, clamped to `min`/`max` |
+| text | Long answers cut on a word boundary rather than mid-word |
+
+Selects and listboxes also try alternate spellings, so a profile saying `United Arab Emirates` finds an option labelled `AE`, and `California` finds `CA`.
+
+The phone rules are the ones that matter most in practice: Greenhouse and Lever take a single field, while Indeed, LinkedIn and iCIMS render a country-code selector beside the number — and sending the international form into the second shape produces `+971 +971501234567`.
+
+## Documents
+
+The resume and cover letter loaded through App Settings are attached to the page's upload control, so reaching the upload step never sends the applicant back to their file system.
+
+Order of preference:
+
+1. Assign the stored file straight onto an `input[type=file]`, hidden ones included, via `DataTransfer`.
+2. Use an Attach button only to find out which input the site wants — with `HTMLInputElement.prototype.click` and `showPicker` intercepted, so the native dialog cannot open and the intercepted call names the input.
+3. Synthesize a drop on the page's dropzone when it offers no input at all.
+
+A `<label for>` bound to a file input is never clicked, because a label opens the dialog through its own activation behaviour, which no patching intercepts; such labels are only used to locate their input.
+
+| Situation | Behaviour |
+|-----------|-----------|
+| A document is already on the input, or the page shows a filename from a previous application | Left alone, reported in `alreadyAttached` |
+| The stored file's type is not in the control's `accept` list | Not attached; reported for manual upload rather than counted as success |
+| The stored file has no content type | Inferred from its name, because forms validate `File.type` |
+| The same page is filled again by a re-detect pass | Attached inputs are marked, so nothing is attached twice |
+| The upload control only appears after Continue | `attachDocumentsAsync` waits for it, and the fallback adapter re-attaches after advancing a step |
+| A step whose only control is the upload | Reported as `documentStep` rather than "no application form fields found" |
+
+The engine owns attaching whenever it is given documents, which is what makes it work on unknown sites and behind an adapter that matched nothing. Site adapters that locate their own resume input still do so.
 
 ### Policy — never invented
 
@@ -117,6 +172,8 @@ Every run reports what the engine actually saw, which is what makes a failure ex
 | `details[]` | Per field: label, type, required, filled or not, and which profile source supplied the value |
 | `skipped[]` | Fields deliberately left alone, with the reason |
 | `missingRequired[]` | Required fields with no answer available |
+| `filesAttached` | What was attached, what the page already held, what it rejected, and how many picker calls were intercepted |
+| `documentsPending` | Documents that are stored but did not reach a control |
 | `formSignals` | The `scoreApplicationForm` breakdown |
 | `inspection` | Counts of inputs, selects, files, custom dropdowns, required fields, plus visible button labels |
 | `frames[]` | Per-frame outcome when the page has sub-frames |
@@ -126,10 +183,17 @@ Every run reports what the engine actually saw, which is what makes a failure ex
 
 ```bash
 npm install
-npm test                      # 4 suites, 44 assertions, jsdom
+npm test                      # 6 suites, 110 assertions, jsdom
 node scripts/browser-e2e.js   # real Chrome, needs a display
 ```
 
-`scripts/browser-e2e.js` is the honest end-to-end check. It serves a career page on one origin whose application form lives in an iframe on a **different** origin — a shape no same-document traversal can reach — installs the unpacked extension, and drives the real runner injection path from the extension's own service worker. It asserts that the cross-origin form is filled, that the async portalled listbox option is selected, and that the winning result came from the sub-frame.
+| Suite | Covers |
+|-------|--------|
+| `smoke-form-detection.js` | Signal-based detection, iframes, shadow roots, page furniture |
+| `smoke-fill-engine.js` | Labels, control types, async dropdowns, answer resolution, never-invented policy |
+| `smoke-value-format.js` | Phone, postal, date, url, number and text shaping, and select spellings |
+| `smoke-documents.js` | Preloaded document attach, picker suppression, accept mismatch, existing uploads, multi-step |
+
+`scripts/browser-e2e.js` is the honest end-to-end check. It serves a career page on one origin whose application form lives in an iframe on a **different** origin — a shape no same-document traversal can reach — installs the unpacked extension, and drives the real runner injection path from the extension's own service worker. It asserts that the cross-origin form is filled, that the async portalled listbox option is selected, that the winning result came from the sub-frame, that the phone number is split across the country-code control and the number field, that the preloaded resume lands on an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog while doing it.
 
 Chrome no longer honours `--load-extension`, so the test installs the extension through the CDP `Extensions.loadUnpacked` domain with `--enable-unsafe-extension-debugging`.

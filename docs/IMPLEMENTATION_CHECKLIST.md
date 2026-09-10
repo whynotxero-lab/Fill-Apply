@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.0** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.1** on `main`.
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -27,8 +27,46 @@ Everything below fixes a defect that made forms unreadable or invisible regardle
 | `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
 | Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
 | Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
-| jsdom test suites | ✅ | `npm test` — 4 suites, 44 assertions |
+| jsdom test suites | ✅ | `npm test` — 6 suites, 110 assertions |
 | Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
+
+---
+
+## Value formatting (v1.15.1)
+
+Values were written verbatim apart from currency stripping and date normalization, so any control with real constraints rejected what it was given. `lib/format.js` shapes each value against the `type`, `pattern`, `maxlength`, `inputmode`, `step`, `min`/`max` and placeholder mask the control advertises.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Phone: dial code split from national number | ✅ | A form with its own country-code control no longer receives `+971 +971501234567` |
+| Phone: `pattern="\d{10}"` and `maxlength` respected | ✅ | Common on US career sites and Workday |
+| Phone: placeholder input masks | ✅ | `(555) 555-5555` filled in that exact shape |
+| Phone: trunk zero dropped, existing code not duplicated | ✅ | `0501234567` and `971501234567` both normalize |
+| Phone country code field | ✅ | `+971` for text/select, `971` where numeric |
+| Postal: US five digits, Canada and UK spacing, compact on strict patterns | ✅ | |
+| Date: ISO for `type=date`, placeholder order for text fields | ✅ | |
+| URL: scheme added, or reduced to a handle when asked for a username | ✅ | |
+| Number: step rounding and `min`/`max` clamping | ✅ | On top of the existing currency stripping |
+| Long text cut on a word boundary | ✅ | Replaces a mid-word `maxlength` cut |
+| Country and state alternate spellings for selects | ✅ | `United Arab Emirates` finds `AE`, `California` finds `CA` |
+
+## Documents (v1.15.1)
+
+Preloaded documents are attached by the engine itself, on whichever step asks for them.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Generic engine attaches documents | ✅ | Previously only site adapters did, so unknown sites and drifted adapters left the resume empty |
+| Documents passed into the generic fallback path | ✅ | `runner/runner.js` and `ui/panel-app.js` |
+| Re-attach after a Continue step | ✅ | Multi-step uploads only exist after advancing |
+| Upload-only step handled | ✅ | Reported as `documentStep`, not "no form fields found" |
+| Native file dialog never opened | ✅ | `click`/`showPicker` intercepted; the intercepted call names the input |
+| Labels bound to a file input never clicked | ✅ | A label opens the dialog through activation behaviour, which cannot be intercepted |
+| Existing upload detected and kept | ✅ | Reported in `alreadyAttached` instead of overwritten |
+| `accept` mismatch reported, not silently attached | ✅ | Names the types the form accepts |
+| Content type inferred from filename | ✅ | Forms validate `File.type`; a `.docx` with no type was rejected |
+| Idempotent across re-detect passes | ✅ | Attached inputs are marked |
+| Dropzone drop synthesis | ✅ | Only when no input exists |
 
 ---
 
@@ -151,4 +189,4 @@ Everything below fixes a defect that made forms unreadable or invisible regardle
 
 ---
 
-*Last reviewed against repo `main` at v1.15.0 (fill engine rebuild).*
+*Last reviewed against repo `main` at v1.15.1 (value formatting + preloaded document attach).*

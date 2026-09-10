@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.15.0",
-  "description": "Queue-driven job-application filler: cross-frame injection, signal-based form detection, async dropdown handling, deep DOM field reading, source profiles, Start gate, App Settings.",
+  "version": "1.15.1",
+  "description": "Queue-driven job-application filler: cross-frame injection, signal-based form detection, async dropdown handling, per-control value formatting, preloaded resume attach, source profiles, Start gate, App Settings.",
   "permissions": [
     "storage",
     "activeTab",

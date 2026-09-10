@@ -10,7 +10,9 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
-**Version 1.15.0** — **fill engine rebuild**. Injection now runs in **all frames**, so ATS forms embedded in iframes (Greenhouse / Lever / Workable / SmartRecruiters embeds, iCIMS, Glassdoor→Indeed) are reachable for the first time. Form detection is **signal-scored** instead of matching a container whitelist, so React-rendered forms (Ashby, Lever, Teamtailor, Workday) are recognised. The fill pass is **async**, so custom dropdown options are awaited rather than queried in the same tick — previously no custom dropdown could ever be filled. New `lib/dom-deep.js` pierces shadow roots, resolves labels from wrapper divs, and clicks with real pointer events. Source-profile answers under `customAnswers` now reach reworded page labels. See [Fill engine](docs/FILL_ENGINE.md).
+**Version 1.15.1** — **value formats + preloaded documents**. Every value is now shaped for the control receiving it: `lib/format.js` reads the `type`, `pattern`, `maxlength`, `inputmode`, `step` and placeholder mask a field advertises, so a phone number arrives as `+971501234567` in a single field but as `501234567` where the form has its own country-code selector, and as ten bare digits where the control declares `pattern="\d{10}"`. Postal codes, dates, URLs and numbers follow the same rule, and selects try alternate spellings (`United Arab Emirates` → `AE`). The **resume and cover letter loaded in App Settings are attached by the engine itself**, on whichever step asks for them, without ever opening the operating system's file chooser. See [Fill engine](docs/FILL_ENGINE.md).
+
+**Version 1.15.0** — **fill engine rebuild**. Injection now runs in **all frames**, so ATS forms embedded in iframes (Greenhouse / Lever / Workable / SmartRecruiters embeds, iCIMS, Glassdoor→Indeed) are reachable for the first time. Form detection is **signal-scored** instead of matching a container whitelist, so React-rendered forms (Ashby, Lever, Teamtailor, Workday) are recognised. The fill pass is **async**, so custom dropdown options are awaited rather than queried in the same tick — previously no custom dropdown could ever be filled. New `lib/dom-deep.js` pierces shadow roots, resolves labels from wrapper divs, and clicks with real pointer events. Source-profile answers under `customAnswers` now reach reworded page labels.
 
 Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
@@ -104,7 +106,10 @@ lib/
   storage.js    run config, buckets, documents, mock URL list, applyHistory, source caps, pausedForHuman
   profile.js    multi-profile store (fillApply.profiles + activeProfileId; migrate legacy; phoneCountry, customAnswers, …)
   field-map.js  field heuristics
-  files.js      base64 ↔ File + DataTransfer; Attach/Upload button discovery
+  format.js     per-control value shaping — phone, postal, date, url, number,
+                text truncation, country/state spellings
+  files.js      base64 ↔ File + DataTransfer; Attach/Upload discovery with the
+                native file dialog suppressed; accept + existing-upload checks
   challenges.js Cloudflare / Turnstile / interactable CAPTCHA detection (no auto-click); auth-wall bridge
   auth-walls.js Sign in / Register / Create a login / Password Re-enter detection (optional for adapters)
   backend.js    getNextJob / markApplied / markFailed / markCancelled + buckets
@@ -134,9 +139,11 @@ The DOM layer every adapter builds on. Full detail in [docs/FILL_ENGINE.md](docs
 - **Signal-scored detection** — `scoreApplicationForm()` weighs named application fields, resume inputs, final-submit CTAs and field density instead of matching a container whitelist, so React-rendered forms count. Search boxes, newsletter signups and sign-in forms are excluded.
 - **Async** — the pass waits for a slow SPA to render, awaits listbox options after opening a dropdown (they render a tick later, usually portalled to `<body>`), and types into typeahead comboboxes.
 - **Deep and typed** — shadow roots are traversed, labels resolve from wrapper divs and `aria-*`, required fields are detected including a trailing `*`, and checkboxes and radios use real pointer clicks so framework state updates.
+- **Formatted per control** — `lib/format.js` shapes each value for the field receiving it, reading its `type`, `pattern`, `maxlength`, `inputmode`, `step` and placeholder mask. Phone numbers split into a dial code and a national number depending on whether the form has its own country-code control; postal codes, dates, URLs and numbers follow the same rule; selects try alternate spellings so `United Arab Emirates` finds `AE`.
+- **Documents attached from storage** — the resume and cover letter loaded in App Settings go onto the page's upload control via `DataTransfer`, on whichever step asks for them, including one revealed by Continue. The operating system's file chooser is never opened; an upload the site already holds is kept and reported; a file type the form's `accept` list forbids is reported for manual upload rather than counted as attached.
 - **Reported, never invented** — consent checkboxes and voluntary self-identification are skipped and reported; required fields with no answer are named in `missingRequired`, which drives the missing-fields popup.
 
-Every result carries `details[]`, `skipped[]`, `missingRequired[]`, `formSignals`, `inspection` and `frames[]`, so a failure shows what the engine actually saw.
+Every result carries `details[]`, `skipped[]`, `missingRequired[]`, `filesAttached`, `formSignals`, `inspection` and `frames[]`, so a failure shows what the engine actually saw.
 
 ## Tests
 
@@ -144,11 +151,11 @@ The extension has no build step; `package.json` exists only for the test harness
 
 ```bash
 npm install
-npm test                      # jsdom suites: form detection + fill engine
+npm test                      # jsdom suites: detection, fill engine, value formats, documents
 node scripts/browser-e2e.js   # real Chrome + unpacked extension (needs a display)
 ```
 
-`scripts/browser-e2e.js` serves a career page whose application form lives in an iframe on a **different** origin, installs the unpacked extension, and drives the real runner injection path from the service worker.
+`scripts/browser-e2e.js` serves a career page whose application form lives in an iframe on a **different** origin, installs the unpacked extension, and drives the real runner injection path from the service worker. It also checks the phone number is split across the country-code control and the number field, that the preloaded resume reaches an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog.
 
 ## Queue buckets
 

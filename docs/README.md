@@ -4,7 +4,7 @@ Index of project docs for the **Fill & Apply** Chrome MV3 extension.
 
 | Document | Description |
 |----------|-------------|
-| [FILL_ENGINE.md](FILL_ENGINE.md) | How the engine finds forms, reads fields and writes answers — deep DOM, form scoring, async dropdowns, cross-frame injection, diagnostics |
+| [FILL_ENGINE.md](FILL_ENGINE.md) | How the engine finds forms, reads fields and writes answers — deep DOM, form scoring, async dropdowns, cross-frame injection, per-control value formatting, document attach, diagnostics |
 | [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) | Per-source ATS/board behavior, caps, human gates, operator checklists (~48KB) |
 | [APP_VISION_AND_FUNCTIONALITY.md](APP_VISION_AND_FUNCTIONALITY.md) | Product vision, architecture, UI sections, modes, version milestones |
 | [SOURCES_AND_FIELDS.md](SOURCES_AND_FIELDS.md) | Application flows and required/optional fields per major source + comparison table |
@@ -12,4 +12,4 @@ Index of project docs for the **Fill & Apply** Chrome MV3 extension.
 | [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) | Honest status of what was shipped (✅ / 🚧 / ⏳) |
 | [../README.md](../README.md) | Root README — load unpacked, architecture, run modes, queue, adapters |
 
-**Repo:** [whynotxero-lab/Fill-Apply](https://github.com/whynotxero-lab/Fill-Apply) · **Current version:** 1.15.0
+**Repo:** [whynotxero-lab/Fill-Apply](https://github.com/whynotxero-lab/Fill-Apply) · **Current version:** 1.15.1
