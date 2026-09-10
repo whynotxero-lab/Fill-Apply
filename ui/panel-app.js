@@ -59,6 +59,7 @@
     'adapters/ats/smartrecruiters.js',
     'adapters/ats/workable.js',
     'adapters/ats/icims.js',
+    'adapters/ats/cats.js',
     'adapters/boards/indeed.js',
     'adapters/boards/naukrigulf.js',
     'adapters/boards/remoteok.js',

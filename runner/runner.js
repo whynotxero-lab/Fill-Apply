@@ -1,6 +1,7 @@
 /**
  * Queue-driven runner (service-worker side).
  * Loop: getNextJob (queued only) → open tab → detect challenge? → fill →
+ * (optional) external Apply handoff: re-wait load + re-inject/detect → fill →
  * move to applied/failed OR pause for human → prune old submitted tabs? → delay.
  * Honors STOP and RESUME (after Cloudflare/CAPTCHA / form drift).
  *
@@ -26,6 +27,7 @@
     'adapters/ats/smartrecruiters.js',
     'adapters/ats/workable.js',
     'adapters/ats/icims.js',
+    'adapters/ats/cats.js',
     'adapters/boards/indeed.js',
     'adapters/boards/naukrigulf.js',
     'adapters/boards/remoteok.js',
@@ -705,7 +707,67 @@
 
           const profile = P ? await P.getProfile() : await B.getProfile();
           const documents = await B.getDocuments();
+
+          let preHandoffUrl = '';
+          try {
+            const preTab = await chrome.tabs.get(tab.id);
+            preHandoffUrl = (preTab && preTab.url) || '';
+          } catch (_ePre) {}
+
           fillResult = await injectAndFill(tab.id, profile, documents, runMode);
+
+          // WWR (and similar boards): Apply now opened an external ATS host —
+          // wait for navigation and re-detect / fill with the destination adapter (e.g. CATS).
+          // Only re-run when the tab hostname actually changed (avoids Apply-click loops).
+          if (
+            fillResult &&
+            fillResult.ok !== false &&
+            (fillResult.deferToPageAdapter || fillResult.handedOff || fillResult.externalApply) &&
+            !(fillResult.filled > 0) &&
+            !fillResult.submitted &&
+            !fillResult.needsHuman
+          ) {
+            try {
+              await sleep(700 + Math.floor(Math.random() * 500));
+              await waitTabComplete(tab.id, 45000);
+              await sleep(400 + Math.floor(Math.random() * 300));
+              let postUrl = '';
+              try {
+                const postTab = await chrome.tabs.get(tab.id);
+                postUrl = (postTab && postTab.url) || '';
+              } catch (_ePost) {}
+              let hostChanged = false;
+              try {
+                const a = preHandoffUrl ? new URL(preHandoffUrl).hostname : '';
+                const b = postUrl ? new URL(postUrl).hostname : '';
+                hostChanged = !!(a && b && a !== b);
+              } catch (_eHost) {
+                hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
+              }
+              if (hostChanged) {
+                const handed = await injectAndFill(tab.id, profile, documents, runMode);
+                if (handed) {
+                  handed.externalApply = true;
+                  handed.fromBoardHandoff = (fillResult && fillResult.adapterId) || true;
+                  if (!handed.message && fillResult && fillResult.message) {
+                    handed.message = fillResult.message;
+                  }
+                  fillResult = handed;
+                }
+              } else if (fillResult) {
+                fillResult.message =
+                  (fillResult.message || 'External apply handoff') +
+                  ' (same-tab host unchanged — destination may have opened in another tab; continue there or paste ATS URL in queue)';
+              }
+            } catch (handoffErr) {
+              // Keep original handoff result; job may still succeed if destination filled elsewhere.
+              if (fillResult && !fillResult.error) {
+                fillResult.handoffWaitError = String(
+                  (handoffErr && handoffErr.message) || handoffErr || 'handoff wait failed'
+                );
+              }
+            }
+          }
 
           // Adapter asked for human (structure drift / challenge mid-flow)
           if (fillResult && fillResult.needsHuman) {

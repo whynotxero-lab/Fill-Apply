@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** paid access and **Easy Apply**, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -167,28 +167,71 @@ Remote OK (`remoteok.com`) gates apply / early access behind a subscription (e.g
 
 We Work Remotely (`weworkremotely.com`) expects:
 
-1. A **complete WWR profile** before reliable job/apply access.
+1. A **complete WWR profile** before reliable job/apply access (**paid WWR access + full profile still required to browse**).
 2. A **paid plan** for full access (operator paste showed checkout ~**$2.95 first month**, then **$14.95/month**, **12-month commitment** — discounted intro, still paid; not a free apply unlock).
+3. **Apply itself may be off-platform:** **Apply now** / **Apply for this job** often opens **another website** for the real application (example: UTTR careers page **Powered by CATS** on `catsone.com`).
 
 ### What Fill & Apply does today
 
 1. Detects WWR hosts.
 2. If **profile incomplete / onboarding** → **pause + notify** (finish profile on WWR, then Resume).
 3. If **paywall / checkout** (“Get Full Access…”, Step 3 of 3, Payment Method, $14.95 / $2.95) → **pause**. Does **not** enter card details or complete purchase.
-4. Until paid access exposes the real apply form, the adapter will not fake Submit.
-5. Full apply automation is adapted **after** paid unlock + paste-library of the real apply UI.
+4. On a job page, clicks **Apply now** / **Apply for this job** only — **never** WWR **AI Auto-Apply** / **Auto-Apply with AI**.
+5. When Apply navigates to a **different host**, returns an external handoff (`externalApply` / `deferToPageAdapter` / `handedOff`). The **runner waits for load and re-injects** so `registry.detect` can pick the destination ATS (e.g. **CATS**) and call its `fill`.
+6. Until paid access unlocks browsing, the adapter will not fake Submit on WWR itself.
 
 ### Operator checklist
 
 1. Complete WWR profile 100%.
-2. Subscribe only if you choose to pay for the source.
+2. Subscribe only if you choose to pay for discovery / browse access.
 3. Respect per-source caps (default 2, max 3).
-4. Paste unlocked apply screens when ready for deeper adapter work.
+4. Expect many applies to finish on the **external ATS** page after Apply now.
+5. Do **not** use WWR’s AI Auto-Apply feature with this runner.
 
 ### Related
 
-- Adapter: `adapters/boards/weworkremotely.js` (`paidSource`, `requiresCompleteProfile`)
+- Adapter: `adapters/boards/weworkremotely.js` (`paidSource`, `requiresCompleteProfile`, external Apply handoff)
+- Destination example: [CATS (catsone.com)](#cats-catsonecom--ats)
 - Similar pattern: [Remote OK — paid source](#remote-ok--paid-source)
+
+## CATS (catsone.com) — ATS
+
+**Status:** Thin→useful ATS adapter. Often reached via **We Work Remotely** (and other boards) when **Apply now** opens a company careers page with footer **Powered by CATS**.
+
+### Detection
+
+- Hosts: `catsone.com`, `*.catsone.com`
+- Content: “Powered by CATS” (and CATS-branded apply chrome)
+
+### Real application form fields (operator paste)
+
+| Field | Required | Profile / source |
+|-------|----------|------------------|
+| Upload Resume (file / drop / paste / browse) | * | `documents.resume` via DataTransfer |
+| First Name | * | `profile.firstName` |
+| Last Name | * | `profile.lastName` |
+| Email | * | `profile.email` |
+| City | * | `profile.city` |
+| Country | * | `profile.country` |
+| Phone | * | `profile.phone` (+ `phoneCountry` when useful) |
+| LinkedIn Profile | * | `profile.linkedin` |
+| Portfolio | optional | `profile.portfolio` or `profile.website` |
+| Expected Pay Rate | optional | `customAnswers` keys matching pay rate / salary |
+| Are you willing and available to work within the EST timezone? (Yes/No) | * | `customAnswers` (EST / timezone); default **Yes** if unset |
+| Submit Application | — | Clicked only in **submit** mode |
+
+Footer marker: **Powered by CATS**.
+
+### Modes
+
+- **fill** / **ready**: fill fields + resume; do **not** click Submit Application.
+- **submit**: fill then click **Submit Application**.
+
+### Notes
+
+- Prefer company **Application** tab / **Apply Now** on the CATS page (not board AI Auto-Apply).
+- Paste additional live DOM selectors later for further hardening if CATS markup drifts.
+- Adapter: `adapters/ats/cats.js` (registered in catalog + runner / panel inject lists).
 
 ## Related docs
 

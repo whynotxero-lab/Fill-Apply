@@ -89,7 +89,8 @@
     { id: 'workable', name: 'Workable', category: 'ats', hosts: ['apply.workable.com', 'jobs.workable.com', 'workable.com'], hostRe: /workable\.com/i },
     { id: 'workday', name: 'Workday', category: 'ats', hosts: ['myworkdayjobs.com', 'workdayjobs.com', 'workday.com'], hostRe: /myworkdayjobs\.com|workdayjobs\.com|workday\.com/i },
     { id: 'smartrecruiters', name: 'SmartRecruiters', category: 'ats', hosts: ['jobs.smartrecruiters.com', 'smartrecruiters.com'], hostRe: /smartrecruiters\.com/i },
-    { id: 'icims', name: 'iCIMS', category: 'ats', hosts: ['icims.com', 'careers-*.icims.com'], hostRe: /icims\.com/i }
+    { id: 'icims', name: 'iCIMS', category: 'ats', hosts: ['icims.com', 'careers-*.icims.com'], hostRe: /icims\.com/i },
+    { id: 'cats', name: 'CATS', category: 'ats', hosts: ['catsone.com', 'www.catsone.com'], hostRe: /catsone\.com/i }
   ];
 
   var index = [];

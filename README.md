@@ -6,7 +6,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.8.2** — NaukriGulf Easy Apply (on-page modal screening + Submit & Apply), Ashby caps, Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
+**Version 1.8.3** — WWR external Apply handoff (not AI Auto-Apply) + CATS ATS adapter, NaukriGulf Easy Apply, Ashby caps, Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
 
 ## Load unpacked
 
@@ -46,8 +46,8 @@ adapters/
   registry.js   register / detect
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
-  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS
-  boards/       Indeed (multi-step), NaukriGulf (Easy Apply modal), LinkedIn, Wellfound, Remote OK, …
+  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS, CATS
+  boards/       Indeed (multi-step), NaukriGulf (Easy Apply modal), LinkedIn, Wellfound, Remote OK, We Work Remotely (external Apply handoff), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
@@ -182,7 +182,7 @@ Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhou
 
 ## We Work Remotely — paid source
 
-WWR needs a **full profile** then a **paid plan** (intro pricing may apply; still paid). Fill & Apply pauses on profile gaps and checkout; no fake applies. See [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#we-work-remotely--paid-source).
+WWR needs a **full profile** then a **paid plan** (intro pricing may apply; still paid) to **browse**. **Apply now** often opens an **external ATS** (e.g. **Powered by CATS**); the runner re-detects on the new host. **Do not use** WWR **AI Auto-Apply**. See [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#we-work-remotely--paid-source) and [CATS](docs/APPLICATION_GUIDE.md#cats-catsonecom--ats).
 
 ## Remote OK — paid source
 
@@ -247,7 +247,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 ### Supported platforms (catalog)
 
-**ATS:** Greenhouse, Ashby, Lever, Workable, Workday, SmartRecruiters, iCIMS  
+**ATS:** Greenhouse, Ashby, Lever, Workable, Workday, SmartRecruiters, iCIMS, CATS  
 
 **Boards / aggregators:** LinkedIn, Upwork, NaukriGulf, Remote OK, We Work Remotely, Indeed, eFinancialCareers, FreeHire, Working Nomads, Jooble, Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In  
 
