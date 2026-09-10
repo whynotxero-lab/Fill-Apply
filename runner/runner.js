@@ -851,20 +851,53 @@
                   if (!handed.message && fillResult && fillResult.message) {
                     handed.message = fillResult.message;
                   }
-                  // Avoid infinite Apply-start loops: if second pass also only clicked Apply, stop.
+                  // Slow same-host modals (Teamtailor): one extra wait + fill before giving up
                   if (
                     handed.clickedApplyStart &&
                     fillResult.clickedApplyStart &&
-                    !(handed.filled > 0)
+                    !(handed.filled > 0) &&
+                    !handed.needsHuman
                   ) {
-                    handed.ok = true;
-                    handed.clickedApplyStart = false;
-                    handed.reDetect = false;
-                    handed.message =
-                      (handed.message || fillResult.message || 'Apply clicked') +
-                      ' — form still not open; open Apply manually or check page';
+                    try {
+                      await sleep(900 + Math.floor(Math.random() * 500));
+                      const handed2 = await injectAndFill(
+                        tab.id,
+                        profile,
+                        documents,
+                        runMode,
+                        config
+                      );
+                      if (handed2 && (handed2.filled > 0 || handed2.needsHuman || handed2.submitted)) {
+                        fillResult = handed2;
+                        if (hostChanged) fillResult.externalApply = true;
+                        fillResult.fromApplyStart = true;
+                        fillResult.fromBoardHandoff =
+                          (fillResult && fillResult.adapterId) ||
+                          (fillResult && fillResult.fromBoardHandoff) ||
+                          true;
+                      } else if (handed2 && !(handed2.clickedApplyStart && !(handed2.filled > 0))) {
+                        fillResult = handed2;
+                      } else {
+                        handed.ok = true;
+                        handed.clickedApplyStart = false;
+                        handed.reDetect = false;
+                        handed.message =
+                          (handed.message || fillResult.message || 'Apply clicked') +
+                          ' — form still not open; open Apply manually or check page';
+                        fillResult = handed;
+                      }
+                    } catch (_eExtra) {
+                      handed.ok = true;
+                      handed.clickedApplyStart = false;
+                      handed.reDetect = false;
+                      handed.message =
+                        (handed.message || fillResult.message || 'Apply clicked') +
+                        ' — form still not open; open Apply manually or check page';
+                      fillResult = handed;
+                    }
+                  } else {
+                    fillResult = handed;
                   }
-                  fillResult = handed;
                 }
               } else if (fillResult) {
                 fillResult.message =

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.11.0",
-  "description": "Queue-driven job-application filler with lean side panel (Single/Batch), collapsible Options, Application queue, Drive/URL document links, multi-profile, universal Apply-start, Teamtailor + Zahid General, high-alert pause when a required field is blank.",
+  "version": "1.11.1",
+  "description": "Queue-driven job-application filler with locked complete Mock demo profile, Apply-start hardened for Teamtailor modals (container-scoped form-open), Single/Batch, Zahid General, high-alert pause when a required field is blank.",
   "permissions": [
     "storage",
     "activeTab",

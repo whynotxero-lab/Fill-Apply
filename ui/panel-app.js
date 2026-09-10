@@ -150,7 +150,9 @@
       list.forEach(function (p) {
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.textContent = p.name + (p.id === activeId ? ' ★' : '');
+        var lock = p.locked || p.systemProfile || String(p.name || '').toLowerCase() === 'mock';
+        opt.textContent =
+          (lock ? '🔒 ' : '') + p.name + (p.id === activeId ? ' ★' : '');
         profileSelectEl.appendChild(opt);
       });
       if (keep && list.some(function (p) { return p.id === keep; })) {
@@ -434,57 +436,17 @@
         }
       }).catch(function () { /* ignore */ });
 
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: function (profileArg, documentsArg, opts) {
-          const registry = globalThis.FillApplyRegistry;
-          const adapter = registry ? registry.detect(location.href, document) : null;
-          if (!adapter || typeof adapter.fill !== 'function') {
-            if (!globalThis.__fillApply) return { ok: false, error: 'Fill helper missing' };
-            return globalThis.__fillApply.run(profileArg, opts);
-          }
-          return adapter.fill({
-            profile: profileArg,
-            documents: documentsArg,
-            runMode: opts.runMode || 'fill',
-            autoSubmit: opts.runMode === 'submit',
-            options: opts,
-            adapterId: adapter.id,
-            submitSelector: adapter.submitSelector,
-            fileInputHints: adapter.fileInputHints,
-            fieldMaps: adapter.fieldMaps
-          });
-        },
-        args: [
-          profile,
-          documents,
-          { highlightUnmatched: highlightUnmatched, runMode: runMode }
-        ]
-      });
-
-      let result = results && results[0] && results[0].result;
-
-      if (
-        result &&
-        result.ok !== false &&
-        (result.clickedApplyStart || result.reDetect || result.handedOff || result.deferToPageAdapter) &&
-        !(result.filled > 0) &&
-        !result.submitted &&
-        !result.needsHuman
-      ) {
-        setStatus('Opened Apply — waiting for form…');
-        await new Promise(function (r) { setTimeout(r, 900); });
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
-        const results2 = await chrome.scripting.executeScript({
+      async function injectFillOnce() {
+        const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: function (profileArg, documentsArg, opts) {
+          func: async function (profileArg, documentsArg, opts) {
             const registry = globalThis.FillApplyRegistry;
             const adapter = registry ? registry.detect(location.href, document) : null;
             if (!adapter || typeof adapter.fill !== 'function') {
               if (!globalThis.__fillApply) return { ok: false, error: 'Fill helper missing' };
               return globalThis.__fillApply.run(profileArg, opts);
             }
-            return adapter.fill({
+            var out = adapter.fill({
               profile: profileArg,
               documents: documentsArg,
               runMode: opts.runMode || 'fill',
@@ -495,6 +457,9 @@
               fileInputHints: adapter.fileInputHints,
               fieldMaps: adapter.fieldMaps
             });
+            // Await async adapters (Teamtailor modal open, etc.)
+            if (out && typeof out.then === 'function') out = await out;
+            return out;
           },
           args: [
             profile,
@@ -502,8 +467,37 @@
             { highlightUnmatched: highlightUnmatched, runMode: runMode }
           ]
         });
-        const result2 = results2 && results2[0] && results2[0].result;
-        if (result2) result = result2;
+        let result = results && results[0] && results[0].result;
+        if (result && typeof result.then === 'function') result = await result;
+        return result;
+      }
+
+      let result = await injectFillOnce();
+
+      // Same-host modal: wait + re-inject up to 3 times after Apply-start
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (
+          !(
+            result &&
+            result.ok !== false &&
+            (result.clickedApplyStart ||
+              result.reDetect ||
+              result.handedOff ||
+              result.deferToPageAdapter) &&
+            !(result.filled > 0) &&
+            !result.submitted &&
+            !result.needsHuman
+          )
+        ) {
+          break;
+        }
+        setStatus('Opened Apply — waiting for form… (' + (attempt + 1) + '/3)');
+        await new Promise(function (r) {
+          setTimeout(r, 1000 + attempt * 400);
+        });
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
+        const next = await injectFillOnce();
+        if (next) result = next;
       }
 
       if (!result || result.ok === false) {

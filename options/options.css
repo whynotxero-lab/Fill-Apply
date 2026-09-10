@@ -322,3 +322,16 @@ label.check input { width: auto; }
   .span2 { grid-column: span 1; }
   .active-chip { max-width: 36%; }
 }
+
+.profile-chip.locked {
+  border-style: dashed;
+}
+.profile-chip .lock-badge {
+  margin-left: 0.35em;
+  font-size: 0.85em;
+  opacity: 0.9;
+}
+#btnProfileDelete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

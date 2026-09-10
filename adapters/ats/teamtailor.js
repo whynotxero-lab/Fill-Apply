@@ -153,23 +153,53 @@
 
   function findApplyStart(doc) {
     doc = doc || document;
-    var nodes = doc.querySelectorAll(
-      'button, a, [role="button"], [data-careersite--jobs--form-overlay-target="coverButton"], [data-action*="showFormOverlay"]'
+    var syn = global.FillApplySynonyms;
+    // Prefer Teamtailor overlay openers even when sticky/floating fails visible()
+    var overlayNodes = doc.querySelectorAll(
+      '[data-action*="showFormOverlay"], [data-careersite--jobs--form-overlay-target="coverButton"]'
     );
     var best = null;
     var bestScore = 0;
+    for (var o = 0; o < overlayNodes.length; o++) {
+      var oel = overlayNodes[o];
+      var ot = buttonText(oel);
+      if (/share|save|cookie|login|subscribe|upgrade|auto[- ]?apply/i.test(ot)) continue;
+      var oScore = 90;
+      if (syn && syn.isApplyStartCta && ot && syn.isApplyStartCta(ot)) {
+        oScore = Math.max(oScore, (syn.scoreApplyStartText && syn.scoreApplyStartText(ot)) || 95);
+      }
+      if (/apply for this job/i.test(ot)) oScore = 100;
+      if (oScore > bestScore) {
+        bestScore = oScore;
+        best = oel;
+      }
+    }
+    if (best) return best;
+
+    var nodes = doc.querySelectorAll(
+      'button, a, [role="button"], [data-careersite--jobs--form-overlay-target="coverButton"], [data-action*="showFormOverlay"]'
+    );
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
-      if (el.disabled && !/floating/i.test(el.className || '')) continue;
-      if (!visible(el) && !/floating/i.test(el.className || '')) continue;
+      var action = el.getAttribute('data-action') || '';
+      var overlayTarget = el.getAttribute('data-careersite--jobs--form-overlay-target') || '';
+      var high =
+        /showFormOverlay/i.test(action) ||
+        overlayTarget === 'coverButton' ||
+        /floating/i.test(el.className || '');
+      if (el.disabled && !high) continue;
+      if (!visible(el) && !high) continue;
       var t = buttonText(el);
-      if (!t || /share|save|cookie|login|subscribe|upgrade|auto[- ]?apply/i.test(t)) continue;
+      if (/share|save|cookie|login|subscribe|upgrade|auto[- ]?apply/i.test(t)) continue;
       var score = 0;
+      if (syn && syn.isApplyStartCta && t && syn.isApplyStartCta(t)) {
+        score = (syn.scoreApplyStartText && syn.scoreApplyStartText(t)) || 80;
+      }
       if (/^apply for this job$/i.test(t)) score = 100;
       if (/apply for this (job|role|position)/i.test(t)) score = Math.max(score, 95);
       if (/^apply now$/i.test(t)) score = Math.max(score, 90);
       if (/^apply$/i.test(t) && t.length < 12) score = Math.max(score, 70);
-      if (el.getAttribute('data-action') && /showFormOverlay/i.test(el.getAttribute('data-action'))) {
+      if (/showFormOverlay/i.test(action) || overlayTarget === 'coverButton') {
         score = Math.max(score, 85);
       }
       if (score > bestScore) {
@@ -178,6 +208,27 @@
       }
     }
     return best;
+  }
+
+  function clickApplyEl(el) {
+    if (!el) return false;
+    try {
+      el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    } catch (_eScroll) {}
+    try {
+      el.disabled = false;
+    } catch (_eEn) {}
+    try {
+      el.click();
+      return true;
+    } catch (_eClick) {}
+    try {
+      el.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, view: window })
+      );
+      return true;
+    } catch (_eMouse) {}
+    return false;
   }
 
   function formRoot(doc) {
@@ -196,16 +247,29 @@
     var form = formRoot(doc);
     if (!form) return false;
     try {
+      // Form may exist hidden in DOM until overlay opens — require visible fields / overlay
+      var host =
+        form.closest(
+          '[role="dialog"], [aria-modal="true"], [data-careersite--jobs--form-overlay-target], turbo-frame#application_form, .modal'
+        ) || form;
+      var hostVisible = visible(host) || visible(form);
       var inputs = form.querySelectorAll(
         'input[type="text"], input[type="email"], input[type="tel"], input[type="number"], textarea, select, input[type="radio"]'
       );
       var n = 0;
+      var anyVisibleField = false;
       for (var i = 0; i < inputs.length; i++) {
-        if (visible(inputs[i]) || inputs[i].type === 'radio') n++;
+        if (visible(inputs[i])) {
+          anyVisibleField = true;
+          n++;
+        } else if (inputs[i].type === 'radio' && hostVisible) {
+          n++;
+        }
       }
-      return n >= 2 || !!form.querySelector('input[name="candidate[first_name]"]');
+      if (!hostVisible && !anyVisibleField) return false;
+      return n >= 2 || (anyVisibleField && !!form.querySelector('input[name="candidate[first_name]"]'));
     } catch (_e) {
-      return !!form;
+      return false;
     }
   }
 
@@ -502,15 +566,10 @@
         if (!isFormOpen(doc)) {
           var applyBtn = findApplyStart(doc);
           if (applyBtn) {
-            try {
-              applyBtn.disabled = false;
-            } catch (_eEn) {}
-            try {
-              applyBtn.click();
-            } catch (_eClick) {}
+            clickApplyEl(applyBtn);
             await sleep(700 + Math.floor(Math.random() * 400));
             // turbo-frame may still be loading
-            for (var w = 0; w < 8 && !isFormOpen(doc); w++) {
+            for (var w = 0; w < 10 && !isFormOpen(doc); w++) {
               await sleep(350);
             }
             if (!isFormOpen(doc)) {
@@ -539,6 +598,15 @@
                 return opened;
               }
             }
+            return {
+              ok: false,
+              adapterId: 'teamtailor',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              error: 'No Apply button found on this page'
+            };
           }
         }
 
@@ -618,15 +686,28 @@
           missing.push('nationality');
         }
 
-        // Based in Riyadh? — Yes only if location contains Riyadh; else pause
+        // Based in Riyadh? — Yes only if location contains Riyadh; else use customAnswers / No
         var loc = String(
-          profile.location || profile.city || (profile.customAnswers && profile.customAnswers['Primary work location']) || ''
+          profile.location ||
+            profile.city ||
+            (profile.customAnswers && profile.customAnswers['Primary work location']) ||
+            ''
         );
+        var riyadhLook = answerForLabel(profile, 'based in riyadh');
+        if (riyadhLook.missing) riyadhLook = answerForLabel(profile, 'Currently based in Riyadh');
         if (/riyadh/i.test(loc)) {
           if (clickChoiceByLabel(root, /based in riyadh/i, /^yes$/i)) filled++;
           else missing.push('location(Riyadh)');
+        } else if (!riyadhLook.missing && !isBlank(riyadhLook.value)) {
+          var wantYes = /^yes$/i.test(String(riyadhLook.value).trim());
+          if (clickChoiceByLabel(root, /based in riyadh/i, wantYes ? /^yes$/i : /^no$/i)) filled++;
+          else missing.push('basedInRiyadh');
+        } else if (String(loc).trim()) {
+          // Location set and not Riyadh → answer No (not inventing Yes)
+          if (clickChoiceByLabel(root, /based in riyadh/i, /^no$/i)) filled++;
+          else missing.push('basedInRiyadh');
         } else {
-          missing.push('basedInRiyadh (set location to include Riyadh, or answer on page)');
+          missing.push('basedInRiyadh (set location or customAnswers)');
         }
 
         // Largest team size — customAnswers only

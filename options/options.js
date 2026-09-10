@@ -45,6 +45,7 @@
   const btnProfileSetActive = document.getElementById('btnProfileSetActive');
   const btnProfileDelete = document.getElementById('btnProfileDelete');
   const btnZahidGeneral = document.getElementById('btnZahidGeneral');
+  const btnResetMockProfile = document.getElementById('btnResetMockProfile');
 
   const TEXT_FIELDS = [
     'firstName', 'lastName', 'fullName', 'email', 'phone', 'phoneCountry',
@@ -233,6 +234,33 @@
     }
     renderProfileChips();
     updateActiveLabels();
+    updateDeleteButtonState();
+  }
+
+  function profileIsLocked(p) {
+    if (!p) return false;
+    if (p.locked || p.systemProfile) return true;
+    if (String(p.name || '').trim().toLowerCase() === 'mock') return true;
+    if (String(p.id || '') === 'mock') return true;
+    if (FillApplyProfile.isLockedProfile && FillApplyProfile.isLockedProfile(p)) return true;
+    return false;
+  }
+
+  function updateDeleteButtonState() {
+    if (!btnProfileDelete) return;
+    var meta = findMeta(selectedIdCache || activeIdCache);
+    var locked = profileIsLocked(meta);
+    btnProfileDelete.disabled = !!locked;
+    btnProfileDelete.title = locked
+      ? 'Mock profile cannot be deleted. Switch to another profile instead.'
+      : 'Delete selected profile';
+    if (btnProfileRename) {
+      btnProfileRename.disabled = !!locked;
+      btnProfileRename.title = locked ? 'Mock cannot be renamed' : 'Rename selected profile';
+    }
+    if (btnResetMockProfile) {
+      btnResetMockProfile.hidden = !locked;
+    }
   }
 
   function renderProfileChips() {
@@ -243,8 +271,11 @@
       btn.type = 'button';
       btn.className = 'profile-chip';
       btn.setAttribute('role', 'listitem');
+      var locked = profileIsLocked(p);
+      if (locked) btn.classList.add('locked');
       var label = p.name || 'Untitled';
       if (p.id === activeIdCache) label = '★ ' + label;
+      if (locked) label += ' 🔒';
       btn.textContent = label;
       if (p.id === selectedIdCache) btn.classList.add('selected');
       if (p.id === activeIdCache) btn.classList.add('active-mark');
@@ -253,6 +284,7 @@
         profileSelect.value = p.id;
         updateActiveLabels();
         renderProfileChips();
+        updateDeleteButtonState();
         try {
           await switchToProfile(p.id);
         } catch (e) {
@@ -439,6 +471,14 @@
       var id = selectedProfileId();
       var meta = findMeta(id);
       if (!meta) return;
+      if (profileIsLocked(meta)) {
+        setStatus(
+          profileMgrStatus,
+          'Mock profile cannot be deleted. Switch to another profile instead.',
+          'err'
+        );
+        return;
+      }
       if (profilesCache.length <= 1) {
         setStatus(profileMgrStatus, 'Cannot delete the last profile.', 'err');
         return;
@@ -450,6 +490,23 @@
         activeIdCache = result.activeId;
         await refreshProfilesUI({ selectId: result.activeId });
         setStatus(profileMgrStatus, 'Deleted "' + meta.name + '".', 'ok');
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnResetMockProfile) {
+    btnResetMockProfile.addEventListener('click', async function () {
+      if (!confirmIfDirty('You have unsaved changes. Discard them and Reset Mock?')) return;
+      try {
+        var profile = await FillApplyProfile.resetMockProfile();
+        activeIdCache = profile.id;
+        selectedIdCache = profile.id;
+        await refreshProfilesUI({ selectId: profile.id });
+        clearDirty();
+        setStatus(profileMgrStatus, 'Mock profile reset to sample (locked).', 'ok');
+        setStatus(statusEl, 'Mock reseeded from SAMPLE.', 'ok');
       } catch (e) {
         setStatus(profileMgrStatus, e.message, 'err');
       }

@@ -32,7 +32,7 @@ Stored under `chrome.storage.local` key `fillApply.applyHistory`.
 
 
 
-## Options & side panel layout (v1.11)
+## Options & side panel layout (v1.11 / v1.11.1)
 
 - **Options** sections are collapsible (`<details>`); open state persists in `chrome.storage.local` key `fillApply.ui.sections`. Defaults: Profiles + Application queue expanded; Profile settings + Backend collapsed.
 - **Application queue** is the production name for the former Mock queue (storage keys `fillApply.mockQueueUrls` / buckets unchanged). Paste target apply URLs; realtime session log shows while Options is open.
@@ -58,6 +58,7 @@ Fill & Apply supports **multiple applicant profiles** (v1.9+):
 3. Edit Identity / Location / Links / Q&A and click **Save profile** — writes the **active** profile only.
 4. The runner and side panel always use the active profile (`getProfile()`).
 5. Data is stored in `chrome.storage.local` keys `fillApply.profiles` and `fillApply.activeProfileId` so it **survives extension updates**. A legacy single profile migrates into **"Mock"** when the multi store is empty (Default is renamed to Mock).
+6b. **Mock** is a permanent system demo profile (`locked` / `systemProfile`, preferred id `mock`): end-to-end SAMPLE fields for demos; **cannot be deleted** — switch to another profile instead. **Reset Mock** reseeds SAMPLE. Use **Zahid General** for real applies.
 6. **Documents** (resume/cover) are **shared across profiles for now**. Export of profiles is TBD.
 7. **Zahid General** — built-in one-click template for Chaudhary Zahid Ali (Options → **Create / Reset Zahid General profile**). Creates or resets a named profile, sets it **active**, and persists fields in `chrome.storage.local`. Does not overwrite Mock / sample Alex. Backup JSON: `profiles/zahid-general.json`.
 
@@ -604,7 +605,7 @@ Hosts often: `*.recruitee.com` or company career sites powered by Recruitee (Rec
 | Current Salary * | `currentSalary` / customAnswers; blank → pause |
 | Notice period (Onspot / 15 / 30 / 60 days) | `noticePeriod`; blank → pause |
 | Citizenship | `nationality`; blank → pause |
-| Currently based in Riyadh? * | **Yes** only if `location` contains Riyadh; else pause (do not invent for Khobar-only) |
+| Currently based in Riyadh? * | **Yes** if `location` contains Riyadh; else `customAnswers` / **No** when location is set elsewhere |
 | Largest team size * | `customAnswers` only; blank → pause |
 | شهادة تربوية * | `customAnswers` only; blank → pause |
 | Previously recruited/hired * | `customAnswers` only; blank → pause |
@@ -618,7 +619,7 @@ Empty required → `needsHuman` + `missingProfileFields` + high-alert notificati
 
 ### Operator checklist
 
-1. Reload extension **v1.10.0**.
+1. Reload extension **v1.11.1**.
 2. Open a Teamtailor job URL (or queue it) → **Fill current page** or **Start**.
 3. Expect Apply for this job → modal → mapped fields; Submit only in submit mode.
 4. Pre-fill `customAnswers` for team size, شهادة تربوية, recruitment, tools rating, and current salary / nationality / notice as needed.
@@ -671,14 +672,14 @@ Boards rename the same actions. The engine treats these as equivalent (non-exhau
 - **Final submit CTA:** Submit Application, Submit & Apply, Send Application, Complete Application (and the same Apply labels when the form **is** already open).
 - **Continue CTA:** Next, Continue, Save and continue, Proceed
 
-### Universal open step (v1.10)
+### Universal open step (v1.10 → hardened in v1.11.1)
 
 Shared helper (`lib/synonyms.js` `tryClickApplyStart` + `content/fill.js` `tryOpenApplication` + fallback):
 
-1. If fewer than ~2 visible application inputs (or page looks like a job posting) **and** a visible Apply-start CTA exists → **click once**.
-2. Return `clickedApplyStart` / `reDetect` / `handedOff` so the **runner** waits for load/overlay and re-injects (same pattern as WWR/Jooble handoff; also works **same-host** for Teamtailor modals).
-3. Allowed in **fill**, **ready**, and **submit** (opening is not final submit). Does **not** click Submit Application when a filled form is already present.
-4. **Fill current page** performs the same open + one retry on the active tab; **Start** still requires queue URLs.
+1. **Form-open** only counts fields inside known apply containers (`#job-application-form`, turbo-frame, `#application`, `form[action*=apply]`, visible dialogs) — never whole-page newsletter/search inputs.
+2. If a high-confidence Apply-start CTA is present (`Apply for this job`, Teamtailor `showFormOverlay`) **and** the apply modal is not visibly open → **always click** (scrollIntoView + MouseEvent fallback).
+3. Return `clickedApplyStart` / `reDetect` / `handedOff` so the **runner** / **Single** waits and re-injects (2–3 retries for slow Teamtailor modals).
+4. Allowed in **fill**, **ready**, and **submit** (opening is not final submit). If no Apply CTA is found: panel error **"No Apply button found on this page"**.
 
 Same **candidate** and **preferences** across sources; only site chrome changes. Unknown sites rely on fallback + synonyms; paste-library still improves precision.
 

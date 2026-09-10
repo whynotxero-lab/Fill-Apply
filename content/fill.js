@@ -508,6 +508,31 @@
     const opened = tryOpenApplication(options);
     if (opened) return opened;
 
+    const synOpen = global.FillApplySynonyms;
+    if (synOpen && typeof synOpen.isApplicationFormOpen === 'function') {
+      const formOpen = synOpen.isApplicationFormOpen(document);
+      if (!formOpen) {
+        const btns =
+          typeof synOpen.findApplyStartButtons === 'function'
+            ? synOpen.findApplyStartButtons(document)
+            : [];
+        const looksJob =
+          typeof synOpen.looksLikeJobPosting === 'function'
+            ? synOpen.looksLikeJobPosting(document)
+            : false;
+        if (!btns.length && looksJob) {
+          return {
+            ok: false,
+            error: 'No Apply button found on this page',
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            submitted: false
+          };
+        }
+      }
+    }
+
     const inspection = inspectForm(document);
     clearHighlights();
 

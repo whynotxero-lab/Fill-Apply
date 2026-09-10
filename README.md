@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.11.0** — **Production UI**: collapsible Options sections (persisted), thin sticky title bar, **Application queue** (renamed from Application queue; storage keys compatible), realtime session log, Drive/URL document links (best-effort fetch), lean side panel (Select profile, Application mode, Runner mode Single/Batch, Start runner, live log). Sample/Default profile display name → **Mock**. Prior **1.10.0** — **Universal Apply-start**: on job detail / overview pages with few fillable fields, Fill / Ready / Submit clicks **Apply / Apply Now / Start Apply / Apply for this Job / Apply here** once to open the form (never AI Auto-Apply / Upgrade / Easy Apply — LinkedIn owns Easy Apply), then runner / Fill once waits and re-detects. **Teamtailor** ATS adapter (career sites + `*.teamtailor.com`; Noon Academy paste: Apply for this job → modal → screening + CV → Submit application). Prior **1.9.9**: no invented profile fields + high-alert pause; **1.9.8** Zahid General; eFinancialCareers; iCIMS; LinkedIn External → iCIMS; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
+**Version 1.11.1** — **Mock** is a permanent locked demo profile (cannot delete; **Reset Mock** reseeds SAMPLE); switch to **Zahid General** for real applies. **Apply-start** hardened: form-open detection is container-scoped (not whole-page newsletter inputs), Teamtailor `showFormOverlay` / sticky CTA click + modal retries for Single + Batch. Prior **1.11.0** — Production UI (collapsible Options, Application queue, lean side panel Single/Batch). Prior **1.10.0** — Universal Apply-start + Teamtailor. Prior **1.9.9**: no invented profile fields + high-alert pause; **1.9.8** Zahid General.
 
 ## Load unpacked
 
@@ -23,8 +23,8 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Options → **Profiles** (collapsible; expanded by default):
 
-- Chips: **Zahid General**, **Mock** (sample Alex renamed), **+ Create new profile** (★ = active)
-- **Set active / Rename / Duplicate / Delete / Create-Reset Zahid**
+- Chips: **Zahid General**, **Mock** 🔒 (permanent demo — cannot delete), **+ Create new profile** (★ = active)
+- **Set active / Rename / Duplicate / Delete / Reset Mock / Create-Reset Zahid**
 - **Profile settings / Identity** is a separate collapsed section (opens while editing)
 - Form edits save into the **active** profile only; switching warns if unsaved
 - Side panel shows active applicant `Person · email` only (not chip·person·email)
