@@ -1,21 +1,17 @@
 /**
- * LinkedIn Easy Apply adapter (board) — multi-page modal flow.
+ * LinkedIn board adapter — Easy Apply multi-page modal + External Apply handoff.
  *
  * PREREQUISITE: User must be logged into LinkedIn. Login / auth wall → needsHuman pause.
  *
- * Job page with **Easy Apply** (not external "Apply", Premium upsells, or "Tailor my resume").
- * Popup multi-page (e.g. 1/6 … Review), Qiddiya-style example:
- *   1 Contact — name, phone, email, location, education, gender (optional),
- *     conflict of interest, PIF/affiliates, social links, DOB, salaries, salutation, nationality
- *   2 Resume — upload (DOC/DOCX/PDF), summary, years experience, company involvement
- *   3 Work experience — leave prefilled LinkedIn cards; add only if empty + profile.workHistory
- *   4 Education — leave if prefilled
- *   5 Additional Questions — privacy consent, criminal conviction, etc.
- *   Review — Submit application
- *
- * Modes:
- *   fill / ready — open Easy Apply, fill pages, click Next/Review through steps; NEVER Submit
- *   submit — full flow including Submit application
+ * Two apply paths on the job page:
+ *   A) **Easy Apply** — on-LinkedIn multi-page modal (e.g. 1/6 … Review). Never Premium /
+ *      Tailor my resume. Modes: fill/ready advance Next/Review but NEVER Submit;
+ *      submit clicks Submit application on Review.
+ *   B) **External Apply** ("Apply" + "Responses managed off LinkedIn") — click Apply →
+ *      optional **Share your profile?** modal (prefer toggle **Off**, then Continue) →
+ *      employer careers (e.g. pepsicojobs.com) → ATS (often iCIMS). On host change,
+ *      return WWR-style handoff (`externalApply` / `deferToPageAdapter` / `handedOff`)
+ *      so the runner re-injects and re-detects.
  *
  * Diversity/EEO: never invent; optional gender only if profile has it; else leave blank.
  * Captcha / structure drift → needsHuman pause.
@@ -283,7 +279,239 @@
     return null;
   }
 
-  function findEasyApplyModal(doc) {
+  /**
+   * External / off-LinkedIn Apply (not Easy Apply, Premium, or Tailor my resume).
+   * Job chrome often shows "Apply" + "Responses managed off LinkedIn".
+   */
+  function findExternalApplyButton(doc) {
+    doc = doc || document;
+    var nodes = doc.querySelectorAll(
+      'button, a, input[type="button"], [role="button"], .jobs-apply-button'
+    );
+    var candidates = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!visible(el)) continue;
+      var t = buttonText(el);
+      var cls =
+        String(el.className || '') +
+        ' ' +
+        (el.id || '') +
+        ' ' +
+        (el.getAttribute('data-control-name') || '');
+
+      if (/tailor my resume|premium|unlock|see who|start a free|upgrade|save job|follow|share/i.test(t)) {
+        continue;
+      }
+      if (/easy\s*apply/i.test(t) || /easy.?apply|easyApply/i.test(cls)) continue;
+
+      var score = 0;
+      if (/^apply$/i.test(t.trim())) score = 90;
+      if (/^apply now$/i.test(t.trim())) score = 85;
+      if (/apply on company|apply externally|company website|offsite/i.test(t)) score = 95;
+      if (/\bapply\b/i.test(t) && t.length < 40 && !/easy/i.test(t)) score = Math.max(score, 70);
+      // jobs-apply-button without easy-apply marker is often external
+      if (/jobs-apply-button/i.test(cls) && !/easy/i.test(cls) && !/easy/i.test(t) && /\bapply\b/i.test(t)) {
+        score = Math.max(score, 88);
+      }
+      if (score > 0) candidates.push({ el: el, score: score });
+    }
+    candidates.sort(function (a, b) {
+      return b.score - a.score;
+    });
+    return candidates.length ? candidates[0].el : null;
+  }
+
+  function findShareProfileModal(doc) {
+    doc = doc || document;
+    var dialogs = doc.querySelectorAll(
+      '[role="dialog"], dialog, .artdeco-modal, .artdeco-modal__content, [class*="share-profile"], [class*="apply-modal"]'
+    );
+    for (var i = 0; i < dialogs.length; i++) {
+      var d = dialogs[i];
+      if (!visible(d)) continue;
+      var txt = (d.textContent || '').replace(/\s+/g, ' ');
+      if (/share your profile/i.test(txt) && /continue/i.test(txt)) return d;
+      if (/share your profile with the job poster|share your (full )?profile/i.test(txt)) return d;
+    }
+    // Broader page scan if dialog markup is nested oddly
+    var bodyTxt = '';
+    try {
+      bodyTxt = doc.body ? String(doc.body.innerText || '').slice(0, 4000) : '';
+    } catch (_e) {
+      bodyTxt = '';
+    }
+    if (/share your profile/i.test(bodyTxt)) {
+      var toggles = doc.querySelectorAll(
+        'input[type="checkbox"], [role="switch"], button[role="switch"], .artdeco-toggle, [class*="toggle"]'
+      );
+      for (var t = 0; t < toggles.length; t++) {
+        var root =
+          toggles[t].closest('[role="dialog"], dialog, .artdeco-modal') ||
+          toggles[t].closest('form, section, div');
+        if (root && /share your profile/i.test(root.textContent || '')) return root;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Prefer privacy: turn Share your profile Off when a switch is found.
+   * Preference: shareProfilePreference = 'off' (documented default).
+   */
+  function setShareProfileOff(modal) {
+    if (!modal) return { toggled: false, preference: 'off' };
+    var switches = modal.querySelectorAll(
+      '[role="switch"], input[type="checkbox"], button[role="switch"], .artdeco-toggle, [class*="toggle"] input, [class*="toggle"] button'
+    );
+    for (var i = 0; i < switches.length; i++) {
+      var sw = switches[i];
+      if (!visible(sw) && sw.offsetParent === null) continue;
+      var checked =
+        sw.getAttribute('aria-checked') === 'true' ||
+        sw.getAttribute('aria-checked') === 'mixed' ||
+        !!sw.checked ||
+        /is-on|checked|active/i.test(String(sw.className || ''));
+      if (checked) {
+        try {
+          sw.click();
+        } catch (_e) {
+          try {
+            if (typeof sw.checked === 'boolean') {
+              sw.checked = false;
+              sw.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            sw.setAttribute('aria-checked', 'false');
+          } catch (_e2) {
+            /* ignore */
+          }
+        }
+        return { toggled: true, preference: 'off', wasOn: true };
+      }
+      // Already off
+      if (sw.getAttribute('aria-checked') === 'false' || sw.checked === false) {
+        return { toggled: false, preference: 'off', wasOn: false };
+      }
+    }
+    return { toggled: false, preference: 'off', switchNotFound: true };
+  }
+
+  function clickShareProfileContinue(modal) {
+    var root = modal || document;
+    var nodes = root.querySelectorAll('button, [role="button"], a, input[type="button"]');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!visible(el) || el.disabled) continue;
+      var t = buttonText(el);
+      if (/^continue$/i.test(t.trim()) || /continue to apply|continue applying/i.test(t)) {
+        try {
+          el.click();
+          return true;
+        } catch (_e) {
+          /* ignore */
+        }
+      }
+    }
+    return false;
+  }
+
+  function isLinkedInHost(hostname) {
+    return /linkedin\.com$/i.test(String(hostname || '')) || /(^|\.)linkedin\.com$/i.test(String(hostname || ''));
+  }
+
+  function currentHostname() {
+    try {
+      return String((typeof location !== 'undefined' && location.hostname) || '');
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function handoffResult(extra) {
+    return Object.assign(
+      {
+        ok: true,
+        adapterId: 'linkedin',
+        externalApply: true,
+        handedOff: true,
+        deferToPageAdapter: true,
+        filled: 0,
+        unmatched: 0,
+        total: 0,
+        submitted: false,
+        shareProfilePreference: 'off',
+        message:
+          'Opened LinkedIn external Apply — runner will re-detect destination careers/ATS (e.g. iCIMS)'
+      },
+      extra || {}
+    );
+  }
+
+  function tryDestinationFill(ctx) {
+    var registry = global.FillApplyRegistry;
+    if (!registry || typeof registry.detect !== 'function') return null;
+    var href = '';
+    try {
+      href = String((typeof location !== 'undefined' && location.href) || '');
+    } catch (_e) {}
+    var next = registry.detect(href, typeof document !== 'undefined' ? document : null);
+    if (!next || next.id === 'linkedin' || next.id === 'fallback') {
+      var fb = global.FillApplyFallbackAdapter;
+      if (fb && typeof fb.fill === 'function') {
+        var fr = fb.fill(
+          Object.assign({}, ctx, {
+            adapterId: 'fallback',
+            url: href
+          })
+        );
+        if (fr && typeof fr === 'object') {
+          fr.externalApply = true;
+          fr.handedOff = true;
+          fr.fromAdapter = 'linkedin';
+        }
+        return fr;
+      }
+      return null;
+    }
+    if (typeof next.fill !== 'function') return null;
+    return next.fill(
+      Object.assign({}, ctx, {
+        adapterId: next.id,
+        submitSelector: next.submitSelector,
+        fileInputHints: next.fileInputHints,
+        fieldMaps: next.fieldMaps,
+        url: href
+      })
+    );
+  }
+
+  function waitForShareOrNav(doc, startHost, timeoutMs) {
+    doc = doc || document;
+    timeoutMs = timeoutMs || 5000;
+    var start = Date.now();
+    return new Promise(function (resolve) {
+      function tick() {
+        var host = currentHostname();
+        if (host && startHost && host !== startHost && !isLinkedInHost(host)) {
+          resolve({ kind: 'nav', host: host });
+          return;
+        }
+        var modal = findShareProfileModal(doc);
+        if (modal) {
+          resolve({ kind: 'share', modal: modal });
+          return;
+        }
+        if (Date.now() - start >= timeoutMs) {
+          resolve({ kind: 'timeout' });
+          return;
+        }
+        setTimeout(tick, 200);
+      }
+      tick();
+    });
+  }
+
+    function findEasyApplyModal(doc) {
     doc = doc || document;
     var selectors = [
       '.jobs-easy-apply-modal',
@@ -1102,21 +1330,80 @@
       }
 
       if (!modal) {
-        // External apply only?
+        // External Apply path (PepsiCo → careers → iCIMS, etc.)
+        var extBtn = findExternalApplyButton(doc);
+        if (extBtn) {
+          var startHost = currentHostname();
+          var shareMeta = { preference: 'off' };
+          try {
+            extBtn.click();
+            advanced = true;
+          } catch (_extClick) {
+            /* ignore */
+          }
+          await sleep(humanDelay(600));
+
+          var wait = await waitForShareOrNav(doc, startHost, 5500);
+          if (wait.kind === 'share' && wait.modal) {
+            shareMeta = setShareProfileOff(wait.modal) || shareMeta;
+            shareMeta.preference = 'off';
+            await sleep(humanDelay(250));
+            clickShareProfileContinue(wait.modal);
+            await sleep(humanDelay(700));
+            wait = await waitForShareOrNav(doc, startHost, 4500);
+          }
+
+          var hostNow = currentHostname();
+          if (hostNow && startHost && hostNow !== startHost && !isLinkedInHost(hostNow)) {
+            var dest = tryDestinationFill(ctx);
+            if (dest && typeof dest.then === 'function') dest = await dest;
+            if (dest && typeof dest === 'object') {
+              dest.externalApply = true;
+              dest.handedOff = true;
+              dest.fromAdapter = 'linkedin';
+              dest.shareProfilePreference = 'off';
+              if (!dest.message) {
+                dest.message =
+                  'LinkedIn external Apply handed off — continue with destination careers/ATS adapter';
+              }
+              return dest;
+            }
+            return handoffResult({
+              shareProfilePreference: 'off',
+              shareProfile: shareMeta,
+              message:
+                'Opened LinkedIn external Apply — runner will re-detect destination careers/ATS (e.g. iCIMS)'
+            });
+          }
+
+          // Still on LinkedIn — navigation may be new-tab or delayed
+          return handoffResult({
+            advanced: true,
+            shareProfilePreference: 'off',
+            shareProfile: shareMeta,
+            message:
+              'LinkedIn external Apply clicked (Share profile Off when available) — if careers/ATS opened in this or another tab, runner will re-detect'
+          });
+        }
+
         var pageText = '';
         try {
           pageText = String(doc.body && doc.body.innerText ? doc.body.innerText : '').slice(0, 4000);
         } catch (_e3) {
           pageText = '';
         }
-        if (/apply on company|company website|offsite apply/i.test(pageText) && !/easy\s*apply/i.test(pageText)) {
+        if (
+          (/responses managed off linkedin|apply on company|company website|offsite apply/i.test(pageText) ||
+            /\bapply\b/i.test(pageText)) &&
+          !/easy\s*apply/i.test(pageText)
+        ) {
           return {
             ok: false,
             adapterId: 'linkedin',
             needsHuman: true,
             pauseReason: 'structure_drift',
             error:
-              'LinkedIn job appears to use external Apply (not Easy Apply). Open the company ATS or pick an Easy Apply job, then Resume.',
+              'LinkedIn job appears to use external Apply but the Apply control was not found. Click Apply (not Easy Apply / Premium / Tailor my resume), dismiss Share your profile if shown, then Resume on the careers/ATS page.',
             filled: 0,
             unmatched: 0,
             total: 0,
@@ -1131,7 +1418,7 @@
           needsHuman: true,
           pauseReason: 'structure_drift',
           error:
-            'LinkedIn Easy Apply modal did not appear — click Easy Apply manually (must be logged in), then Resume.',
+            'LinkedIn Easy Apply modal did not appear — click Easy Apply manually (must be logged in), then Resume. For off-LinkedIn Apply jobs, use Apply (not Premium / Tailor my resume).',
           filled: 0,
           unmatched: 0,
           total: 0,
@@ -1392,6 +1679,8 @@
     detectLoginWall: detectLoginWall,
     findEasyApplyModal: findEasyApplyModal,
     findEasyApplyButton: findEasyApplyButton,
+    findExternalApplyButton: findExternalApplyButton,
+    findShareProfileModal: findShareProfileModal,
     fieldMaps: [],
     submitSelector:
       'button[aria-label*="Submit application" i], button[aria-label*="Submit" i]',

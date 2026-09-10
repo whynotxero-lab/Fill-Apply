@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **LinkedIn Easy Apply** multi-step modal, **Jooble → Swooped** assisted-apply handoff, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** + hCaptcha pause), **Jooble → Swooped** assisted-apply handoff, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -148,17 +148,24 @@ Answer mapping (scoped to the modal only):
 4. Reload the extension after upgrading so `adapters/boards/naukrigulf.js` is included in the inject list.
 
 
-## LinkedIn Easy Apply
+## LinkedIn Easy Apply vs External Apply
 
-LinkedIn **Easy Apply** jobs open a **multi-page modal** (e.g. 1/6 … Review) on the job page — not an external company ATS. External **Apply** / Premium upsells / **Tailor my resume** are ignored.
+LinkedIn job pages offer two apply paths. Fill & Apply handles both; it **never** clicks **Premium** upsells or **Tailor my resume**.
+
+| Path | How you recognize it | What happens |
+|------|----------------------|--------------|
+| **Easy Apply** | Button labeled **Easy Apply** | On-LinkedIn multi-page modal (e.g. 1/6 … Review) |
+| **External Apply** | **Apply** (not Easy Apply) + often “Responses managed off LinkedIn” | Opens employer careers → ATS (example: **PepsiCo** → `pepsicojobs.com` → **iCIMS**) |
 
 ### Prerequisite
 
 You must be **logged into LinkedIn** in the browser profile that runs Fill & Apply. A login / auth wall pauses with `needsHuman` (sign in, then Resume). LinkedIn is an **account/profile-first** source.
 
-### What you see (Qiddiya-style example)
+---
 
-1. Job page with an **Easy Apply** button (not external Apply).
+### A) Easy Apply (Qiddiya-style example)
+
+1. Job page with an **Easy Apply** button.
 2. Modal pages such as:
    - **Contact (1/6):** First/Last name*, phone country + mobile*, email*, location (city)*, highest education*, gender (optional), conflict of interest Yes/No*, PIF/affiliates Yes/No*, social links, current location*, DOB*, expected / current salary*, salutation*, nationality* → **Next**
    - **Resume (2/6):** Resume* upload (DOC/DOCX/PDF), summary, years of relevant experience*, currently involved with company Yes/No* → Next
@@ -167,31 +174,73 @@ You must be **logged into LinkedIn** in the browser profile that runs Fill & App
    - **Additional Questions (5/6):** Privacy consent Yes*, criminal conviction Yes/No* → **Review**
    - **Review:** Submit application
 
-Employer questions vary; seed `customAnswers` for recurring employer-specific prompts (conflict of interest, PIF, Qiddiya involvement, salaries, DOB, nationality, education level, criminal conviction).
-
-### Extension behavior
+Employer questions vary; seed `customAnswers` for recurring employer-specific prompts.
 
 | Mode | Behavior |
 |------|----------|
-| **fill** / **ready** | Open Easy Apply, fill visible fields on each page, click **Next** / **Review** through steps — **never** click **Submit application** |
+| **fill** / **ready** | Open Easy Apply, fill each page, click **Next** / **Review** — **never** **Submit application** |
 | **submit** | Same flow, then click **Submit application** on Review |
 
-Details:
+Details: modal-scoped fields; resume via **DataTransfer**; do not wipe prefilled work/education; optional gender only if profile has it; never invent EEO; captcha / drift → `needsHuman`.
 
-- All field / file queries are **scoped to the Easy Apply modal** (`role=dialog` / `.jobs-easy-apply-modal`).
-- Resume upload uses **DataTransfer** on the modal file input.
-- Prefill: do **not** wipe existing work/education cards when LinkedIn already populated them.
-- **Gender / EEO:** optional gender filled only if profile/`customAnswers` has it; otherwise leave blank. Never invent race/veteran/disability/etc.
-- Captcha / structure drift / missing Easy Apply modal → `needsHuman` pause.
-- Adapter: `adapters/boards/linkedin.js` (injected via runner / panel `INJECT_FILES`).
+---
+
+### B) External Apply → careers / iCIMS (PepsiCo example)
+
+Operator paste (LinkedIn → PepsiCo → iCIMS):
+
+1. LinkedIn job → click **Apply** (not Easy Apply). Copy may say **Responses managed off LinkedIn**.
+2. Modal: **Share your profile?** On/Off toggle + **Continue**.
+   - **Preference (documented):** set toggle **Off** (privacy), then **Continue**. If the switch is missing, Continue with the current setting.
+3. Employer careers job detail (e.g. `pepsicojobs.com`) → **Apply Now** / **Apply now**.
+4. **iCIMS** welcome: Email field, privacy checkbox **I accept…**, **Next**; footer **Software Powered by ICIMS**; may show **Protected by hCaptcha**.
+
+Extension behavior:
+
+1. If **Easy Apply** is present → path A above.
+2. Else if external **Apply** → click Apply → handle Share your profile (prefer **Off**, then Continue) → on **host change** return WWR-style handoff (`externalApply` / `deferToPageAdapter` / `handedOff`) so the runner re-injects and re-detects (careers / **iCIMS**).
+3. Destination **iCIMS** adapter fills welcome (Email from profile, check I accept, Next), pauses on **hCaptcha**, then fallback-fills further steps. **fill** / **ready** never final-submit; **submit** submits when the form looks complete. EEO never invented.
+
+Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframes, **Protected by hCaptcha** with a visible widget) → `needsHuman` pause (complete manually, then Resume).
 
 ### Operator tips
 
-1. Stay signed in to LinkedIn; complete your LinkedIn profile so work/education cards prefill.
-2. Upload a resume in Options (shared documents) before queueing Easy Apply URLs.
-3. Map employer-specific Yes/No and salary/DOB fields in `customAnswers`.
-4. Use **Auto Fill** / **Auto Ready** first; **Auto Submit** only when Review looks correct.
-5. Jobs that only offer external **Apply** hand off to the company ATS when that host is detected on navigation — this adapter targets **Easy Apply** modals.
+1. Stay signed in to LinkedIn; complete your LinkedIn profile so Easy Apply cards prefill.
+2. Upload a resume in Options before queueing applies.
+3. For External Apply jobs, expect a careers host + ATS (often iCIMS); complete hCaptcha when paused.
+4. Use **Auto Fill** / **Auto Ready** first; **Auto Submit** only when Review / final form looks correct.
+5. Adapter: `adapters/boards/linkedin.js`; destination: `adapters/ats/icims.js`.
+
+## iCIMS — ATS (Software Powered by ICIMS)
+
+**Status:** Hardened welcome + fallback further steps. Often reached via **LinkedIn External Apply** (PepsiCo / `pepsicojobs.com`) or direct `*.icims.com` links.
+
+### Detection
+
+- Hosts: `icims.com`, `*.icims.com`
+- Content: **Powered by iCIMS**, **Software Powered by ICIMS**, `.iCIMS_JobForm` / iCIMS chrome
+
+### Welcome step (operator paste)
+
+| Control | Behavior |
+|---------|----------|
+| Email | `profile.email` |
+| Privacy **I accept…** | Check when present |
+| **Next** | Click to advance |
+| **Protected by hCaptcha** | `needsHuman` pause — do not bypass |
+
+### Further steps / modes
+
+- Heuristic **fallback** fill + submit synonyms (**Submit application** / **Apply** / etc.).
+- **Skip inventing EEO** / diversity answers.
+- **fill** / **ready**: fill + Next/Continue only — **no** final submit.
+- **submit**: fill, advance, then submit when the form looks complete.
+
+### Related
+
+- Adapter: `adapters/ats/icims.js`
+- Discovery: [LinkedIn Easy Apply vs External Apply](#linkedin-easy-apply-vs-external-apply)
+- Challenges: `lib/challenges.js` (hCaptcha)
 
 ## Remote OK — paid source
 
@@ -417,10 +466,10 @@ Working Nomads (`workingnomads.com`) is often a **job discovery** board. The on-
 Registered in `adapters/catalog.js` (+ hardened overrides where noted).
 
 ### ATS (apply engines)
-**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, iCIMS, **CATS***
+**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (welcome + hCaptcha pause), **CATS***
 
 ### Job boards
-LinkedIn, Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
+**LinkedIn*** (Easy Apply + External Apply handoff), Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
 
 ### Agencies
 Michael Page, Hays, Robert Half, Cooper Fitch, Charterhouse, Robert Walters, Jivaro Partners, LHH
@@ -440,8 +489,8 @@ If no adapter matches, Fill & Apply still attempts **inspect → fill** using th
 | File upload | Resume/CV, cover letter | DataTransfer (not OS picker) |
 | Multi-step CTAs | Next, Continue, Save & continue | Synonym CTA match |
 | Final CTAs | Apply, Apply Now, Apply for this Job, Submit Application, Submit & Apply | Synonym CTA match |
-| Challenges | Cloudflare, CAPTCHA | Pause + notify (never bypass) |
-| External handoff | WWR → CATS; Working Nomads → Greenhouse; Jooble → Swooped → ATS | Click Apply / Apply manually instead → re-detect destination adapter |
+| Challenges | Cloudflare, CAPTCHA, **hCaptcha** (Protected by hCaptcha) | Pause + notify (never bypass) |
+| External handoff | WWR → CATS; Working Nomads → Greenhouse; Jooble → Swooped → ATS; LinkedIn External Apply → careers/iCIMS | Click Apply / Apply manually instead → re-detect destination adapter |
 
 Profile keys commonly mapped: first/last/full name, email, phone (+ country), location/city/state/country/zip/street, LinkedIn, portfolio, website, GitHub, resume URL/summary, work history, education, cover letter, work authorization, sponsorship, `customAnswers` / `customQA`.
 

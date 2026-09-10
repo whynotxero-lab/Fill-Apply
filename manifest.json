@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.9.2",
-  "description": "Queue-driven job-application filler with multi-profile Options: LinkedIn Easy Apply multi-step modal, Jooble→Swooped handoff, Working Nomads→Greenhouse, hardened Greenhouse, WWR→CATS, Ashby caps, submit-tab keep-N, PDF reports, Indeed multi-step, challenge pause, fill/ready/submit.",
+  "version": "1.9.3",
+  "description": "Queue-driven job-application filler with multi-profile Options: LinkedIn Easy Apply + External Apply (PepsiCo→iCIMS), hardened iCIMS welcome/hCaptcha, Jooble→Swooped handoff, Working Nomads→Greenhouse, WWR→CATS, Ashby caps, submit-tab keep-N, PDF reports, challenge pause, fill/ready/submit.",
   "permissions": [
     "storage",
     "activeTab",
