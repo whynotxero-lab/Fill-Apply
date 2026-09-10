@@ -1,10 +1,12 @@
 /**
  * Queue-driven runner (service-worker side).
  * Loop: getNextJob (queued only) → open tab → detect challenge? → fill →
- * move to applied/failed OR pause for human → close tab? → delay.
+ * move to applied/failed OR pause for human → prune old submitted tabs? → delay.
  * Honors STOP and RESUME (after Cloudflare/CAPTCHA / form drift).
  *
  * runMode: fill | ready | submit
+ * Auto-close: Submit mode + submitted success only; keeps last N tabs (keepRecentTabs).
+ * PDF report: on successful submit when autoPdfReport is ON.
  */
 (function (global) {
   'use strict';
@@ -32,6 +34,8 @@
   let currentJobId = null;
   let pausedTabId = null;
   let resumeTabId = null;
+  /** Oldest-first list of submitted job tabs kept for context: { tabId, jobId, at } */
+  let submittedTabs = [];
 
   function sleep(ms) {
     return new Promise(function (resolve) {
@@ -132,14 +136,66 @@
     }
   }
 
-  async function closeAppliedTab(tabId, config) {
+  function clampKeep(n) {
+    if (global.FillApplyStorage && global.FillApplyStorage.clampKeepRecentTabs) {
+      return global.FillApplyStorage.clampKeepRecentTabs(n);
+    }
+    const v = Number(n);
+    if (!Number.isFinite(v)) return 5;
+    return Math.min(10, Math.max(3, Math.round(v)));
+  }
+
+  /**
+   * Auto-close ONLY after successful Submit-mode apply.
+   * Keeps the newest `keepRecentTabs` submitted tabs open for context;
+   * closes oldest submitted tabs beyond that window.
+   * Never closes while a tab is the active processing tab (caller only
+   * invokes this after processing finishes). Never runs for fill/ready.
+   */
+  async function trackSubmittedTabAndPrune(tabId, jobId, config, activeTabId) {
     if (!config || !config.autoCloseAppliedTab) return;
     if (tabId == null) return;
-    try {
-      await chrome.tabs.remove(tabId);
-    } catch (_e) {
-      /* tab may already be closed */
+
+    submittedTabs.push({ tabId: tabId, jobId: jobId || null, at: Date.now() });
+
+    // Drop entries for tabs that no longer exist
+    const alive = [];
+    for (let i = 0; i < submittedTabs.length; i++) {
+      const entry = submittedTabs[i];
+      try {
+        await chrome.tabs.get(entry.tabId);
+        alive.push(entry);
+      } catch (_e) {
+        /* gone */
+      }
     }
+    submittedTabs = alive;
+
+    const keep = clampKeep(config.keepRecentTabs);
+    while (submittedTabs.length > keep) {
+      const oldest = submittedTabs.shift();
+      if (!oldest || oldest.tabId == null) continue;
+      // Never close the tab still being processed / just finished if it is activeTabId
+      // and somehow still inside the prune set as the only one — but oldest ≠ newest.
+      if (activeTabId != null && oldest.tabId === activeTabId && submittedTabs.length < keep) {
+        submittedTabs.unshift(oldest);
+        break;
+      }
+      if (activeTabId != null && oldest.tabId === activeTabId) {
+        // Prefer closing a different old tab; re-queue this one at front only if empty prune
+        continue;
+      }
+      try {
+        await chrome.tabs.remove(oldest.tabId);
+      } catch (_e2) {
+        /* tab may already be closed */
+      }
+    }
+  }
+
+  /** @deprecated immediate close — kept as no-op helper name for clarity */
+  async function closeAppliedTab(/* tabId, config */) {
+    /* replaced by trackSubmittedTabAndPrune — fill/ready/failed never auto-close */
   }
 
   function notifyActionNeeded(job, detail) {
@@ -611,25 +667,65 @@
             lastError: failed ? fillResult.error || 'Fill failed' : null
           });
 
-          if (failed) {
-            await B.markApplied(job.id, {
-              failed: true,
-              error: fillResult.error || 'Fill failed',
-              fillResult: fillResult,
-              runMode: runMode,
-              url: job.url
-            });
-          } else {
-            await B.markApplied(job.id, {
-              fillResult: fillResult,
-              submitted: !!fillResult.submitted,
-              advanced: !!fillResult.advanced,
-              runMode: runMode,
-              resumeAttached: !!fillResult.resumeAttached,
-              coverAttached: !!fillResult.coverAttached,
-              url: job.url
-            });
+          const wasSubmitted =
+            !failed && runMode === 'submit' && !!(fillResult && fillResult.submitted);
+
+          let reportPayload = null;
+          let reportPdfBase64 = null;
+          if (wasSubmitted && config.autoPdfReport !== false && global.FillApplyReport) {
+            try {
+              const reportOut = await global.FillApplyReport.generateAndSave(
+                job,
+                fillResult,
+                runMode,
+                profile
+              );
+              reportPayload = reportOut.summary;
+              if (reportOut.report && reportOut.report.pdfBase64) {
+                reportPdfBase64 = reportOut.report.pdfBase64;
+              }
+              await S.appendSessionLog({
+                type: 'report',
+                jobId: job.id,
+                reportId: reportPayload && reportPayload.id,
+                filename: reportPayload && reportPayload.filename
+              });
+            } catch (reportErr) {
+              await S.appendSessionLog({
+                type: 'report_error',
+                jobId: job.id,
+                error: String(reportErr && reportErr.message ? reportErr.message : reportErr)
+              });
+            }
           }
+
+          const markPayload = failed
+            ? {
+                failed: true,
+                error: fillResult.error || 'Fill failed',
+                fillResult: fillResult,
+                runMode: runMode,
+                url: job.url
+              }
+            : {
+                fillResult: fillResult,
+                submitted: !!fillResult.submitted,
+                advanced: !!fillResult.advanced,
+                runMode: runMode,
+                resumeAttached: !!fillResult.resumeAttached,
+                coverAttached: !!fillResult.coverAttached,
+                url: job.url,
+                applicationReport: reportPayload ||
+                  (fillResult && fillResult.applicationReport) ||
+                  null,
+                reportSummary: reportPayload || null
+              };
+
+          if (reportPdfBase64) {
+            markPayload.pdfBase64 = reportPdfBase64;
+          }
+
+          await B.markApplied(job.id, markPayload);
           moved = true;
           currentJobId = null;
 
@@ -640,10 +736,12 @@
             counts: counts
           });
 
-          if (tab && tab.id != null) {
-            await closeAppliedTab(tab.id, config);
-            tab = null;
+          // Auto-close: Submit + submitted success only; keep recent context tabs
+          if (wasSubmitted && tab && tab.id != null) {
+            await trackSubmittedTabAndPrune(tab.id, job.id, config, tab.id);
           }
+          // fill / ready / failed: never auto-close
+          tab = null;
         } catch (e) {
           const msg = String(e && e.message ? e.message : e);
           await S.appendSessionLog({ type: 'error', jobId: job.id, error: msg });
@@ -663,11 +761,8 @@
             }
           }
           currentJobId = null;
-
-          if (tab && tab.id != null) {
-            await closeAppliedTab(tab.id, config);
-            tab = null;
-          }
+          // Failed / exception path: never auto-close (keep context for debugging)
+          tab = null;
         }
 
         if (!(await S.isRunning())) break;

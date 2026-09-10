@@ -746,6 +746,39 @@
     return { filled: 0, skipped: false, resumeAttached: false };
   }
 
+
+  function buildIndeedApplicationFields(profile) {
+    profile = profile || {};
+    var fields = [];
+    function add(label, value) {
+      if (value == null || value === '') return;
+      fields.push({ label: label, value: String(value).slice(0, 500) });
+    }
+    add('First name', profile.firstName);
+    add('Last name', profile.lastName);
+    add('Full name', profile.fullName);
+    add('Email', profile.email);
+    add('Phone', profile.phone);
+    add('Phone country', profile.phoneCountry);
+    add('Street', profile.street);
+    add('City', profile.city);
+    add('State / province', profile.state);
+    add('Country', profile.country);
+    add('Postcode', profile.postcode || profile.zip);
+    add('Authorized to work', profile.authorizedToWork);
+    add('Requires sponsorship', profile.requiresSponsorship);
+    if (profile.customAnswers && typeof profile.customAnswers === 'object') {
+      Object.keys(profile.customAnswers).forEach(function (k) {
+        add(k, profile.customAnswers[k]);
+      });
+    } else if (Array.isArray(profile.customQA)) {
+      profile.customQA.forEach(function (qa) {
+        if (qa && qa.question) add(qa.question, qa.answer);
+      });
+    }
+    return fields;
+  }
+
   function fillCurrentStep(profile, documents, flow) {
     var step = flow.step;
     var filled = 0;
@@ -891,6 +924,7 @@
               submitted = clickSubmit();
               await sleep(humanDelay(400));
             }
+            var appFields = buildIndeedApplicationFields(profile);
             return {
               ok: true,
               adapterId: 'indeed',
@@ -901,6 +935,12 @@
               submitted: submitted,
               resumeAttached: resumeAttached,
               step: 'review',
+              steps: ['contact', 'location', 'work_auth', 'resume', 'employer_questions', 'review'],
+              applicationFields: appFields,
+              applicationReport: {
+                fields: appFields,
+                steps: ['contact', 'location', 'work_auth', 'resume', 'employer_questions', 'review']
+              },
               runMode: runMode,
               error: null
             };

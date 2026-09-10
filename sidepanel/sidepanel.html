@@ -57,10 +57,29 @@
           <label class="row check auto-close">
             <input type="checkbox" id="autoCloseAppliedTab" checked />
             <span>
-              <strong>Auto-close applied tab</strong>
-              <span class="sub">Close after status move (applied/failed), before next job</span>
+              <strong>Auto-close old submitted tabs (keeps last N; Submit mode only)</strong>
+              <span class="sub">Prunes oldest after successful submit — never fill/ready</span>
             </span>
           </label>
+
+          <div class="row keep-tabs">
+            <label class="grow">Keep recent tabs
+              <input type="number" id="keepRecentTabs" min="3" max="10" step="1" value="5" />
+            </label>
+          </div>
+
+          <label class="row check">
+            <input type="checkbox" id="autoPdfReport" checked />
+            <span>
+              <strong>Auto PDF report</strong>
+              <span class="sub">On successful Submit only (Downloads)</span>
+            </span>
+          </label>
+
+          <div class="btn-row reports-row">
+            <button type="button" id="btnLastReport" class="secondary">Last report</button>
+          </div>
+          <ul id="recentReports" class="recent-reports" hidden></ul>
 
           <div class="btn-row">
             <button type="button" id="btnStart" class="primary">Start</button>

@@ -4,7 +4,7 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
-**Version 1.5.0** — Indeed multi-step apply (pk/ae/www), platform-wide Cloudflare/CAPTCHA human gate with side-panel **Resume**, notifications, plus side panel UI, run modes, and Greenhouse harden.
+**Version 1.6.0** — Submit-only keep-N tab auto-close, PDF application reports (Downloads + side panel), Indeed multi-step, Cloudflare/CAPTCHA human gate, run modes, Greenhouse harden.
 
 ## Load unpacked
 
@@ -35,9 +35,10 @@ Shared controls live in `ui/panel-app.js` (used by the side panel; `popup/` HTML
 
 ```
 sidepanel/      Primary UI — full-height right sidebar (sticky header, scrollable body)
-ui/panel-app.js Shared panel logic (profile, modes, Start/Stop, buckets, fill/seed)
+ui/panel-app.js Shared panel logic (profile, modes, Start/Stop, buckets, reports, fill/seed)
 popup/          Same markup/CSS width reference (not opened by toolbar; no default_popup)
-background/     Service worker — runner + sidePanel.setOptions / setPanelBehavior
+background/     Service worker — runner + sidePanel + PDF report helpers
+lib/report.js   Application report + minimal PDF writer + chrome.downloads
 runner/         Queue loop: next queued job → tab → detect → fill → applied/failed → close? → delay
 adapters/
   registry.js   register / detect
@@ -98,12 +99,13 @@ Side panel shows counts: **Queued / Applied / Failed / Cancelled**.
 The runner **never** opens `chrome-extension://…/demo/…` (executeScript cannot inject into extension pages). Demo URLs can **never** enter the mock queue.
 
 1. Options → enable **Mock mode** (default) → paste one apply URL per line under **Mock queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save mock URLs & rebuild queued**.
-2. Confirm **Auto-close applied tab** is ON (default) if you want each finished job tab closed after the status move.
-3. Side panel → **Seed sample profile** (once) — includes work auth / sponsorship Yes/No.
-4. Optional: Options → upload a small PDF resume/cover → **Save documents**.
-5. Side panel → set **Delay (sec)** → choose **Auto Fill / Auto Ready / Auto Submit**.
-6. Click **Start**. The runner opens each queued `https` URL, detects the adapter, fills (and optionally advances / submits), moves the job to applied or failed, optionally closes the tab, waits `delayMs`, then opens the next.
-7. Click **Stop** between jobs to halt (current → cancelled; remaining stay queued). **Reset mock queue** rebuilds queued from saved URLs.
+2. Confirm **Auto-close old submitted tabs** is ON (default) and set **Keep recent tabs** (3–10, default 5) if using **Submit** mode — fill/ready never auto-close.
+3. Confirm **Auto PDF report** is ON (default) to download an audit PDF after each successful Submit.
+4. Side panel → **Seed sample profile** (once) — includes work auth / sponsorship Yes/No.
+5. Optional: Options → upload a small PDF resume/cover → **Save documents**.
+6. Side panel → set **Delay (sec)** → choose **Auto Fill / Auto Ready / Auto Submit**.
+7. Click **Start**. The runner opens each queued `https` URL, detects the adapter, fills (and optionally advances / submits), moves the job to applied or failed, prunes oldest submitted tabs beyond the keep window (Submit success only), waits `delayMs`, then opens the next.
+8. Click **Stop** between jobs to halt (current → cancelled; remaining stay queued). **Reset mock queue** rebuilds queued from saved URLs.
 
 If no URLs are configured, Start fails with: **Add job apply URLs in Options (Mock queue)**.
 
@@ -111,6 +113,26 @@ If no URLs are configured, Start fails with: **Add job apply URLs in Options (Mo
 
 `demo/sample-application.html` is for **manual** testing only. Open it via Live Server or `file://`, then use **Fill current page**. Do **not** paste it into the mock queue.
 
+
+
+## Auto-close policy (Submit mode only)
+
+- **Fill** and **Ready** never auto-close tabs — you keep the just-filled page for review.
+- **Submit** + successful `submitted` result: the finished tab is tracked in an oldest-first list. When the count exceeds **Keep recent tabs** (`keepRecentTabs`, default **5**, configurable **3–10**), the **oldest** submitted tabs are closed first.
+- The active apply tab is never closed while it is being processed.
+- Toggle label: **Auto-close old submitted tabs (keeps last N; Submit mode only)**.
+- Failed jobs and exception paths also leave tabs open for debugging.
+
+## PDF application reports (Submit success)
+
+When a job is **submitted** via Submit mode and **Auto PDF report** is ON (default):
+
+1. The extension builds a structured `applicationReport` (title, company, URL, timestamp, adapter, run mode, field label→value map, resume/cover flags, status **Submitted**).
+2. A minimal PDF is generated in the service worker (`lib/report.js`) and saved via `chrome.downloads` as `FillApply-Report-{company}-{date}.pdf`.
+3. Report metadata is stored in `chrome.storage.local` (`fillApply.reports`) and listed in the side panel (**Last report** / recent list).
+4. A JSON summary (and optional small PDF base64) is included when calling backend `markApplied` / POST `/applied/:id`.
+
+Fill and Ready modes do **not** generate PDFs. Reports are the audit trail so applied jobs are never “blind.”
 
 ## Indeed apply flow
 
@@ -167,7 +189,7 @@ Set **Backend base URL** and turn **Mock mode** off.
 |--------|------|---------|
 | GET | `/queue` | List jobs `{ id, title, company, url, ats? }[]` |
 | GET | `/queue/next` | Next job or empty |
-| POST | `/applied/:id` | Body: fill result / submitted / runMode flags |
+| POST | `/applied/:id` | Body: fill result / submitted / runMode / `reportSummary` (+ optional `pdfBase64`) |
 | GET | `/profile` | Optional remote profile |
 | GET | `/documents` | `{ resume, cover }` each `{ name, mime, base64 }` or URL |
 
@@ -203,6 +225,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 | `alarms` | Reserved for durable delays |
 | `sidePanel` | Open Fill & Apply in Chrome’s right sidebar |
 | `notifications` | Alert when Cloudflare/CAPTCHA / Indeed drift needs a human |
+| `downloads` | Save PDF application reports after successful Submit |
 | host_permissions | Inject into http(s) / file job pages |
 
 ## Notes
@@ -211,12 +234,13 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 - Password fields are skipped.
 - Review every application before submitting. Do not misrepresent yourself.
 - **Auto Fill** is the default mode for safety.
-- **Auto-close applied tab** defaults ON; tabs close only **after** the job is moved to applied/failed so failure info is captured.
+- **Auto-close old submitted tabs** defaults ON; Submit-success only; keeps last N tabs (default 5). Fill/ready/failed never auto-close.
+- **Auto PDF report** defaults ON for successful Submit; files land in Downloads; side panel shows recent report meta.
 - Paste **real https apply URLs**; the demo page is manual-only and can never enter the mock queue.
 
 ## Reload test (Indeed + Cloudflare)
 
-1. `chrome://extensions` → **Reload** Fill & Apply (v1.5.0).
+1. `chrome://extensions` → **Reload** Fill & Apply (v1.6.0).
 2. Options → seed sample profile (includes `phoneCountry`, UAE location, Driving License / car / contracting `customAnswers`) → Save.
 3. Paste an `https://ae.indeed.com/…` or `https://pk.indeed.com/…` (or www) job URL into Mock queue → Save.
 4. Side panel → **Auto Ready** or **Auto Submit** → Start.
@@ -229,8 +253,8 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 1. `chrome://extensions` → **Reload** Fill & Apply.
 2. Options → paste a real `https://boards.greenhouse.io/…` (or `job-boards.greenhouse.io`) apply URL → Save → confirm Queued count ≥ 1 (no `chrome-extension:` lines).
 3. Upload resume/cover → Save documents. Seed sample profile.
-4. Click the toolbar icon → side panel → **Auto Fill** → Start. Confirm: text/selects filled, work-auth dropdowns leave “Select…”, resume/cover no longer “No file chosen”, job moves Queued → Applied (or Failed with an error), tab closes if auto-close ON, URL does not loop.
-5. Optional: try **Auto Ready** / **Auto Submit** on a second URL.
+4. Click the toolbar icon → side panel → **Auto Fill** → Start. Confirm: text/selects filled, work-auth dropdowns leave “Select…”, resume/cover no longer “No file chosen”, job moves Queued → Applied (or Failed with an error), tab **stays open** in Fill mode, URL does not loop.
+5. Optional: try **Auto Ready** (tabs stay open) / **Auto Submit** (PDF report + keep-N tab prune) on further URLs.
 
 
 ## Branding

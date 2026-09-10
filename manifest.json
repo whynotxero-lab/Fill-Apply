@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.5.0",
-  "description": "Queue-driven job-application filler: Indeed multi-step, Cloudflare/CAPTCHA pause, fill/ready/submit modes, ATS adapters, side panel.",
+  "version": "1.6.0",
+  "description": "Queue-driven job-application filler: submit-only tab keep-N auto-close, PDF apply reports, Indeed multi-step, challenge pause, fill/ready/submit modes.",
   "permissions": [
     "storage",
     "activeTab",
@@ -10,7 +10,8 @@
     "tabs",
     "alarms",
     "sidePanel",
-    "notifications"
+    "notifications",
+    "downloads"
   ],
   "host_permissions": [
     "http://*/*",

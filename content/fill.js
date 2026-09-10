@@ -512,13 +512,21 @@
         setNativeValue(el, value);
         filled += 1;
         if (highlightUnmatched) highlight(el, 'filled');
-        details.push({ key: key, name: descriptor.name || descriptor.id, ok: true });
+        details.push({
+          key: key,
+          name: descriptor.name || descriptor.id,
+          label: descriptor.label || key || descriptor.name || descriptor.id,
+          value: String(value).slice(0, 500),
+          ok: true
+        });
       } else {
         unmatched += 1;
         if (highlightUnmatched) highlight(el, 'unmatched');
         details.push({
           key: null,
           name: descriptor.name || descriptor.id || descriptor.label.slice(0, 40),
+          label: descriptor.label || descriptor.name || descriptor.id || '',
+          value: null,
           ok: false
         });
       }
@@ -528,6 +536,25 @@
     const customFilled = fillCustomDropdowns(profile, map);
     filled += customFilled.length;
 
+    const applicationFields = [];
+    details.forEach(function (d) {
+      if (d && d.ok && (d.label || d.key)) {
+        applicationFields.push({
+          label: d.label || d.key,
+          key: d.key,
+          value: d.value
+        });
+      }
+    });
+    customFilled.forEach(function (c) {
+      if (!c) return;
+      applicationFields.push({
+        label: c.label || c.key || 'dropdown',
+        key: c.key || null,
+        value: c.value
+      });
+    });
+
     return {
       ok: true,
       filled: filled,
@@ -535,6 +562,11 @@
       total: fields.length,
       details: details,
       customDropdownsFilled: customFilled,
+      applicationFields: applicationFields,
+      applicationReport: {
+        fields: applicationFields,
+        steps: []
+      },
       inspection: {
         counts: inspection.counts,
         selectCount: inspection.counts.select,

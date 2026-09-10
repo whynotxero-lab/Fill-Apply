@@ -16,6 +16,10 @@
   const highlightEl = document.getElementById('highlightUnmatched');
   const delaySecEl = document.getElementById('delaySec');
   const autoCloseEl = document.getElementById('autoCloseAppliedTab');
+  const keepRecentTabsEl = document.getElementById('keepRecentTabs');
+  const autoPdfReportEl = document.getElementById('autoPdfReport');
+  const btnLastReport = document.getElementById('btnLastReport');
+  const recentReportsEl = document.getElementById('recentReports');
   const runStateEl = document.getElementById('runState');
   const queueStatusEl = document.getElementById('queueStatus');
   const countQueuedEl = document.getElementById('countQueued');
@@ -177,6 +181,14 @@
         (data.config.autoSubmit ? 'submit' : 'fill');
       setSelectedRunMode(mode);
       autoCloseEl.checked = data.config.autoCloseAppliedTab !== false;
+      if (keepRecentTabsEl) {
+        keepRecentTabsEl.value = String(
+          data.config.keepRecentTabs != null ? data.config.keepRecentTabs : 5
+        );
+      }
+      if (autoPdfReportEl) {
+        autoPdfReportEl.checked = data.config.autoPdfReport !== false;
+      }
     }
   }
 
@@ -192,11 +204,16 @@
   function readConfigPartial() {
     const sec = Number(delaySecEl.value);
     const runMode = getSelectedRunMode();
+    let keep = keepRecentTabsEl ? Number(keepRecentTabsEl.value) : 5;
+    if (!Number.isFinite(keep)) keep = 5;
+    keep = Math.min(10, Math.max(3, Math.round(keep)));
     return {
       delayMs: (Number.isFinite(sec) && sec >= 0 ? sec : 3) * 1000,
       runMode: runMode,
       autoSubmit: runMode === 'submit',
-      autoCloseAppliedTab: !!autoCloseEl.checked
+      autoCloseAppliedTab: !!autoCloseEl.checked,
+      keepRecentTabs: keep,
+      autoPdfReport: autoPdfReportEl ? !!autoPdfReportEl.checked : true
     };
   }
 
@@ -296,12 +313,94 @@
       await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() });
       setStatus(
         autoCloseEl.checked
-          ? 'Auto-close applied tab: ON'
-          : 'Auto-close applied tab: OFF (tabs stay open)',
+          ? 'Auto-close old submitted tabs: ON (Submit only)'
+          : 'Auto-close: OFF (tabs stay open)',
         'ok'
       );
     } catch (_e) {}
   });
+
+  if (keepRecentTabsEl) {
+    keepRecentTabsEl.addEventListener('change', async function () {
+      try {
+        const cfg = readConfigPartial();
+        await send('FILL_APPLY_SAVE_CONFIG', { config: cfg });
+        keepRecentTabsEl.value = String(cfg.keepRecentTabs);
+        setStatus('Keep recent submitted tabs: ' + cfg.keepRecentTabs, 'ok');
+      } catch (_e) {}
+    });
+  }
+
+  if (autoPdfReportEl) {
+    autoPdfReportEl.addEventListener('change', async function () {
+      try {
+        await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() });
+        setStatus(
+          autoPdfReportEl.checked
+            ? 'Auto PDF report: ON (Submit success)'
+            : 'Auto PDF report: OFF',
+          'ok'
+        );
+      } catch (_e) {}
+    });
+  }
+
+  async function refreshReports() {
+    if (!recentReportsEl && !btnLastReport) return;
+    try {
+      const data = await send('FILL_APPLY_GET_REPORTS');
+      const reports = (data && data.reports) || [];
+      if (recentReportsEl) {
+        if (!reports.length) {
+          recentReportsEl.hidden = true;
+          recentReportsEl.innerHTML = '';
+        } else {
+          recentReportsEl.hidden = false;
+          const slice = reports.slice(-5).reverse();
+          recentReportsEl.innerHTML = slice
+            .map(function (r) {
+              const when = r.timestamp ? new Date(r.timestamp).toLocaleString() : '';
+              const title = (r.company || r.title || r.jobId || 'Report').slice(0, 42);
+              const file = r.filename ? ' · ' + r.filename : '';
+              return (
+                '<li><strong>' +
+                title +
+                '</strong><span class="sub"> ' +
+                when +
+                file +
+                '</span></li>'
+              );
+            })
+            .join('');
+        }
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
+  if (btnLastReport) {
+    btnLastReport.addEventListener('click', async function () {
+      try {
+        const data = await send('FILL_APPLY_GET_LAST_REPORT');
+        const r = data && data.report;
+        if (!r) {
+          setStatus('No submitted reports yet — run Auto Submit successfully first.', 'warn');
+          return;
+        }
+        await refreshReports();
+        setStatus(
+          'Last report: ' +
+            (r.company || r.title || r.jobId || r.id) +
+            (r.filename ? ' → ' + r.filename : '') +
+            ' (check Downloads)',
+          'ok'
+        );
+      } catch (e) {
+        setStatus('Reports: ' + e.message, 'err');
+      }
+    });
+  }
 
   async function getActiveTab() {
     // Side panel: prefer lastFocusedWindow so we hit the browsing window, not an empty set.
@@ -421,5 +520,7 @@
     setStatus(String(e.message || e), 'err');
   });
   refreshStatus();
+  refreshReports();
   setInterval(refreshStatus, 1500);
+  setInterval(refreshReports, 5000);
 })();

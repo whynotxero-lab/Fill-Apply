@@ -139,6 +139,10 @@
     const mode = cfg.runMode || (cfg.autoSubmit ? 'submit' : 'fill');
     document.getElementById('runMode').value = mode;
     document.getElementById('autoCloseAppliedTab').checked = cfg.autoCloseAppliedTab !== false;
+    const keepEl = document.getElementById('keepRecentTabs');
+    if (keepEl) keepEl.value = String(cfg.keepRecentTabs != null ? cfg.keepRecentTabs : 5);
+    const pdfEl = document.getElementById('autoPdfReport');
+    if (pdfEl) pdfEl.checked = cfg.autoPdfReport !== false;
   }
 
   async function loadMockUrls() {
@@ -171,14 +175,19 @@
     try {
       const sec = Number(document.getElementById('delaySec').value);
       const runMode = document.getElementById('runMode').value || 'fill';
+      const keepRaw = Number(document.getElementById('keepRecentTabs').value);
+      const keep = Number.isFinite(keepRaw) ? Math.min(10, Math.max(3, Math.round(keepRaw))) : 5;
       const next = await FillApplyStorage.saveRunConfig({
         backendBaseUrl: document.getElementById('backendBaseUrl').value.trim(),
         mockMode: document.getElementById('mockMode').checked,
         delayMs: (Number.isFinite(sec) && sec >= 0 ? sec : 3) * 1000,
         runMode: runMode,
         autoSubmit: runMode === 'submit',
-        autoCloseAppliedTab: document.getElementById('autoCloseAppliedTab').checked
+        autoCloseAppliedTab: document.getElementById('autoCloseAppliedTab').checked,
+        keepRecentTabs: keep,
+        autoPdfReport: document.getElementById('autoPdfReport').checked
       });
+      document.getElementById('keepRecentTabs').value = String(next.keepRecentTabs);
       setStatus(
         configStatus,
         'Config saved (mode ' +
@@ -186,7 +195,9 @@
           '; delay ' +
           next.delayMs +
           'ms; auto-close ' +
-          (next.autoCloseAppliedTab ? 'ON' : 'OFF') +
+          (next.autoCloseAppliedTab ? 'ON keep ' + next.keepRecentTabs : 'OFF') +
+          '; PDF ' +
+          (next.autoPdfReport ? 'ON' : 'OFF') +
           ').',
         'ok'
       );
@@ -306,3 +317,28 @@
   refreshDocsMeta().catch(function () {});
   refreshBucketCounts().catch(function () {});
 })();
+
+  const btnLastReport = document.getElementById('btnLastReport');
+  const reportStatus = document.getElementById('reportStatus');
+  if (btnLastReport) {
+    btnLastReport.addEventListener('click', async function () {
+      try {
+        const data = await send('FILL_APPLY_GET_LAST_REPORT');
+        const r = data && data.report;
+        if (!r) {
+          setStatus(reportStatus, 'No submitted reports yet.', 'warn');
+          return;
+        }
+        setStatus(
+          reportStatus,
+          'Last: ' +
+            (r.company || r.title || r.jobId || r.id) +
+            (r.filename ? ' → Downloads/' + r.filename : '') +
+            (r.timestamp ? ' @ ' + new Date(r.timestamp).toLocaleString() : ''),
+          'ok'
+        );
+      } catch (e) {
+        setStatus(reportStatus, e.message, 'err');
+      }
+    });
+  }

@@ -93,6 +93,8 @@
       unmatched: fillResult.unmatched || 0,
       total: fillResult.total || 0,
       details: fillResult.details || [],
+      applicationFields: fillResult.applicationFields || [],
+      applicationReport: fillResult.applicationReport || null,
       filesAttached: filesAttached,
       resumeAttached: !!(filesAttached && filesAttached.resumeAttached),
       coverAttached: !!(filesAttached && filesAttached.coverAttached),

@@ -2,13 +2,14 @@
  * MV3 service worker — owns the runner state machine and message API.
  * Also configures chrome.sidePanel so the toolbar action opens the right sidebar.
  */
-/* global importScripts, FillApplyTypes, FillApplyStorage, FillApplyProfile, FillApplyBackend, FillApplyRunner */
+/* global importScripts, FillApplyTypes, FillApplyStorage, FillApplyProfile, FillApplyBackend, FillApplyReport, FillApplyRunner */
 
 importScripts(
   '../lib/types.js',
   '../lib/storage.js',
   '../lib/profile.js',
   '../lib/backend.js',
+  '../lib/report.js',
   '../runner/runner.js'
 );
 
@@ -43,6 +44,12 @@ chrome.runtime.onInstalled.addListener(function (details) {
     const patch = {};
     if (typeof cfg.autoCloseAppliedTab === 'undefined') {
       patch.autoCloseAppliedTab = true;
+    }
+    if (typeof cfg.keepRecentTabs === 'undefined') {
+      patch.keepRecentTabs = 5;
+    }
+    if (typeof cfg.autoPdfReport === 'undefined') {
+      patch.autoPdfReport = true;
     }
     if (!cfg.runMode || ['fill', 'ready', 'submit'].indexOf(cfg.runMode) === -1) {
       patch.runMode = cfg.autoSubmit ? 'submit' : 'fill';
@@ -178,6 +185,25 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
 
   if (message.type === 'FILL_APPLY_GET_BUCKETS') {
     return reply(FillApplyBackend.getBucketsSnapshot());
+  }
+
+
+  if (message.type === 'FILL_APPLY_GET_REPORTS' || message.type === MSG.GET_REPORTS) {
+    return reply(
+      (async function () {
+        const reports = FillApplyReport ? await FillApplyReport.getReports() : [];
+        return { reports: reports };
+      })()
+    );
+  }
+
+  if (message.type === 'FILL_APPLY_GET_LAST_REPORT' || message.type === MSG.GET_LAST_REPORT) {
+    return reply(
+      (async function () {
+        const last = FillApplyReport ? await FillApplyReport.getLastReport() : null;
+        return { report: last };
+      })()
+    );
   }
 
   return false;

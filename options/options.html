@@ -44,16 +44,28 @@
             </label>
             <label class="check span2">
               <input type="checkbox" id="autoCloseAppliedTab" checked />
-              <span><strong>Auto-close applied tab</strong> — close after status move (applied/failed), before next job (default ON)</span>
+              <span><strong>Auto-close old submitted tabs (keeps last N; Submit mode only)</strong> — prune oldest applied tabs beyond the keep window after a successful submit (default ON)</span>
+            </label>
+            <label>Keep recent submitted tabs
+              <input type="number" id="keepRecentTabs" min="3" max="10" step="1" value="5" />
+            </label>
+            <label class="check span2">
+              <input type="checkbox" id="autoPdfReport" checked />
+              <span><strong>Auto PDF report</strong> — download an application PDF after successful Submit (default ON; fill/ready never generate)</span>
             </label>
           </div>
           <p class="hint">
             <strong>Modes:</strong> <em>fill</em> never clicks Next/Submit;
             <em>ready</em> advances multi-step forms but never final Submit/Apply;
             <em>submit</em> includes final Submit when confidently found.
+            <strong>Auto-close</strong> never runs in fill/ready — only after submit success, keeping the last N tabs (3–10) for context.
             Queues: <code>queued</code> → <code>applied</code> / <code>failed</code> / <code>cancelled</code>.
             On Stop, the current incomplete job moves to cancelled; remaining stay queued.
           </p>
+          <div class="actions" style="margin-top:8px">
+            <button type="button" id="btnLastReport" class="ghost">Open last report meta</button>
+            <span id="reportStatus" class="status" role="status"></span>
+          </div>
           <button type="button" id="btnSaveConfig" class="primary">Save runner config</button>
           <span id="configStatus" class="status" role="status"></span>
         </section>
