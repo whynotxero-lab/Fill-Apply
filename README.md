@@ -194,7 +194,7 @@ Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhou
 
 ## Jooble → Swooped / external ATS
 
-Jooble is a **discovery** aggregator; **Apply** often opens **Swooped** (assisted-apply intermediary) or an employer ATS. Fill & Apply clicks Jooble Apply, re-detects on the new host, prefers Swooped **Apply manually instead** (never Auto Apply / Upgrade / auto-build), then fills the destination ATS after handoff. See [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#jooble--swooped--external-ats).
+Jooble is a **discovery** aggregator; **Apply** often opens **Swooped** (assisted-apply intermediary) or an employer ATS. Fill & Apply clicks Jooble Apply, re-detects on the new host, prefers Swooped **Apply manually instead** (never product Auto Apply / Upgrade). If already in Swooped **Apply Agent** (Needs Input), it uploads the stored resume, prefers **Focused & Impactful**, fills profile questions + **Save Answer**, skips EEO, and only clicks **Autofill & Submit** in submit mode. See [APPLICATION_GUIDE](docs/APPLICATION_GUIDE.md#jooble--swooped--external-ats).
 
 ## Working Nomads → Greenhouse
 

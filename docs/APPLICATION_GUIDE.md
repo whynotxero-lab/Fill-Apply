@@ -292,31 +292,46 @@ Footer marker: **Powered by CATS**.
 
 ## Jooble → Swooped / external ATS
 
-**Status:** Discovery board (**Jooble**) + assisted-apply intermediary (**Swooped**). Same handoff pattern as We Work Remotely → CATS / Working Nomads → Greenhouse.
+**Status:** Discovery board (**Jooble**) + assisted-apply intermediary (**Swooped**). Same handoff pattern as We Work Remotely → CATS / Working Nomads → Greenhouse, plus optional **Apply Agent** Needs Input fill when already inside Swooped.
 
 ### Operator paste (example)
 
 1. Jooble job page (e.g. a Salla role) → **Apply**
 2. Lands on **Swooped** UI (Find Jobs / Auto Apply / Track Jobs / Resumes / Cover Letters / Upgrade; filters; company job detail; **Prepare Application**)
 3. Swooped offers: "We'll build your entire application… Upload your resume…" (tailored resume/cover) **or** **Apply manually instead**
+4. After packet build: **Apply Agent** workspace — job in Queue with **Needs Input** (profile questions + **Save Answer**; optional **Autofill & Submit**)
 
 ### What Fill & Apply does today
 
 1. **Jooble** (`jooble.org`): clicks **Apply** / **Apply now** / **Apply for this job** (skips unrelated / Auto Apply / Upgrade chrome).
 2. On navigation **away from jooble.org**, returns `externalApply` / `deferToPageAdapter` / `handedOff`. The **runner waits for load and re-injects** so `registry.detect` picks **Swooped** or an employer ATS.
-3. **Swooped** (`swooped.co`, `www.swooped.co`, `app.swooped.co`, plus content markers such as "Auto Apply", "Prepare Application", "Apply manually instead", "We'll build your entire application"):
-   - **Does not** use Swooped **Auto Apply**, paid **Upgrade**, or auto-build application packets.
-   - Prefers **Apply manually instead** when present, then hands off again if the host changes to an employer ATS.
-   - If stuck on the Prepare Application / resume-upload wall with no manual path → `needsHuman` pause explaining the Swooped intermediary.
-   - `paidSource: false` unless an Upgrade / subscription wall blocks — then pause (never purchase).
-4. After a successful manual handoff, Fill & Apply fills the **destination ATS** (Greenhouse, Lever, company careers, …) with the saved profile.
+3. **Swooped** (`swooped.co`, `www.swooped.co`, `app.swooped.co`, plus content markers such as "Auto Apply", "Prepare Application", "Apply manually instead", "We'll build your entire application", "Application packet ready", "Needs Input"):
+   - **Prefers Apply manually instead** when present **before** entering the auto-packet path — then hands off to the employer ATS if the host changes.
+   - **Does not** click Swooped product **Auto Apply**, paid **Upgrade**, or purchase flows (`paidSource: false` unless an Upgrade wall blocks → pause, never purchase).
+   - If already in **Prepare Application** / **Apply Agent** (no useful manual escape):
+     1. Upload Fill & Apply stored **resume** via DataTransfer when a file input is present.
+     2. Resume style chooser: prefer **Focused & Impactful** / "Choose focused resume" (default) unless `profile.resumeStyle` / `customAnswers.resumeStyle` says comprehensive.
+     3. Wait for **"Application packet ready"** (or Needs Input / Apply Agent UI).
+     4. Fill **Needs Input** from active profile + `customAnswers`, then click **Save Answer** when present:
+        - First Name*, Last Name*, Email*, Phone*, Location*
+        - LinkedIn Profile*
+        - Salary / first year OTE expectations → `customAnswers`
+        - Located in Saudi Arabia / primary work location → profile location / `customAnswers`
+        - Legally authorized to work → `authorizedToWork`
+        - Visa sponsorship → `requiresSponsorship`
+        - If yes: work auth basis/expiry; if no: **"N/A"** → `customAnswers`
+        - OFAC citizen/resident of sanctioned countries → default **No** / `customAnswers`
+     5. EEO/diversity (gender, race, orientation, transgender, disability, veteran, voluntary self-ID): **Skip** / prefer not — never invent.
+     6. Modes: **fill / ready** = fill Needs Input + Save Answer, do **not** click **Autofill & Submit**; **submit** may click **Autofill & Submit** only after requireds are filled.
+4. After a successful **Apply manually instead** handoff, Fill & Apply fills the **destination ATS** (Greenhouse, Lever, company careers, …) with the saved profile.
 
 ### Operator checklist
 
 1. Prefer queueing the **final employer ATS URL** when you already have it.
 2. Or queue the Jooble job page and let Apply → Swooped → **Apply manually instead** hand off.
-3. Never rely on Swooped Auto Apply / Upgrade as Fill & Apply's path.
-4. If paused on a Swooped prepare wall, open the employer apply URL (or click Apply manually instead yourself) and **Resume**.
+3. Map salary/OTE, Saudi location, work-auth basis, OFAC, etc. in **customAnswers** before Submit mode on Swooped Agent Workspace.
+4. Never rely on Swooped product Auto Apply / Upgrade as Fill & Apply's path.
+5. If paused on a Swooped prepare wall, open the employer apply URL (or click Apply manually instead yourself) and **Resume**.
 
 ### Related
 
