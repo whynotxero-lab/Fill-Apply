@@ -61,7 +61,8 @@
     'adapters/ats/icims.js',
     'adapters/boards/indeed.js',
     'adapters/boards/naukrigulf.js',
-    'adapters/boards/remoteok.js'
+    'adapters/boards/remoteok.js',
+    'adapters/boards/weworkremotely.js'
   ];
 
   function setStatus(text, kind) {

@@ -161,6 +161,35 @@ Remote OK (`remoteok.com`) gates apply / early access behind a subscription (e.g
 
 - Adapter: `adapters/boards/remoteok.js` (`paidSource: true`, `noFreeTrial: true`)
 
+## We Work Remotely — paid source
+
+**Status:** **PAID JOB SOURCE** (like Remote OK) + **full profile prerequisite**.
+
+We Work Remotely (`weworkremotely.com`) expects:
+
+1. A **complete WWR profile** before reliable job/apply access.
+2. A **paid plan** for full access (operator paste showed checkout ~**$2.95 first month**, then **$14.95/month**, **12-month commitment** — discounted intro, still paid; not a free apply unlock).
+
+### What Fill & Apply does today
+
+1. Detects WWR hosts.
+2. If **profile incomplete / onboarding** → **pause + notify** (finish profile on WWR, then Resume).
+3. If **paywall / checkout** (“Get Full Access…”, Step 3 of 3, Payment Method, $14.95 / $2.95) → **pause**. Does **not** enter card details or complete purchase.
+4. Until paid access exposes the real apply form, the adapter will not fake Submit.
+5. Full apply automation is adapted **after** paid unlock + paste-library of the real apply UI.
+
+### Operator checklist
+
+1. Complete WWR profile 100%.
+2. Subscribe only if you choose to pay for the source.
+3. Respect per-source caps (default 2, max 3).
+4. Paste unlocked apply screens when ready for deeper adapter work.
+
+### Related
+
+- Adapter: `adapters/boards/weworkremotely.js` (`paidSource`, `requiresCompleteProfile`)
+- Similar pattern: [Remote OK — paid source](#remote-ok--paid-source)
+
 ## Related docs
 
 - Main project README (load unpacked, architecture, Greenhouse / Indeed notes).
