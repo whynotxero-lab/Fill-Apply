@@ -537,3 +537,35 @@ button.danger { background: #7f1d1d; color: #fecaca; }
 }
 .mf-field textarea { min-height: 56px; resize: vertical; }
 .mf-actions { margin-top: 4px; }
+
+
+.source-gate-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #3b0764;
+  border: 1px solid #a855f788;
+  margin-bottom: 8px;
+}
+.source-gate-banner[hidden] { display: none !important; }
+.source-gate-message {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e9d5ff;
+  line-height: 1.35;
+}
+.batch-order-chip {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #86efac;
+  background: #22c55e18;
+  border: 1px solid #22c55e44;
+  border-radius: 999px;
+  padding: 4px 10px;
+  display: inline-block;
+}
+.batch-order-chip[hidden] { display: none !important; }

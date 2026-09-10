@@ -1,6 +1,6 @@
 /**
  * Shared panel UI logic for sidepanel/ (and popup/ markup).
- * v1.12 — lean runner console + missing-fields modal, Single settle/pace, focus HUD.
+ * v1.13 — source profiles gate, batch-by-source, App Settings rename, missing-fields modal.
  */
 (function () {
   'use strict';
@@ -41,8 +41,15 @@
   const btnEmptyYes = document.getElementById('btnEmptyYes');
   const btnEmptyNo = document.getElementById('btnEmptyNo');
   const liveLogEl = document.getElementById('liveLog');
+  const sourceGateBannerEl = document.getElementById('sourceGateBanner');
+  const sourceGateMessageEl = document.getElementById('sourceGateMessage');
+  const btnOpenSourceSettings = document.getElementById('btnOpenSourceSettings');
+  const batchOrderChipEl = document.getElementById('batchOrderChip');
 
   const RUNNER_MODE_KEY = 'fillApply.ui.runnerMode';
+  let sourceGateIncomplete = false;
+  let sourceGateLabel = '';
+
 
   const MSG = (globalThis.FillApplyTypes && globalThis.FillApplyTypes.MSG) || {
     START: 'FILL_APPLY_START',
@@ -202,7 +209,11 @@
         runStateEl.className = 'run-state ' + (running ? 'running' : 'idle');
       }
     }
-    if (btnStart) btnStart.disabled = running || paused;
+    if (btnStart) btnStart.disabled = running || paused || sourceGateIncomplete;
+    if (batchOrderChipEl) {
+      var rm = getRunnerMode();
+      batchOrderChipEl.hidden = rm !== 'batch';
+    }
     if (btnStop) btnStop.disabled = !running && !paused;
     if (pauseBannerEl) {
       if (paused) {
@@ -431,7 +442,7 @@
     var els = getMissingModalEls();
     if (!els.modal || !els.list) {
       setStatus(
-        'Missing profile field(s): ' + fields.join(', ') + ' — open Options or reload panel.',
+        'Missing profile field(s): ' + fields.join(', ') + ' — open App Settings or reload panel.',
         'warn'
       );
       return;
@@ -567,7 +578,7 @@
     if (els.cancel) {
       els.cancel.addEventListener('click', function () {
         hideMissingFieldsModal();
-        setStatus('Cancelled — fill fields in Options when ready, then Resume / Single again.', 'warn');
+        setStatus('Cancelled — fill fields in App Settings when ready, then Resume / Single again.', 'warn');
       });
     }
     chrome.runtime.onMessage.addListener(function (message) {
@@ -594,6 +605,67 @@
     });
   }
 
+  function openAppSettings(hash) {
+    try {
+      if (hash) {
+        chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') + (hash || '') });
+      } else {
+        chrome.runtime.openOptionsPage();
+      }
+    } catch (_e) {
+      chrome.runtime.openOptionsPage();
+    }
+  }
+
+  async function refreshSourceGate() {
+    sourceGateIncomplete = false;
+    sourceGateLabel = '';
+    if (!globalThis.FillApplySourceProfiles) {
+      if (sourceGateBannerEl) sourceGateBannerEl.hidden = true;
+      return;
+    }
+    try {
+      var selected = await FillApplySourceProfiles.getSelectedSourceId();
+      if (!selected) {
+        if (sourceGateBannerEl) sourceGateBannerEl.hidden = true;
+        if (btnStart && runStateEl) {
+          var running = /Running/i.test(runStateEl.textContent || '');
+          var paused = /Paused/i.test(runStateEl.textContent || '');
+          btnStart.disabled = running || paused;
+        }
+        return;
+      }
+      var c = await FillApplySourceProfiles.getCompleteness(selected);
+      sourceGateLabel = c.label || selected;
+      if (!c.complete) {
+        sourceGateIncomplete = true;
+        if (sourceGateBannerEl) {
+          sourceGateBannerEl.hidden = false;
+          if (sourceGateMessageEl) {
+            sourceGateMessageEl.textContent =
+              'Complete [' + sourceGateLabel + '] source profile (' + c.filled + '/' + c.total + ')';
+          }
+        }
+        if (btnStart) btnStart.disabled = true;
+      } else {
+        if (sourceGateBannerEl) sourceGateBannerEl.hidden = true;
+      }
+    } catch (_e) {
+      if (sourceGateBannerEl) sourceGateBannerEl.hidden = true;
+    }
+  }
+
+  async function assertSourceGateOrThrow() {
+    if (!globalThis.FillApplySourceProfiles) return null;
+    var gate = await FillApplySourceProfiles.assertSelectedSourceComplete();
+    if (!gate.ok) {
+      await refreshSourceGate();
+      openAppSettings('#sec-source-profiles');
+      throw new Error(gate.error || 'Complete selected source profile in App Settings');
+    }
+    return gate;
+  }
+
   async function fillCurrentPage() {
     setStatus('Filling…');
     await liveLog('single_start', 'Single — detecting adapter / waiting for page');
@@ -613,11 +685,30 @@
         return;
       }
 
-      const profile = await FillApplyProfile.getProfile();
+      await assertSourceGateOrThrow();
+
+      var profile = await FillApplyProfile.getProfile();
       if (!(profile.email || profile.fullName || profile.firstName)) {
-        setStatus('Profile is empty. Open Options and fill identity first.', 'warn');
+        setStatus('Profile is empty. Open App Settings and fill identity first.', 'warn');
         return;
       }
+      if (globalThis.FillApplySourceProfiles && FillApplySourceProfiles.getEffectiveProfile) {
+        profile = await FillApplySourceProfiles.getEffectiveProfile(profile);
+      }
+      // Warn if selected source ≠ page host (still allow)
+      try {
+        var sel = await FillApplySourceProfiles.getSelectedSourceId();
+        if (sel && tab.url) {
+          var pageSrc = FillApplySourceProfiles.detectSourceIdFromUrl(tab.url);
+          if (pageSrc && pageSrc !== 'generic' && pageSrc !== sel) {
+            setStatus(
+              'Selected source is ' + sel + ' but page looks like ' + pageSrc + ' — continuing.',
+              'warn'
+            );
+            await liveLog('source_mismatch', 'Selected ' + sel + ' vs page ' + pageSrc);
+          }
+        }
+      } catch (_wm) { /* ignore */ }
 
       const documents = await resolveDocsForFill(profile);
       const highlightUnmatched = highlightEl ? highlightEl.checked : false;
@@ -814,7 +905,7 @@
         var msg =
           result.error ||
           'Paused — missing profile field(s): ' +
-            (missing.join(', ') || 'see Options');
+            (missing.join(', ') || 'see App Settings');
         await liveLog('missing_fields', msg, { missingProfileFields: missing });
         var pausePayload = {
           jobId: null,
@@ -884,7 +975,12 @@
 
   if (btnOptions) {
     btnOptions.addEventListener('click', function () {
-      chrome.runtime.openOptionsPage();
+      openAppSettings();
+    });
+  }
+  if (btnOpenSourceSettings) {
+    btnOpenSourceSettings.addEventListener('click', function () {
+      openAppSettings('#sec-source-profiles');
     });
   }
 
@@ -925,6 +1021,12 @@
   if (btnStart) {
     btnStart.addEventListener('click', async function () {
       hideEmptyPrompt();
+      try {
+        await assertSourceGateOrThrow();
+      } catch (ge) {
+        setStatus(String(ge.message || ge), 'err');
+        return;
+      }
       const runnerMode = getRunnerMode();
       if (runnerMode === 'single') {
         setStatus('Single — filling current page…');
@@ -950,10 +1052,13 @@
         const data = await send(MSG.START, { config: readConfigPartial(), resetMock: false });
         applyStatus(data);
         const mode = getSelectedRunMode();
-        setStatus('Batch runner started (' + mode + ').', 'ok');
+        setStatus('Batch runner started (' + mode + ') — order by source.', 'ok');
         await refreshLiveLog();
       } catch (e) {
-        // If start fails due to empty queue, offer single-page fill
+        if (/SOURCE_PROFILE|source profile|App Settings/i.test(String(e.message || ''))) {
+          await refreshSourceGate();
+          openAppSettings('#sec-source-profiles');
+        }
         if (/Application queue|Mock queue|no url|empty/i.test(String(e.message || ''))) {
           showEmptyPrompt();
         }
@@ -972,7 +1077,7 @@
   if (btnEmptyNo) {
     btnEmptyNo.addEventListener('click', function () {
       hideEmptyPrompt();
-      chrome.runtime.openOptionsPage();
+      openAppSettings('#sec-queue');
     });
   }
 
@@ -1008,7 +1113,7 @@
       try {
         const data = await send('FILL_APPLY_RESET_MOCK');
         if (!data.remaining) {
-          setStatus('Queued empty — add https apply URLs in Options (Application queue).', 'warn');
+          setStatus('Queued empty — add https apply URLs in App Settings (Application queue).', 'warn');
         } else {
           setStatus('Queued rebuilt (' + data.remaining + ' jobs).', 'ok');
         }
@@ -1095,6 +1200,7 @@
     if (summaryEl) summaryEl.textContent = 'Could not load profile';
     setStatus(String(e.message || e), 'err');
   });
+  refreshSourceGate().catch(function () {});
   refreshStatus();
   refreshReports();
   refreshLiveLog();
@@ -1103,7 +1209,16 @@
   setInterval(function () {
     refreshProfileSelect().catch(function () {});
     refreshSummary().catch(function () {});
+    refreshSourceGate().catch(function () {});
   }, 5000);
+  if (chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener(function (changes, area) {
+      if (area !== 'local') return;
+      if (changes['fillApply.selectedSourceId'] || changes['fillApply.sourceProfiles'] || changes['fillApply.profiles']) {
+        refreshSourceGate().catch(function () {});
+      }
+    });
+  }
 
   try {
     var man = chrome.runtime.getManifest && chrome.runtime.getManifest();

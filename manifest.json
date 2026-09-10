@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.12.0",
-  "description": "Queue-driven job-application filler: missing-fields in-panel popup, Single settle+pace, focus HUD, number-input salary sanitize, host-first adapters, Apply-start / Teamtailor / Zahid General.",
+  "version": "1.13.0",
+  "description": "Queue-driven job-application filler: source profiles + Start gate, batch-by-source, App Settings, missing-fields popup, focus HUD, Apply-start / Teamtailor / Mock.",
   "permissions": [
     "storage",
     "activeTab",

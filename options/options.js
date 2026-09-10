@@ -4,6 +4,7 @@
   const SECTIONS_KEY = 'fillApply.ui.sections';
   const DEFAULT_SECTIONS = {
     profiles: true,
+    sourceProfiles: true,
     profileSettings: false,
     backend: false,
     caps: false,
@@ -46,6 +47,16 @@
   const btnProfileDelete = document.getElementById('btnProfileDelete');
   const btnZahidGeneral = document.getElementById('btnZahidGeneral');
   const btnResetMockProfile = document.getElementById('btnResetMockProfile');
+
+  const selectedSourceIdEl = document.getElementById('selectedSourceId');
+  const sourceCompletenessMeter = document.getElementById('sourceCompletenessMeter');
+  const sourceNoteEl = document.getElementById('sourceNote');
+  const sourceFieldsForm = document.getElementById('sourceFieldsForm');
+  const sourceProfileStatus = document.getElementById('sourceProfileStatus');
+  const btnSaveSourceProfile = document.getElementById('btnSaveSourceProfile');
+  const btnClearSourceProfile = document.getElementById('btnClearSourceProfile');
+  const btnCopySourceFromProfile = document.getElementById('btnCopySourceFromProfile');
+  const btnSeedMockSources = document.getElementById('btnSeedMockSources');
 
   const TEXT_FIELDS = [
     'firstName', 'lastName', 'fullName', 'email', 'phone', 'phoneCountry',
@@ -506,7 +517,10 @@
         await refreshProfilesUI({ selectId: profile.id });
         clearDirty();
         setStatus(profileMgrStatus, 'Mock profile reset to sample (locked).', 'ok');
-        setStatus(statusEl, 'Mock reseeded from SAMPLE.', 'ok');
+        setStatus(statusEl, 'Mock reseeded from SAMPLE + source answers.', 'ok');
+        if (typeof refreshSourceProfilesUI === 'function') {
+          await refreshSourceProfilesUI();
+        }
       } catch (e) {
         setStatus(profileMgrStatus, e.message, 'err');
       }
@@ -567,7 +581,7 @@
     mockQueueUrlsEl.value = urls.join('\n');
     mockUrlsMeta.textContent = urls.length
       ? urls.length + ' https URL(s) configured — Start (Batch) serves these into Queued.'
-      : 'No URLs yet — Batch Start will prompt to fill the current page or open this queue.';
+      : 'No URLs yet — Batch Start will prompt to fill the current page or open App Settings queue.';
   }
 
   async function refreshBucketCounts() {
@@ -893,6 +907,215 @@
       }
     });
   }
+
+
+  // --- Source selection & profiles ---
+  function optionValue(opt) {
+    if (opt && typeof opt === 'object') return String(opt.value);
+    return String(opt);
+  }
+  function optionLabel(opt) {
+    if (opt && typeof opt === 'object') return String(opt.label || opt.value);
+    return String(opt);
+  }
+
+  function renderSourceFields(def, answers) {
+    if (!sourceFieldsForm) return;
+    sourceFieldsForm.innerHTML = '';
+    if (!def) {
+      sourceFieldsForm.innerHTML = '<p class="hint">Select a source to edit compulsory fields.</p>';
+      return;
+    }
+    answers = answers || {};
+    (def.requiredFields || []).forEach(function (f) {
+      var wrap = document.createElement('label');
+      var req = f.compulsory !== false;
+      wrap.innerHTML = '';
+      var title = document.createElement('span');
+      title.innerHTML = (f.label || f.key) + (req ? ' <span class="req">*</span>' : '');
+      wrap.appendChild(title);
+      var control;
+      var val = answers[f.key] != null ? answers[f.key] : '';
+      if (f.type === 'textarea') {
+        control = document.createElement('textarea');
+        control.rows = 3;
+        control.value = val;
+      } else if (f.type === 'select') {
+        control = document.createElement('select');
+        var blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = '—';
+        control.appendChild(blank);
+        (f.options || []).forEach(function (o) {
+          var opt = document.createElement('option');
+          opt.value = optionValue(o);
+          opt.textContent = optionLabel(o);
+          if (String(opt.value) === String(val) || String(optionLabel(o)) === String(val)) {
+            opt.selected = true;
+          }
+          control.appendChild(opt);
+        });
+      } else {
+        control = document.createElement('input');
+        control.type = 'text';
+        control.value = val;
+      }
+      control.dataset.fieldKey = f.key;
+      control.name = 'src_' + f.key;
+      wrap.appendChild(control);
+      sourceFieldsForm.appendChild(wrap);
+    });
+  }
+
+  function readSourceFieldsFromForm() {
+    var out = {};
+    if (!sourceFieldsForm) return out;
+    sourceFieldsForm.querySelectorAll('[data-field-key]').forEach(function (el) {
+      out[el.dataset.fieldKey] = el.value;
+    });
+    return out;
+  }
+
+  async function refreshSourceProfilesUI() {
+    if (!globalThis.FillApplySourceProfiles) return;
+    var SP = FillApplySourceProfiles;
+    await SP.ensureSourceProfileShells();
+    var sources = SP.listSources();
+    var selected = await SP.getSelectedSourceId();
+    if (selectedSourceIdEl) {
+      var prev = selectedSourceIdEl.value;
+      selectedSourceIdEl.innerHTML = '';
+      var none = document.createElement('option');
+      none.value = 'none';
+      none.textContent = 'None (no gate)';
+      selectedSourceIdEl.appendChild(none);
+      sources.forEach(function (s) {
+        var opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.label;
+        selectedSourceIdEl.appendChild(opt);
+      });
+      selectedSourceIdEl.value = selected || (prev && prev !== 'none' ? prev : 'none');
+      if (!selected) selectedSourceIdEl.value = 'none';
+      else selectedSourceIdEl.value = selected;
+    }
+    var sid = selectedSourceIdEl && selectedSourceIdEl.value !== 'none' ? selectedSourceIdEl.value : selected;
+    if (!sid || sid === 'none') {
+      if (sourceCompletenessMeter) {
+        sourceCompletenessMeter.textContent = 'Completeness: no source selected (gate off)';
+        sourceCompletenessMeter.classList.remove('incomplete');
+      }
+      if (sourceNoteEl) sourceNoteEl.textContent = '';
+      renderSourceFields(null, {});
+      return;
+    }
+    var def = SP.getSourceDef(sid);
+    var sp = await SP.getSourceProfile(sid);
+    var base = await FillApplyProfile.getProfile();
+    var c = await SP.getCompleteness(sid, base);
+    if (sourceCompletenessMeter) {
+      sourceCompletenessMeter.textContent =
+        'Completeness: ' + c.filled + '/' + c.total + (c.complete ? ' ✓' : ' — incomplete');
+      sourceCompletenessMeter.classList.toggle('incomplete', !c.complete);
+    }
+    if (sourceNoteEl) {
+      sourceNoteEl.textContent = def && def.note ? def.note : '';
+    }
+    renderSourceFields(def, (sp && sp.answers) || {});
+  }
+
+  if (selectedSourceIdEl) {
+    selectedSourceIdEl.addEventListener('change', async function () {
+      try {
+        var v = selectedSourceIdEl.value;
+        await FillApplySourceProfiles.setSelectedSourceId(v === 'none' ? null : v);
+        await refreshSourceProfilesUI();
+        setStatus(sourceProfileStatus, v === 'none' ? 'Source gate off.' : 'Selected ' + v + '.', 'ok');
+      } catch (e) {
+        setStatus(sourceProfileStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnSaveSourceProfile) {
+    btnSaveSourceProfile.addEventListener('click', async function () {
+      try {
+        var sid = selectedSourceIdEl && selectedSourceIdEl.value;
+        if (!sid || sid === 'none') {
+          setStatus(sourceProfileStatus, 'Select a source first.', 'warn');
+          return;
+        }
+        var answers = readSourceFieldsFromForm();
+        await FillApplySourceProfiles.saveSourceProfileAnswers(sid, answers);
+        await refreshSourceProfilesUI();
+        setStatus(sourceProfileStatus, 'Source answers saved.', 'ok');
+      } catch (e) {
+        setStatus(sourceProfileStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnClearSourceProfile) {
+    btnClearSourceProfile.addEventListener('click', async function () {
+      try {
+        var sid = selectedSourceIdEl && selectedSourceIdEl.value;
+        if (!sid || sid === 'none') {
+          setStatus(sourceProfileStatus, 'Select a source first.', 'warn');
+          return;
+        }
+        if (!confirm('Clear all answers for ' + sid + '?')) return;
+        await FillApplySourceProfiles.clearSourceProfileAnswers(sid);
+        await refreshSourceProfilesUI();
+        setStatus(sourceProfileStatus, 'Source answers cleared.', 'ok');
+      } catch (e) {
+        setStatus(sourceProfileStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnCopySourceFromProfile) {
+    btnCopySourceFromProfile.addEventListener('click', async function () {
+      try {
+        var sid = selectedSourceIdEl && selectedSourceIdEl.value;
+        if (!sid || sid === 'none') {
+          setStatus(sourceProfileStatus, 'Select a source first.', 'warn');
+          return;
+        }
+        await FillApplySourceProfiles.copyFromActiveProfile(sid);
+        await refreshSourceProfilesUI();
+        setStatus(sourceProfileStatus, 'Copied from active profile.', 'ok');
+      } catch (e) {
+        setStatus(sourceProfileStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnSeedMockSources) {
+    btnSeedMockSources.addEventListener('click', async function () {
+      try {
+        await FillApplySourceProfiles.seedMockSourceProfiles();
+        await refreshSourceProfilesUI();
+        setStatus(sourceProfileStatus, 'Mock source answers seeded for all platforms.', 'ok');
+      } catch (e) {
+        setStatus(sourceProfileStatus, e.message, 'err');
+      }
+    });
+  }
+
+  // Deep-link: open source section when hash is #sec-source-profiles
+  try {
+    if (location.hash === '#sec-source-profiles') {
+      var sec = document.getElementById('sec-source-profiles');
+      if (sec) {
+        sec.open = true;
+        sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  } catch (_h) { /* ignore */ }
+
+  refreshSourceProfilesUI().catch(function (e) {
+    if (sourceProfileStatus) setStatus(sourceProfileStatus, e.message, 'err');
+  });
 
   try {
     var man = chrome.runtime.getManifest && chrome.runtime.getManifest();

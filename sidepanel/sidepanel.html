@@ -13,7 +13,7 @@
         <img class="brand-logo" src="../icons/icon48.png" width="28" height="28" alt="" />
         <div class="brand-text">
           <h1>Fill &amp; Apply</h1>
-          <p class="tagline" id="extVersionTag">v1.12.0</p>
+          <p class="tagline" id="extVersionTag">v1.13.0</p>
         </div>
       </header>
 
@@ -71,13 +71,20 @@
             </div>
           </fieldset>
 
+          <div id="sourceGateBanner" class="source-gate-banner" hidden>
+            <p id="sourceGateMessage" class="source-gate-message">Complete source profile in App Settings</p>
+            <button type="button" id="btnOpenSourceSettings" class="secondary">Complete source profile</button>
+          </div>
+
           <div id="emptyQueuePrompt" class="empty-queue-prompt" hidden>
             <p>No URLs in the queue — run Fill &amp; Apply on the current page?</p>
             <div class="btn-row">
               <button type="button" id="btnEmptyYes" class="primary">Yes</button>
-              <button type="button" id="btnEmptyNo" class="secondary">No — open Options</button>
+              <button type="button" id="btnEmptyNo" class="secondary">No — open App Settings</button>
             </div>
           </div>
+
+          <p id="batchOrderChip" class="batch-order-chip" hidden>Batch order: by source</p>
 
           <div class="btn-row">
             <button type="button" id="btnStart" class="primary">Start runner</button>
@@ -110,9 +117,9 @@
           </label>
 
           <div class="btn-row">
-            <button type="button" id="btnOptions" class="secondary">Open options</button>
+            <button type="button" id="btnOptions" class="secondary">Open App Settings</button>
           </div>
-          <p class="hint-mini">Delay, caps, keep-tabs, documents, and queue URLs live in Options.</p>
+          <p class="hint-mini">Delay, caps, source profiles, documents, and queue URLs live in App Settings.</p>
         </section>
 
 
@@ -132,7 +139,7 @@
 
         <p id="status" class="status" role="status"></p>
 
-        <!-- Hidden compatibility hooks for panel-app (settings moved to Options) -->
+        <!-- Hidden compatibility hooks for panel-app (settings moved to App Settings) -->
         <input type="hidden" id="delaySec" value="3" />
         <input type="checkbox" id="autoCloseAppliedTab" checked hidden />
         <input type="hidden" id="keepRecentTabs" value="5" />
@@ -152,6 +159,7 @@
 
     <script src="../lib/types.js"></script>
     <script src="../lib/profile.js"></script>
+    <script src="../lib/source-profiles.js"></script>
     <script src="../lib/storage.js"></script>
     <script src="../lib/files.js"></script>
     <script src="../ui/panel-app.js"></script>

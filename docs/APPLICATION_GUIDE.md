@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Recruitee → Apply with Indeed** (Cloudflare pause → Indeed Easy Apply), **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, **Teamtailor** career-site modal apply, **universal Apply-start** CTAs, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** App Settings, **source profiles**, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **Recruitee → Apply with Indeed** (Cloudflare pause → Indeed Easy Apply), **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **eFinancialCareers** account-first modal → employer handoff, **CATS** external apply forms, **Teamtailor** career-site modal apply, **universal Apply-start** CTAs, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -31,40 +31,65 @@ Tracked history entries look like:
 Stored under `chrome.storage.local` key `fillApply.applyHistory`.
 
 
+## Source profiles & Start gate (v1.13)
 
-## Options & side panel layout (v1.11 / v1.11.1)
+Per-platform **compulsory** screening fields live in `lib/source-profiles.js` and `chrome.storage.local`:
 
-- **Options** sections are collapsible (`<details>`); open state persists in `chrome.storage.local` key `fillApply.ui.sections`. Defaults: Profiles + Application queue expanded; Profile settings + Backend collapsed.
-- **Application queue** is the production name for the former Mock queue (storage keys `fillApply.mockQueueUrls` / buckets unchanged). Paste target apply URLs; realtime session log shows while Options is open.
-- **Side panel** is a lean runner: Select profile, Application mode (Fill/Ready/Submit), Runner mode (Single/Batch), Start runner, compact buckets, pause banner, short live log. Delay / keep-tabs / caps / seed live in Options only.
+| Key | Shape |
+|-----|--------|
+| `fillApply.sourceProfiles` | `{ [sourceId]: { sourceId, label, answers, updatedAt } }` |
+| `fillApply.selectedSourceId` | `null` or sourceId — `null` = no Start gate |
+
+**Catalog sources:** teamtailor, indeed, icims, greenhouse, linkedin, naukrigulf, swooped, jooble, ashby, lever, cats, recruitee, efinancialcareers, workday, workable, smartrecruiters, generic.
+
+**Completeness:** `isSourceProfileComplete(sourceId)` — every compulsory `requiredField` has a non-blank answer **or** is satisfied via `mapsTo` from the active applicant profile.
+
+**Start gate:** when `selectedSourceId` is set, Batch and Single Start are blocked until that source profile is complete. Side panel banner: *Complete [Indeed] source profile*. Opens App Settings → Source section.
+
+**Inheritance:** `effectiveProfile = merge(baseProfile, sourceAnswers)` at fill time (source answers overlay base).
+
+**Batch-by-source:** queued jobs are stable-sorted by `sourceId` then original order. Session log: `batch_source · indeed (N jobs)`. UI chip: *Batch order: by source*.
+
+**Mock:** Reset Mock / Seed Mock source answers fills demo screening (Teamtailor Noon-style: years 6-9, salary `25000`, notice Onspot, UAE citizenship, basedInRiyadh No, …). **Zahid General** leaves source answers as empty shells so the gate/popup asks for real screening.
+
+**UI:** App Settings (formerly Options) → **Source selection & profiles**.
+
+
+
+
+## App Settings & side panel layout (v1.13)
+
+- **App Settings** (options page `options/options.html`) sections are collapsible (`<details>`); open state persists in `chrome.storage.local` key `fillApply.ui.sections`. Defaults: Profiles + Source selection & profiles + Application queue expanded; Profile settings + Backend collapsed.
+- **Application queue** is the production name for the former Mock queue (storage keys `fillApply.mockQueueUrls` / buckets unchanged). Paste target apply URLs; realtime session log shows while App Settings is open. Batch rebuild sorts by source.
+- **Side panel** is a lean runner: Select profile, Application mode (Fill/Ready/Submit), Runner mode (Single/Batch), Start runner, source-gate banner, compact buckets, pause banner, short live log. Delay / keep-tabs / caps / source profiles live in App Settings only (**Open App Settings**).
 - **Drive / URL documents**: optional `resumeLink` / `coverLink` (and profile `resumeUrl` / `coverUrl`). Content scripts attempt fetch→blob when CORS allows; authenticated Google Drive links usually fail — pause with “Open Drive link or upload file manually”. Prefer uploading a PDF when possible.
 
-## Configure in Options
+## Configure in App Settings
 
-1. Open **Options** (side panel → **Open options**, or right-click the extension icon → **Options**).
+1. Open **App Settings** (side panel → **Open App Settings**, or right-click the extension icon → **Options**).
 2. Under **Per-source application caps**, set **Ashby / Indeed / Greenhouse / Lever / Default** to **1**, **2**, or **3**.
 3. Values above 3 are rejected by the UI and storage normalizer.
 4. Click **Save runner config**.
-5. Caps and delay live in **Options** (side panel is lean — open Options to edit).
+5. Caps and delay live in **App Settings** (side panel is lean — open App Settings to edit).
 
 **Ashby note in the UI:** *Ashby allows at most 3 apps / 60 days; we default to 2.*
 
-## Multi-profile (Options)
+## Multi-profile (App Settings)
 
 Fill & Apply supports **multiple applicant profiles** (v1.9+):
 
-1. Open **Options** → **Profiles** (top of the page).
+1. Open **App Settings** → **Profiles** (top of the page).
 2. Use profile **chips** + **Set active / Rename / Duplicate / Delete / Create-Reset Zahid**, or **+ Create new profile**.
 3. Edit Identity / Location / Links / Q&A and click **Save profile** — writes the **active** profile only.
 4. The runner and side panel always use the active profile (`getProfile()`).
 5. Data is stored in `chrome.storage.local` keys `fillApply.profiles` and `fillApply.activeProfileId` so it **survives extension updates**. A legacy single profile migrates into **"Mock"** when the multi store is empty (Default is renamed to Mock).
 6b. **Mock** is a permanent system demo profile (`locked` / `systemProfile`, preferred id `mock`): end-to-end SAMPLE fields for demos; **cannot be deleted** — switch to another profile instead. **Reset Mock** reseeds SAMPLE. Use **Zahid General** for real applies.
 6. **Documents** (resume/cover) are **shared across profiles for now**. Export of profiles is TBD.
-7. **Zahid General** — built-in one-click template for Chaudhary Zahid Ali (Options → **Create / Reset Zahid General profile**). Creates or resets a named profile, sets it **active**, and persists fields in `chrome.storage.local`. Does not overwrite Mock / sample Alex. Backup JSON: `profiles/zahid-general.json`.
+7. **Zahid General** — built-in one-click template for Chaudhary Zahid Ali (App Settings → **Create / Reset Zahid**). Creates or resets a named profile, sets it **active**, and persists fields in `chrome.storage.local`. Does not overwrite Mock / sample Alex. Backup JSON: `profiles/zahid-general.json`.
 
 ## No invented answers (v1.9.9+)
 
-Empty / unknown required profile fields **must not be guessed**. When an adapter needs a mapped field that is blank (`nationality`, `noticePeriod`, `authorizedToWork`, `requiresSponsorship`, salary, driving license, street/zip, customAnswers miss, etc.), it returns `needsHuman` with `missingProfileFields` and the runner fires a **high-alert** notification (`priority: 2`, `requireInteraction: true`, title **Fill & Apply — profile field needed**). Fill the value in **Options** or on the page, then **Resume**. Helpers: `FillApplyProfile.isBlank`, `missingKeys`, `answerForLabel`, `requireOrPause`.
+Empty / unknown required profile fields **must not be guessed**. When an adapter needs a mapped field that is blank (`nationality`, `noticePeriod`, `authorizedToWork`, `requiresSponsorship`, salary, driving license, street/zip, customAnswers miss, etc.), it returns `needsHuman` with `missingProfileFields` and the runner fires a **high-alert** notification (`priority: 2`, `requireInteraction: true`, title **Fill & Apply — profile field needed**). Fill the value in **App Settings** or on the page, then **Resume**. Helpers: `FillApplyProfile.isBlank`, `missingKeys`, `answerForLabel`, `requireOrPause`.
 
 ## Ashby adapter behavior
 
@@ -221,7 +246,7 @@ Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframe
 ### Operator tips
 
 1. Stay signed in to LinkedIn; complete your LinkedIn profile so Easy Apply cards prefill.
-2. Upload a resume in Options before queueing applies.
+2. Upload a resume in App Settings before queueing applies.
 3. For External Apply jobs, expect a careers host + ATS (often iCIMS); complete hCaptcha when paused.
 4. For LinkedIn→iCIMS automation, **complete an iCIMS candidate profile / SSO once** (Returning Candidate Log back in). Richer portals (**Riyadh Air**) need nationality, gender, notice period, education/employment in the active Fill-Apply profile + `customAnswers`.
 5. Use **Auto Fill** / **Auto Ready** first; **Auto Submit** only when Review / final form looks correct.
@@ -615,7 +640,7 @@ Hosts often: `*.recruitee.com` or company career sites powered by Recruitee (Rec
 | Upload CV | DataTransfer resume; Additional files optional |
 | Cover letter | `coverLetter` |
 
-Empty required → `needsHuman` + `missingProfileFields` + high-alert notification; fill in Options or on the page, then **Resume**.
+Empty required → `needsHuman` + `missingProfileFields` + high-alert notification; fill in App Settings or on the page, then **Resume**.
 
 ### Operator checklist
 

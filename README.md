@@ -6,9 +6,9 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Adaptive fill:** synonym CTAs (Apply / Apply Now / Start Apply / Apply for this Job / …) and Resume≈CV via `lib/synonyms.js` + **universal Apply-start** (click Apply to open the form when still on a job overview) + generic fallback for unknown hosts.
 
-**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
+**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
-**Version 1.12.0** — **Missing-fields popup** in the side panel (Save & continue → active profile `customAnswers`/`customQA`/known keys, then Resume or re-run Single). **Single** waits for `document.readyState` + settle, paces actions (Options → Action delay ms), host-first adapters (never force Indeed), live-log lines. **Focus HUD** outlines the current field (`fillApply.config.focusHud`, default on). **Number inputs** sanitize salary (`25000 AED` → `25000`) via `numericAmount` / `sanitizeForInput` (Teamtailor Noon fix). Prior **1.11.1** — locked Mock + Teamtailor Apply-start; **1.11.0** production UI; **1.10.0** universal Apply-start.
+**Version 1.13.0** — **Source profiles** (`lib/source-profiles.js`): per-platform compulsory fields, `fillApply.sourceProfiles` + `fillApply.selectedSourceId`, Start gate until complete, merge-over-base at fill time. **Batch-by-source** sorts the queue so the same ATS/board runs consecutively (`batch_source · indeed (N jobs)`). **Options → App Settings** rename (UI titles, side panel “Open App Settings”; path still `options/options.html`). **Mock** seeds Teamtailor/Indeed/etc. answers for pause-free demos; Zahid keeps empty source shells. Prior **1.12.0** missing-fields popup + Single settle/pace + number sanitize; **1.11.1** locked Mock + Teamtailor Apply-start.
 
 ## Load unpacked
 
@@ -16,12 +16,12 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 2. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
 3. Enable **Developer mode**.
 4. **Load unpacked** → select this folder (contains `manifest.json`).
-5. Open **Options**: manage **profiles** (chips: Set active / Rename / Duplicate / Delete / Create-Reset Zahid), edit **Profile settings**, paste **Application queue** target apply URLs, optionally upload resume/cover or Drive/URL links (documents shared across profiles).
+5. Open **App Settings** (Options page): manage **profiles** (chips: Set active / Rename / Duplicate / Delete / Create-Reset Zahid), edit **Profile settings**, paste **Application queue** target apply URLs, optionally upload resume/cover or Drive/URL links (documents shared across profiles).
 6. Click the **Fill & Apply** toolbar icon — the UI opens in Chrome’s **right sidebar** (not a tiny popup).
 
 ## Multi-profile (v1.9)
 
-Options → **Profiles** (collapsible; expanded by default):
+App Settings → **Profiles** (collapsible; expanded by default):
 
 - Chips: **Zahid General**, **Mock** 🔒 (permanent demo — cannot delete), **+ Create new profile** (★ = active)
 - **Set active / Rename / Duplicate / Delete / Reset Mock / Create-Reset Zahid**
@@ -38,13 +38,29 @@ Options → **Profiles** (collapsible; expanded by default):
 | Runner mode | What **Start runner** does |
 |-------------|----------------------------|
 | **Single** | Fill & Apply on the **current page**: wait ready + settle → detect adapter → Apply-start + 2–3 re-detect retries → fill. Live log shows detecting / clicked Apply / waiting / filling / missing fields. |
-| **Batch** | Processes **queued** URLs from Options → **Application queue**. If the queue is empty, prompts: run on current page? / open Options. |
+| **Batch** | Processes **queued** URLs from App Settings → **Application queue**, **sorted/grouped by source**. If the queue is empty, prompts: run on current page? / open App Settings. |
 
-**Pacing:** random action delay (default 400–900ms) under Options → Backend (“Action delay ms” min/max), plus wait-for-load after navigations. **Focus HUD** (default on) outlines the field being filled/clicked and scrolls it into view.
+**Pacing:** random action delay (default 400–900ms) under App Settings → Backend (“Action delay ms” min/max), plus wait-for-load after navigations. **Focus HUD** (default on) outlines the field being filled/clicked and scrolls it into view.
 
 Never clicks paid **AI Auto-Apply** / **Upgrade** / **Subscribe**. LinkedIn **Easy Apply** stays on the LinkedIn board adapter. Host-unknown pages use **fallback + universal Apply-start** (e.g. Parsons “Apply Now” → Workday/SuccessFactors handoff + re-detect).
 
+## Source profiles & Start gate (v1.13)
+
+1. Open **App Settings** (side panel → **Open App Settings**).
+2. Expand **Source selection & profiles**.
+3. Dropdown: **None (no gate)** | Indeed | LinkedIn | Teamtailor | Greenhouse | …
+4. Completeness meter shows `filled/total`. Compulsory fields marked `*`.
+5. **Save source answers** / **Clear** / **Copy from active profile** / **Seed Mock source answers**.
+6. When a source is selected and incomplete, **Start** is disabled and the side panel shows **Complete [Indeed] source profile**.
+7. At fill time: `effectiveProfile = merge(baseProfile, sourceAnswers)` (source wins on mapped keys).
+8. Storage: `fillApply.sourceProfiles`, `fillApply.selectedSourceId`.
+
+**Mock demo:** Reset Mock (or Seed Mock source answers) fills Teamtailor/Indeed/… compulsory answers (`currentSalary=25000`, notice **Onspot**, citizenship UAE, basedInRiyadh No, team 11-20, etc.) so demos run without pauses.
+
+**Batch order:** queue is stable-sorted by `sourceId`; session log lines like `batch_source · indeed (3 jobs)`.
+
 ## Side panel (Chrome right sidebar)
+
 
 Toolbar clicks open the **side panel** (`sidepanel/sidepanel.html`) via `chrome.sidePanel` with `openPanelOnActionClick: true`. There is no `action.default_popup`.
 
@@ -53,10 +69,10 @@ Toolbar clicks open the **side panel** (`sidepanel/sidepanel.html`) via `chrome.
 - Click the **Fill & Apply** extension icon in the toolbar → right sidebar opens.
 - Or use Chrome’s **side panel** menu (toolbar / view) and choose **Fill & Apply**.
 
-**Options**
+**App Settings** (options page)
 
 - Inside the panel: **Open options**
-- Or right-click the extension icon → **Options**
+- Or right-click the extension icon → **App Settings** (options page)
 
 Shared controls live in `ui/panel-app.js` (used by the side panel; `popup/` HTML remains as a fallback layout reference).
 
@@ -128,16 +144,16 @@ Side panel shows counts: **Queued / Applied / Failed / Cancelled**.
 
 The runner **never** opens `chrome-extension://…/demo/…` (executeScript cannot inject into extension pages). Demo URLs can **never** enter the mock queue.
 
-1. Options → enable **Mock mode** (default) → paste one apply URL per line under **Application queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save & rebuild queued & rebuild queued**.
+1. App Settings → enable **Mock mode** (default) → paste one apply URL per line under **Application queue** (e.g. Greenhouse `https://boards.greenhouse.io/…/jobs/…`) → **Save & rebuild queued & rebuild queued**.
 2. Confirm **Auto-close old submitted tabs** is ON (default) and set **Keep recent tabs** (3–10, default 5) if using **Submit** mode — fill/ready never auto-close.
 3. Confirm **Auto PDF report** is ON (default) to download an audit PDF after each successful Submit.
 4. Side panel → **Seed sample profile** (once) — includes work auth / sponsorship Yes/No.
-5. Optional: Options → upload a small PDF resume/cover → **Save documents**.
+5. Optional: App Settings → upload a small PDF resume/cover → **Save documents**.
 6. Side panel → set **Delay (sec)** → choose **Auto Fill / Auto Ready / Auto Submit**.
 7. Click **Start**. The runner opens each queued `https` URL, detects the adapter, fills (and optionally advances / submits), moves the job to applied or failed, prunes oldest submitted tabs beyond the keep window (Submit success only), waits `delayMs`, then opens the next.
 8. Click **Stop** between jobs to halt (current → cancelled; remaining stay queued). **Reset mock queue** rebuilds queued from saved URLs.
 
-If no URLs are configured, Start fails with: **Add job apply URLs in Options (Application queue)**.
+If no URLs are configured, Start fails with: **Add job apply URLs in App Settings (Application queue)**.
 
 ### Manual demo form (optional)
 
@@ -332,7 +348,7 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 ## Reload test (Indeed + Cloudflare)
 
 1. `chrome://extensions` → **Reload** Fill & Apply (v1.8.0).
-2. Options → seed sample profile (includes `phoneCountry`, UAE location, Driving License / car / contracting `customAnswers`) → Save.
+2. App Settings → seed sample profile (includes `phoneCountry`, UAE location, Driving License / car / contracting `customAnswers`) → Save.
 3. Paste an `https://ae.indeed.com/…` or `https://pk.indeed.com/…` (or www) job URL into Application queue → Save.
 4. Side panel → **Auto Ready** or **Auto Submit** → Start.
 5. If Cloudflare / Turnstile appears: run pauses, notification fires, side panel shows **Paused — verify Cloudflare/CAPTCHA** — solve it in the tab (do not expect the extension to click it) → **Resume**.
@@ -342,7 +358,7 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 ## Reload test (Greenhouse + Working Nomads)
 
 1. `chrome://extensions` → **Reload** Fill & Apply (**v1.8.5**).
-2. Options → paste a real `https://boards.greenhouse.io/…` or `job-boards.greenhouse.io` apply URL (GitLab/Figma-style) **or** a Working Nomads job URL that Apply-opens Greenhouse → Save → confirm Queued count ≥ 1.
+2. App Settings → paste a real `https://boards.greenhouse.io/…` or `job-boards.greenhouse.io` apply URL (GitLab/Figma-style) **or** a Working Nomads job URL that Apply-opens Greenhouse → Save → confirm Queued count ≥ 1.
 3. Upload resume/cover → Save documents. Seed sample profile; map `customAnswers` for why-join / team interest / prior employer if using **Auto Submit**.
 4. Side panel → **Auto Fill** → Start. Confirm: preferred name / city / selects / resume+cover attached; EEO left alone; Working Nomads Apply hands off to Greenhouse when applicable; tab **stays open** in Fill mode.
 5. Optional: **Auto Ready** / **Auto Submit** (Submit application / Apply for this job only in submit; PDF + keep-N).
@@ -352,7 +368,7 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 
 1. `chrome://extensions` → **Reload** Fill & Apply (v1.8.0).
 2. Confirm NaukriGulf profile is **100% complete** on naukrigulf.com (incomplete → profile redirect pause).
-3. Options → seed sample profile (UAE location helps “located in UAE”) → add `customAnswers` for employed / industry questions if you use them → Save.
+3. App Settings → seed sample profile (UAE location helps “located in UAE”) → add `customAnswers` for employed / industry questions if you use them → Save.
 4. Paste a NaukriGulf job URL that shows **Easy Apply** into Application queue → Save.
 5. Side panel → **Auto Fill** or **Auto Ready** → Start. Confirm: Easy Apply opens on-page modal, Yes/No answered, **Submit & Apply** not clicked.
 6. Optional: **Auto Submit** → Confirm **Submit & Apply** is clicked; unknown unmapped required question → pause with structure-drift message.
@@ -363,7 +379,7 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 
 1. `chrome://extensions` → **Reload** Fill & Apply (**v1.9.6**).
 2. Sign in to LinkedIn in the same browser profile (login wall → pause).
-3. Options → seed profile + upload resume → add `customAnswers` for employer Qs (conflict of interest, PIF, salaries, DOB, nationality, privacy, criminal) → Save.
+3. App Settings → seed profile + upload resume → add `customAnswers` for employer Qs (conflict of interest, PIF, salaries, DOB, nationality, privacy, criminal) → Save.
 4. Paste a LinkedIn job URL that shows **Easy Apply** into Application queue → Save.
 5. Side panel → **Auto Fill** or **Auto Ready** → Start. Confirm: Easy Apply opens, pages fill, Next/Review advance, **Submit application** is **not** clicked.
 6. Optional: **Auto Submit** → Confirm **Submit application** on Review; captcha / missing modal / unmapped required → pause.
@@ -372,7 +388,7 @@ See `docs/APPLICATION_GUIDE.md` → "Recruitee → Apply with Indeed".
 ## Reload test (Ashby + caps)
 
 1. `chrome://extensions` → **Reload** Fill & Apply (v1.8.0).
-2. Options → set Ashby cap to **2** (default) → Save. Seed profile + upload resume.
+2. App Settings → set Ashby cap to **2** (default) → Save. Seed profile + upload resume.
 3. Paste a `https://jobs.ashbyhq.com/…` apply URL → Save mock queue.
 4. Side panel → **Auto Fill** → Start. Confirm Application tab, fields filled, diversity skipped, no submit.
 5. Optional: **Auto Submit** once; confirm history records the apply. Queue a 3rd Ashby URL after two submits → expect skip with **Source apply cap reached**.
@@ -388,4 +404,4 @@ Options uses a **thin sticky title bar** (logo + name + version + active profile
 
 ## Development
 
-No bundler. After edits: **Reload** on `chrome://extensions`, then paste Greenhouse apply URLs into Options → Application queue → Start / Stop.
+No bundler. After edits: **Reload** on `chrome://extensions`, then paste Greenhouse apply URLs into App Settings → Application queue → Start / Stop.

@@ -8,6 +8,7 @@ importScripts(
   '../lib/types.js',
   '../lib/storage.js',
   '../lib/profile.js',
+  '../lib/source-profiles.js',
   '../lib/backend.js',
   '../lib/report.js',
   '../runner/runner.js'
@@ -36,8 +37,11 @@ chrome.runtime.onInstalled.addListener(function (details) {
   configureSidePanel();
   if (details.reason === 'install') {
     console.log(
-      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Add https job apply URLs in Options (Application queue), then Start.'
+      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Add https job apply URLs in App Settings (Application queue), then Start.'
     );
+  }
+  if (typeof FillApplySourceProfiles !== 'undefined' && FillApplySourceProfiles.ensureSourceProfileShells) {
+    FillApplySourceProfiles.ensureSourceProfileShells().catch(function () {});
   }
   FillApplyStorage.getRunConfig().then(function (cfg) {
     // Migrate autoSubmit → runMode; ensure defaults
@@ -100,6 +104,15 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
         if (message.config) {
           await FillApplyStorage.saveRunConfig(message.config);
         }
+        if (typeof FillApplySourceProfiles !== 'undefined' && FillApplySourceProfiles.assertSelectedSourceComplete) {
+          var gate = await FillApplySourceProfiles.assertSelectedSourceComplete();
+          if (!gate.ok) {
+            var err = new Error(gate.error || 'Complete selected source profile in App Settings');
+            err.code = 'SOURCE_PROFILE_INCOMPLETE';
+            err.sourceId = gate.selectedSourceId;
+            throw err;
+          }
+        }
         if (message.resetMock) {
           await FillApplyBackend.resetMockQueue();
         }
@@ -131,7 +144,7 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
             lastError: jobs.length
               ? null
               : FillApplyBackend.NO_URLS_ERROR ||
-                'Add job apply URLs in Options (Application queue)'
+                'Add job apply URLs in App Settings (Application queue)'
           });
           return { remaining: jobs.length, jobs: jobs, counts: counts };
         }

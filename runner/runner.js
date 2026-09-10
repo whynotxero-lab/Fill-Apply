@@ -210,7 +210,7 @@
     }
     if (/^chrome-extension:\/\//i.test(job.url) || /^about:/i.test(job.url)) {
       throw new Error(
-        'Cannot open chrome-extension:// or about: pages in the runner. Add https job apply URLs in Options (Application queue).'
+        'Cannot open chrome-extension:// or about: pages in the runner. Add https job apply URLs in App Settings (Application queue).'
       );
     }
     if (!/^https?:\/\//i.test(job.url)) {
@@ -895,7 +895,14 @@
             return getStatusSnapshot();
           }
 
-          const profile = P ? await P.getProfile() : await B.getProfile();
+          var profile = P ? await P.getProfile() : await B.getProfile();
+          if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.getEffectiveProfile) {
+            try {
+              profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);
+            } catch (_mergeErr) {
+              /* keep base */
+            }
+          }
           let documents = await B.getDocuments();
           // Best-effort Drive/direct URL → blob before attach (CORS may still fail → needsHuman)
           try {
@@ -1049,7 +1056,7 @@
               looksLikeMissingProfile(fillResult.error, missingFields);
             const msg = isMissingProfile
               ? fillResult.error ||
-                'Missing profile field — fill in Options or on the page, then Resume'
+                'Missing profile field — fill in App Settings or on the page, then Resume'
               : fillResult.pauseReason === 'structure_drift'
                 ? fillResult.error || 'Form changed — review required'
                 : fillResult.error || 'Paused — verify Cloudflare/CAPTCHA';
@@ -1268,6 +1275,19 @@
       await global.FillApplyStorage.clearPausedForHuman();
     }
 
+    if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.assertSelectedSourceComplete) {
+      var gate = await global.FillApplySourceProfiles.assertSelectedSourceComplete();
+      if (!gate.ok) {
+        await global.FillApplyStorage.appendSessionLog({
+          type: 'error',
+          error: gate.error,
+          code: 'SOURCE_PROFILE_INCOMPLETE',
+          sourceId: gate.selectedSourceId
+        });
+        throw new Error(gate.error || 'Complete selected source profile in App Settings');
+      }
+    }
+
     const cfg = await global.FillApplyStorage.getRunConfig();
     if (cfg.mockMode || !cfg.backendBaseUrl) {
       if (global.FillApplyBackend && global.FillApplyBackend.assertMockUrlsConfigured) {
@@ -1280,6 +1300,36 @@
           await B.resetMockQueue();
         }
       }
+    }
+
+    // Batch by source: stable sort queued so same source runs consecutively
+    try {
+      var Bsort = global.FillApplyBackend;
+      var SP = global.FillApplySourceProfiles;
+      if (Bsort && Bsort.getQueued && Bsort.setQueued && SP && SP.sortJobsBySource) {
+        var queued0 = await Bsort.getQueued();
+        var sorted = SP.sortJobsBySource(queued0);
+        await Bsort.setQueued(sorted);
+        var groups = {};
+        sorted.forEach(function (j) {
+          var sid = String((j && j.sourceId) || SP.detectSourceIdFromUrl(j && j.url) || 'generic');
+          groups[sid] = (groups[sid] || 0) + 1;
+        });
+        Object.keys(groups).forEach(function (sid) {
+          global.FillApplyStorage.appendSessionLog({
+            type: 'batch_source',
+            message: 'batch_source · ' + sid + ' (' + groups[sid] + ' jobs)',
+            sourceId: sid,
+            count: groups[sid]
+          });
+        });
+        await global.FillApplyStorage.appendSessionLog({
+          type: 'info',
+          message: 'Batch order: by source'
+        });
+      }
+    } catch (_sortErr) {
+      /* non-fatal */
     }
 
     runLoop().catch(async function (e) {

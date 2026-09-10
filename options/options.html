@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Fill &amp; Apply — Options</title>
+    <title>Fill &amp; Apply — App Settings</title>
     <link rel="icon" href="../brand/favicon.ico" />
     <link rel="stylesheet" href="options.css" />
   </head>
@@ -12,7 +12,7 @@
       <img class="titlebar-logo" src="../icons/icon48.png" width="28" height="28" alt="" />
       <div class="titlebar-main">
         <strong class="titlebar-name">Fill &amp; Apply</strong>
-        <span class="titlebar-ver" id="extVersion">v1.11.1</span>
+        <span class="titlebar-ver" id="extVersion">v1.13.0</span>
       </div>
       <span class="active-chip" id="headerActiveChip" title="Active profile">…</span>
     </header>
@@ -32,6 +32,35 @@
             <span id="profileMgrStatus" class="status" role="status"></span>
           </div>
           <select id="profileSelect" hidden aria-hidden="true"></select>
+        </div>
+      </details>
+
+
+      <details class="sec" id="sec-source-profiles" data-sec="sourceProfiles" open>
+        <summary>Source selection &amp; profiles</summary>
+        <div class="sec-body">
+          <p class="hint">
+            Select a job platform to require its <strong>compulsory</strong> fields before Start.
+            Choose <em>None</em> to disable the gate (generic fill still works).
+            Source answers merge <strong>over</strong> the active applicant profile at fill time.
+          </p>
+          <div class="grid">
+            <label class="span2">Selected source
+              <select id="selectedSourceId">
+                <option value="none">None (no gate)</option>
+              </select>
+            </label>
+            <p class="span2 hint" id="sourceCompletenessMeter">Completeness: —</p>
+          </div>
+          <p class="hint" id="sourceNote"></p>
+          <div id="sourceFieldsForm" class="source-fields-form"></div>
+          <div class="actions">
+            <button type="button" id="btnSaveSourceProfile" class="primary">Save source answers</button>
+            <button type="button" id="btnClearSourceProfile" class="ghost">Clear source answers</button>
+            <button type="button" id="btnCopySourceFromProfile" class="ghost">Copy from active profile</button>
+            <button type="button" id="btnSeedMockSources" class="ghost">Seed Mock source answers</button>
+            <span id="sourceProfileStatus" class="status" role="status"></span>
+          </div>
         </div>
       </details>
 
@@ -277,6 +306,7 @@
 
     <script src="../lib/types.js"></script>
     <script src="../lib/profile.js"></script>
+    <script src="../lib/source-profiles.js"></script>
     <script src="../lib/storage.js"></script>
     <script src="../lib/files.js"></script>
     <script src="options.js"></script>

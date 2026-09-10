@@ -335,3 +335,42 @@ label.check input { width: auto; }
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+
+.source-fields-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+}
+.source-fields-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.source-fields-form .req {
+  color: #f87171;
+  font-weight: 700;
+}
+.source-fields-form input,
+.source-fields-form select,
+.source-fields-form textarea {
+  width: 100%;
+  background: #0b1220;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+}
+#sourceCompletenessMeter {
+  font-size: 12px;
+  font-weight: 600;
+  color: #86efac;
+  margin: 0;
+}
+#sourceCompletenessMeter.incomplete {
+  color: #fbbf24;
+}
