@@ -16,6 +16,7 @@
     'lib/synonyms.js',
     'lib/field-map.js',
     'lib/files.js',
+    'lib/auth-walls.js',
     'lib/challenges.js',
     'content/fill.js',
     'adapters/registry.js',
@@ -266,7 +267,7 @@
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tabId },
-        files: ['lib/challenges.js']
+        files: ['lib/auth-walls.js', 'lib/challenges.js']
       });
       const results = await chrome.scripting.executeScript({
         target: { tabId: tabId },

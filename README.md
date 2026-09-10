@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo→iCIMS), NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.9.3** — **LinkedIn External Apply** (Share profile Off → careers/iCIMS handoff; PepsiCo example) + Easy Apply multi-step; **iCIMS** welcome (Email, I accept, Next) + **hCaptcha** pause; Jooble → Swooped; multi-profile; Working Nomads → Greenhouse; WWR → CATS; Ashby caps; Submit keep-N; PDF reports.
+**Version 1.9.4** — **iCIMS** multi-step Candidate Profile (resume DataTransfer, profile fields) + **Create a login / Returning Candidate** human gate (never invent passwords); EEO skip/decline; Questions via customAnswers + Yes/No; generic **auth-walls** helper; LinkedIn External Apply → iCIMS; hCaptcha pause; Jooble → Swooped; multi-profile; Ashby caps; PDF reports.
 
 ## Load unpacked
 
@@ -59,7 +59,7 @@ adapters/
   registry.js   register / detect
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
-  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS (welcome + hCaptcha), CATS
+  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS (multi-step + account human-gate + hCaptcha), CATS
   boards/       Indeed (multi-step), LinkedIn (Easy Apply + External Apply → iCIMS), NaukriGulf (Easy Apply modal), Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), Jooble (→ Swooped/ATS), Swooped (Apply manually instead), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
@@ -68,7 +68,8 @@ lib/
   profile.js    multi-profile store (fillApply.profiles + activeProfileId; migrate legacy; phoneCountry, customAnswers, …)
   field-map.js  field heuristics
   files.js      base64 ↔ File + DataTransfer; Attach/Upload button discovery
-  challenges.js Cloudflare / Turnstile / interactable CAPTCHA detection (no auto-click)
+  challenges.js Cloudflare / Turnstile / interactable CAPTCHA detection (no auto-click); auth-wall bridge
+  auth-walls.js Sign in / Register / Create a login / Password Re-enter detection (optional for adapters)
   backend.js    getNextJob / markApplied / markFailed / markCancelled + buckets
 content/fill.js fill engine, inspectForm, native + custom dropdowns
 demo/           sample application form (manual testing only — never enters the queue)
@@ -328,7 +329,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 ## Reload test (LinkedIn Easy Apply)
 
-1. `chrome://extensions` → **Reload** Fill & Apply (**v1.9.3**).
+1. `chrome://extensions` → **Reload** Fill & Apply (**v1.9.4**).
 2. Sign in to LinkedIn in the same browser profile (login wall → pause).
 3. Options → seed profile + upload resume → add `customAnswers` for employer Qs (conflict of interest, PIF, salaries, DOB, nationality, privacy, criminal) → Save.
 4. Paste a LinkedIn job URL that shows **Easy Apply** into Mock queue → Save.

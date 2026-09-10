@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** + hCaptcha pause), **Jooble → Swooped** assisted-apply handoff, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **LinkedIn Easy Apply** vs **External Apply** (e.g. PepsiCo → careers → **iCIMS** multi-step + account human-gate + hCaptcha), **Jooble → Swooped** assisted-apply handoff, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -199,7 +199,7 @@ Extension behavior:
 
 1. If **Easy Apply** is present → path A above.
 2. Else if external **Apply** → click Apply → handle Share your profile (prefer **Off**, then Continue) → on **host change** return WWR-style handoff (`externalApply` / `deferToPageAdapter` / `handedOff`) so the runner re-injects and re-detects (careers / **iCIMS**).
-3. Destination **iCIMS** adapter fills welcome (Email from profile, check I accept, Next), pauses on **hCaptcha**, then fallback-fills further steps. **fill** / **ready** never final-submit; **submit** submits when the form looks complete. EEO never invented.
+3. Destination **iCIMS** adapter fills welcome (Email, I accept, Next), pauses on **hCaptcha** and on **Create a login / Returning Candidate** (human gate), then fills Candidate Profile (resume + profile fields). **fill** / **ready** never Submit Profile / final-submit; **submit** submits when auth is cleared and the form looks complete. EEO skip/decline only — never invented.
 
 Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframes, **Protected by hCaptcha** with a visible widget) → `needsHuman` pause (complete manually, then Resume).
 
@@ -213,7 +213,7 @@ Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframe
 
 ## iCIMS — ATS (Software Powered by ICIMS)
 
-**Status:** Hardened welcome + fallback further steps. Often reached via **LinkedIn External Apply** (PepsiCo / `pepsicojobs.com`) or direct `*.icims.com` links.
+**Status:** Multi-step hardened (welcome → Candidate Profile → Questions / EEO / Questionnaire). Often reached via **LinkedIn External Apply** (PepsiCo / `globalcareers-pepsico.icims.com` / `pepsicojobs.com`) or direct `*.icims.com` links.
 
 ### Detection
 
@@ -229,16 +229,38 @@ Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframe
 | **Next** | Click to advance |
 | **Protected by hCaptcha** | `needsHuman` pause — do not bypass |
 
-### Further steps / modes
+### Step 1/5 Candidate Profile (operator paste)
 
-- Heuristic **fallback** fill + submit synonyms (**Submit application** / **Apply** / etc.).
-- **Skip inventing EEO** / diversity answers.
-- **fill** / **ready**: fill + Next/Continue only — **no** final submit.
-- **submit**: fill, advance, then submit when the form looks complete.
+| Control | Behavior |
+|---------|----------|
+| **Returning Candidate? Log back in!** | **Manual** — `needsHuman` auth-wall pause |
+| Resume upload* (max 5MB) | DataTransfer to file input from documents |
+| **Create a login:** Login* / Password* / Password Re-enter* | **MANUAL — never invent passwords / never create accounts** |
+| First / Last Name*, Email*, Preferred Language | Active profile (+ English language heuristic) |
+| Phone Country Code*, Phone Type*, Number* | `phoneCountry` / Mobile / `phone` |
+| Address Type*, Address*, City*, Zip*, Country*, State | Home / street / city / zip / country / state |
+| Privacy agree → **Submit Profile** | Agree checked; **Submit Profile** only in **submit** mode and only when Create-login fields are **not** visible |
+
+**User rule:** Sign Up / Sign In / Register / Login / Create a login / Returning Candidate Log back in = manual attention signals → pause + notify.
+
+### Later steps
+
+| Step | Behavior |
+|------|----------|
+| Candidate Questions / Questionnaire | `customAnswers` + Yes/No heuristics; unknown **required** → pause in **submit** |
+| EEO | Skip / decline / prefer-not when available — **never invent** |
+| Portal Specific Forms | Fallback + customAnswers; pause on unknown required in submit |
+| hCaptcha | Pause throughout (`lib/challenges.js`) |
+
+### Modes
+
+- **fill** / **ready**: fill fields + Next/Continue — **no** Submit Profile / final submit. If Create-login fields present → always pause first.
+- **submit**: fill, Submit Profile (when auth cleared), advance, submit when complete.
 
 ### Related
 
 - Adapter: `adapters/ats/icims.js`
+- Auth helper: `lib/auth-walls.js` (generic; also bridged from `lib/challenges.js`)
 - Discovery: [LinkedIn Easy Apply vs External Apply](#linkedin-easy-apply-vs-external-apply)
 - Challenges: `lib/challenges.js` (hCaptcha)
 
@@ -466,7 +488,7 @@ Working Nomads (`workingnomads.com`) is often a **job discovery** board. The on-
 Registered in `adapters/catalog.js` (+ hardened overrides where noted).
 
 ### ATS (apply engines)
-**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (welcome + hCaptcha pause), **CATS***
+**Greenhouse***, Ashby*, Lever, Workable, Workday, SmartRecruiters, **iCIMS*** (multi-step + account human-gate + hCaptcha), **CATS***
 
 ### Job boards
 **LinkedIn*** (Easy Apply + External Apply handoff), Upwork, **NaukriGulf***, Indeed*, eFinancialCareers, FreeHire, **Working Nomads*** (Apply → Greenhouse handoff), **Jooble*** (Apply → Swooped / ATS), **Swooped*** (assisted-apply intermediary — Apply manually instead), Bayt, GulfTalent, Glassdoor, Wellfound, AngelList/Talent, FlexJobs, Remote.co, Remotive, Himalayas, Otta, Jobgether, Y Combinator Jobs, Built In, **Remote OK*** (paid), **We Work Remotely*** (paid + profile; Apply often hands off to external ATS)
