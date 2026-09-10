@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.6.1",
-  "description": "Queue-driven job-application filler: submit-only tab keep-N auto-close, PDF apply reports, Indeed multi-step, challenge pause, fill/ready/submit modes.",
+  "version": "1.7.0",
+  "description": "Queue-driven job-application filler: Ashby adapter, per-source apply caps (max 3), submit-tab keep-N, PDF reports, Indeed multi-step, challenge pause, fill/ready/submit.",
   "permissions": [
     "storage",
     "activeTab",

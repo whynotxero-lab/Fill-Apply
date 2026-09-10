@@ -18,6 +18,11 @@
   const autoCloseEl = document.getElementById('autoCloseAppliedTab');
   const keepRecentTabsEl = document.getElementById('keepRecentTabs');
   const autoPdfReportEl = document.getElementById('autoPdfReport');
+  const capAshbyEl = document.getElementById('capAshby');
+  const capIndeedEl = document.getElementById('capIndeed');
+  const capGreenhouseEl = document.getElementById('capGreenhouse');
+  const capLeverEl = document.getElementById('capLever');
+  const capDefaultEl = document.getElementById('capDefault');
   const btnLastReport = document.getElementById('btnLastReport');
   const recentReportsEl = document.getElementById('recentReports');
   const runStateEl = document.getElementById('runState');
@@ -189,6 +194,17 @@
       if (autoPdfReportEl) {
         autoPdfReportEl.checked = data.config.autoPdfReport !== false;
       }
+      const lim = data.config.sourceApplyLimits || {};
+      function setCapEl(el, key) {
+        if (!el) return;
+        const v = lim[key] != null ? lim[key] : 2;
+        el.value = String(Math.min(3, Math.max(1, Number(v) || 2)));
+      }
+      setCapEl(capAshbyEl, 'ashby');
+      setCapEl(capIndeedEl, 'indeed');
+      setCapEl(capGreenhouseEl, 'greenhouse');
+      setCapEl(capLeverEl, 'lever');
+      setCapEl(capDefaultEl, 'default');
     }
   }
 
@@ -207,13 +223,26 @@
     let keep = keepRecentTabsEl ? Number(keepRecentTabsEl.value) : 5;
     if (!Number.isFinite(keep)) keep = 5;
     keep = Math.min(10, Math.max(3, Math.round(keep)));
+    function readCap(el) {
+      if (!el) return 2;
+      const raw = Number(el.value);
+      if (!Number.isFinite(raw)) return 2;
+      return Math.min(3, Math.max(1, Math.round(raw)));
+    }
     return {
       delayMs: (Number.isFinite(sec) && sec >= 0 ? sec : 3) * 1000,
       runMode: runMode,
       autoSubmit: runMode === 'submit',
       autoCloseAppliedTab: !!autoCloseEl.checked,
       keepRecentTabs: keep,
-      autoPdfReport: autoPdfReportEl ? !!autoPdfReportEl.checked : true
+      autoPdfReport: autoPdfReportEl ? !!autoPdfReportEl.checked : true,
+      sourceApplyLimits: {
+        ashby: readCap(capAshbyEl),
+        indeed: readCap(capIndeedEl),
+        greenhouse: readCap(capGreenhouseEl),
+        lever: readCap(capLeverEl),
+        default: readCap(capDefaultEl)
+      }
     };
   }
 
@@ -296,6 +325,17 @@
     try {
       await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() });
     } catch (_e) {}
+  });
+
+  [capAshbyEl, capIndeedEl, capGreenhouseEl, capLeverEl, capDefaultEl].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener('change', async function () {
+      try {
+        const v = Number(el.value);
+        el.value = String(Math.min(3, Math.max(1, Number.isFinite(v) ? Math.round(v) : 2)));
+        await send('FILL_APPLY_SAVE_CONFIG', { config: readConfigPartial() });
+      } catch (_e) {}
+    });
   });
 
   document.querySelectorAll('input[name="runMode"]').forEach(function (radio) {

@@ -224,6 +224,34 @@
     }
   }
 
+
+  function notifySourceCap(job, reason) {
+    if (!chrome.notifications || !chrome.notifications.create) return;
+    let host = '';
+    try {
+      host = job && job.url ? new URL(job.url).host : '';
+    } catch (_e) {
+      host = '';
+    }
+    const title = (job && job.title) || 'Job';
+    const message =
+      (title.length > 50 ? title.slice(0, 47) + '…' : title) +
+      (host ? ' · ' + host : '') +
+      ' — ' +
+      String(reason || 'Source apply cap reached').slice(0, 100);
+    try {
+      chrome.notifications.create('fill-apply-cap-' + Date.now(), {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+        title: 'Fill & Apply — source cap',
+        message: message,
+        priority: 1
+      });
+    } catch (_e2) {
+      /* ignore */
+    }
+  }
+
   async function detectChallengeInTab(tabId) {
     try {
       await chrome.scripting.executeScript({
@@ -559,6 +587,69 @@
 
         if (!(await S.isRunning())) break;
 
+        // Per-source apply cap / Ashby same-role soft block — before open/submit
+        if (S.checkSourceApplyCap) {
+          try {
+            const cap = await S.checkSourceApplyCap(job, config);
+            if (cap && cap.ok === false) {
+              const reason =
+                cap.reason ||
+                'Source apply cap reached (' +
+                  (cap.count != null ? cap.count : '?') +
+                  '/' +
+                  (cap.limit != null ? cap.limit : '?') +
+                  ' for ' +
+                  (cap.sourceId || 'source') +
+                  ')';
+              await S.appendSessionLog({
+                type: 'source_cap',
+                jobId: job.id,
+                sourceId: cap.sourceId,
+                reason: reason,
+                kind: cap.kind || 'cap'
+              });
+              notifySourceCap(job, reason);
+              if (B.markCancelled) {
+                await B.markCancelled(job.id, reason);
+              } else if (B.markFailed) {
+                await B.markFailed(job.id, reason, {
+                  blocked: true,
+                  sourceCap: true,
+                  sourceId: cap.sourceId
+                });
+              } else {
+                await B.markApplied(job.id, {
+                  failed: true,
+                  error: reason,
+                  blocked: true,
+                  sourceCap: true,
+                  url: job.url
+                });
+              }
+              currentJobId = null;
+              const counts = B.refreshCounts ? await B.refreshCounts() : { queued: 0 };
+              await S.setQueueStatus({
+                remaining: counts.queued,
+                currentJobId: null,
+                lastError: reason,
+                counts: counts
+              });
+              const delay = jitteredDelay(config.delayMs);
+              if (delay > 0 && (await S.isRunning())) {
+                await S.appendSessionLog({ type: 'delay', ms: delay });
+                await sleep(delay);
+              }
+              continue;
+            }
+          } catch (capErr) {
+            await S.appendSessionLog({
+              type: 'error',
+              jobId: job.id,
+              error: 'Cap check failed: ' + String(capErr && capErr.message ? capErr.message : capErr)
+            });
+          }
+        }
+
         let tab = null;
         let fillResult = null;
         let moved = false;
@@ -617,7 +708,7 @@
           if (fillResult && fillResult.needsHuman) {
             const msg =
               fillResult.pauseReason === 'structure_drift'
-                ? 'Indeed form changed — review required'
+                ? fillResult.error || 'Form changed — review required'
                 : fillResult.error || 'Paused — verify Cloudflare/CAPTCHA';
             await pauseForHuman(job, tab.id, fillResult.pauseReason || 'challenge', {
               message: msg,
@@ -735,6 +826,24 @@
             currentJobId: null,
             counts: counts
           });
+
+          // Track submitted apply for per-source rate limits (once per success)
+          if (wasSubmitted && S.recordSubmittedApply) {
+            try {
+              const sourceId =
+                (fillResult && fillResult.adapterId) ||
+                (S.detectSourceId && S.detectSourceId(job.url, job)) ||
+                'default';
+              await S.recordSubmittedApply({
+                sourceId: sourceId,
+                jobUrl: job.url,
+                jobId: job.id,
+                submittedAt: Date.now()
+              });
+            } catch (_recErr) {
+              /* best-effort */
+            }
+          }
 
           // Auto-close: Submit + submitted success only; keep recent context tabs
           if (wasSubmitted && tab && tab.id != null) {

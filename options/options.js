@@ -143,6 +143,18 @@
     if (keepEl) keepEl.value = String(cfg.keepRecentTabs != null ? cfg.keepRecentTabs : 5);
     const pdfEl = document.getElementById('autoPdfReport');
     if (pdfEl) pdfEl.checked = cfg.autoPdfReport !== false;
+    const lim = cfg.sourceApplyLimits || {};
+    function setCap(id, key) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const v = lim[key] != null ? lim[key] : 2;
+      el.value = String(Math.min(3, Math.max(1, Number(v) || 2)));
+    }
+    setCap('capAshby', 'ashby');
+    setCap('capIndeed', 'indeed');
+    setCap('capGreenhouse', 'greenhouse');
+    setCap('capLever', 'lever');
+    setCap('capDefault', 'default');
   }
 
   async function loadMockUrls() {
@@ -177,6 +189,18 @@
       const runMode = document.getElementById('runMode').value || 'fill';
       const keepRaw = Number(document.getElementById('keepRecentTabs').value);
       const keep = Number.isFinite(keepRaw) ? Math.min(10, Math.max(3, Math.round(keepRaw))) : 5;
+      function readCap(id) {
+        const raw = Number(document.getElementById(id).value);
+        if (!Number.isFinite(raw)) return 2;
+        return Math.min(3, Math.max(1, Math.round(raw)));
+      }
+      const sourceApplyLimits = {
+        ashby: readCap('capAshby'),
+        indeed: readCap('capIndeed'),
+        greenhouse: readCap('capGreenhouse'),
+        lever: readCap('capLever'),
+        default: readCap('capDefault')
+      };
       const next = await FillApplyStorage.saveRunConfig({
         backendBaseUrl: document.getElementById('backendBaseUrl').value.trim(),
         mockMode: document.getElementById('mockMode').checked,
@@ -185,9 +209,16 @@
         autoSubmit: runMode === 'submit',
         autoCloseAppliedTab: document.getElementById('autoCloseAppliedTab').checked,
         keepRecentTabs: keep,
-        autoPdfReport: document.getElementById('autoPdfReport').checked
+        autoPdfReport: document.getElementById('autoPdfReport').checked,
+        sourceApplyLimits: sourceApplyLimits
       });
       document.getElementById('keepRecentTabs').value = String(next.keepRecentTabs);
+      const L = next.sourceApplyLimits || sourceApplyLimits;
+      document.getElementById('capAshby').value = String(L.ashby);
+      document.getElementById('capIndeed').value = String(L.indeed);
+      document.getElementById('capGreenhouse').value = String(L.greenhouse);
+      document.getElementById('capLever').value = String(L.lever);
+      document.getElementById('capDefault').value = String(L.default);
       setStatus(
         configStatus,
         'Config saved (mode ' +
@@ -198,6 +229,8 @@
           (next.autoCloseAppliedTab ? 'ON keep ' + next.keepRecentTabs : 'OFF') +
           '; PDF ' +
           (next.autoPdfReport ? 'ON' : 'OFF') +
+          '; caps ashby=' +
+          L.ashby +
           ').',
         'ok'
       );

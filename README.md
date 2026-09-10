@@ -4,7 +4,9 @@ Chrome / Edge **Manifest V3** extension: a **queue-driven runner** that fills jo
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 
-**Version 1.6.0** — Submit-only keep-N tab auto-close, PDF application reports (Downloads + side panel), Indeed multi-step, Cloudflare/CAPTCHA human gate, run modes, Greenhouse harden.
+**Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, per-source caps, Options configuration, diversity survey policy.
+
+**Version 1.7.0** — Hardened Ashby adapter, per-source apply caps (default 2 / hard max 3), Application Guide, Submit keep-N tabs, PDF reports, Indeed multi-step, Cloudflare pause, Greenhouse harden.
 
 ## Load unpacked
 
@@ -44,12 +46,12 @@ adapters/
   registry.js   register / detect
   fallback.js   heuristics + file attach + mode-aware Next/Submit
   catalog.js    hostname index for every supported platform
-  ats/          Greenhouse (hardened), Lever, Ashby, Workday, SmartRecruiters, Workable, iCIMS
+  ats/          Greenhouse (hardened), Ashby (hardened), Lever, Workday, SmartRecruiters, Workable, iCIMS
   boards/       Indeed (multi-step), LinkedIn, Wellfound, Remote OK, …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
-  storage.js    run config, buckets, documents, mock URL list, pausedForHuman
+  storage.js    run config, buckets, documents, mock URL list, applyHistory, source caps, pausedForHuman
   profile.js    applicant profile (phoneCountry, postcode, street, customAnswers, work auth)
   field-map.js  field heuristics
   files.js      base64 ↔ File + DataTransfer; Attach/Upload button discovery
@@ -177,6 +179,29 @@ Greenhouse “Attach” is often a visible button + hidden `input[type=file]`, o
 
 Hardened for `boards.greenhouse.io`, `job-boards.greenhouse.io`, and `*.greenhouse.io` apply forms.
 
+## Ashby apply flow
+
+Hosts: `jobs.ashbyhq.com`, `ashbyhq.com`, `*.ashbyhq.com`.
+
+1. Overview → click **Application** / **Apply for this Job** when needed.
+2. Fill Name, Email, Resume (DataTransfer), LinkedIn, work-from country/city, sponsorship Yes/No.
+3. Role-specific long answers from `customAnswers` / `coverLetter` when mapped; otherwise blank (or human pause if required in Submit).
+4. **Diversity survey skipped** by default (Prefer not to answer — never invent demographics).
+5. Modes: fill / ready / submit (**Submit Application** only in submit).
+6. Cloudflare / structure drift → human pause via `challenges.js`.
+
+**Ashby employer limits** (enforced by Fill & Apply caps): at most **3** applications / **60** days; no same-role re-apply within **180** days without an offer. See [docs/APPLICATION_GUIDE.md](docs/APPLICATION_GUIDE.md).
+
+## Per-source application caps
+
+- Config key `sourceApplyLimits`: e.g. `{ ashby: 2, indeed: 2, greenhouse: 2, lever: 2, default: 2 }`.
+- **Hard max 3**; UI clamps 1–3. Default **2** for Ashby and others.
+- Before opening a job, the runner counts successful **submitted** applies for that source in the last **60 days**.
+- Over cap → skip to **cancelled** with `Source apply cap reached (N/max for ashby)` + notification (no open/submit).
+- Ashby same URL within 180 days → soft-blocked with a clear message.
+- Configure in **Options** or the side panel; full write-up in [docs/APPLICATION_GUIDE.md](docs/APPLICATION_GUIDE.md).
+
+
 ## Form inspection
 
 Before filling, `inspectForm(document)` catalogs inputs, textareas, select options, contenteditables, file inputs, Attach buttons, and custom dropdown triggers. A summary (`field count by type`) is returned in the fill result and used to drive select / listbox matching (fuzzy Yes/No, country lists, etc.).
@@ -240,7 +265,7 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 
 ## Reload test (Indeed + Cloudflare)
 
-1. `chrome://extensions` → **Reload** Fill & Apply (v1.6.0).
+1. `chrome://extensions` → **Reload** Fill & Apply (v1.7.0).
 2. Options → seed sample profile (includes `phoneCountry`, UAE location, Driving License / car / contracting `customAnswers`) → Save.
 3. Paste an `https://ae.indeed.com/…` or `https://pk.indeed.com/…` (or www) job URL into Mock queue → Save.
 4. Side panel → **Auto Ready** or **Auto Submit** → Start.
@@ -256,6 +281,14 @@ Browsers block setting a file path on `<input type="file">`. We store resume/cov
 4. Click the toolbar icon → side panel → **Auto Fill** → Start. Confirm: text/selects filled, work-auth dropdowns leave “Select…”, resume/cover no longer “No file chosen”, job moves Queued → Applied (or Failed with an error), tab **stays open** in Fill mode, URL does not loop.
 5. Optional: try **Auto Ready** (tabs stay open) / **Auto Submit** (PDF report + keep-N tab prune) on further URLs.
 
+
+## Reload test (Ashby + caps)
+
+1. `chrome://extensions` → **Reload** Fill & Apply (v1.7.0).
+2. Options → set Ashby cap to **2** (default) → Save. Seed profile + upload resume.
+3. Paste a `https://jobs.ashbyhq.com/…` apply URL → Save mock queue.
+4. Side panel → **Auto Fill** → Start. Confirm Application tab, fields filled, diversity skipped, no submit.
+5. Optional: **Auto Submit** once; confirm history records the apply. Queue a 3rd Ashby URL after two submits → expect skip with **Source apply cap reached**.
 
 ## Branding
 
