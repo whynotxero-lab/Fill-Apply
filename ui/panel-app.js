@@ -102,7 +102,16 @@
 
   async function refreshSummary() {
     const profile = await FillApplyProfile.getProfile();
-    summaryEl.textContent = FillApplyProfile.profileSummary(profile);
+    let label = FillApplyProfile.profileSummary(profile);
+    try {
+      if (FillApplyProfile.getActiveProfileMeta) {
+        const meta = await FillApplyProfile.getActiveProfileMeta();
+        if (meta && meta.name) {
+          label = meta.name + ' · ' + label;
+        }
+      }
+    } catch (_e) { /* ignore */ }
+    summaryEl.textContent = label;
   }
 
   function applyStatus(data) {
@@ -260,7 +269,7 @@
     try {
       await FillApplyProfile.seedSampleProfile();
       await refreshSummary();
-      setStatus('Sample profile saved (includes work auth / sponsorship).', 'ok');
+      setStatus('Sample saved into active profile (includes work auth / sponsorship).', 'ok');
     } catch (e) {
       setStatus('Failed to seed profile: ' + e.message, 'err');
     }

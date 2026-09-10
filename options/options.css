@@ -253,3 +253,55 @@ label.check {
   margin-top: 8px;
 }
 label.check input { width: auto; }
+
+.active-profile-label {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.active-profile-label strong {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.profile-manager-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.profile-manager-row .grow {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.active-badge {
+  background: var(--accent-soft);
+  color: #93c5fd;
+  border: 1px solid #2563eb66;
+}
+
+.profile-actions {
+  margin-top: 4px;
+}
+
+.section-sub {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 6px;
+}

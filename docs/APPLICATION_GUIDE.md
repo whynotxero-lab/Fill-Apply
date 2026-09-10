@@ -1,6 +1,6 @@
 # Job Application Guide & Instructions
 
-This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **CATS** external apply forms, and how the extension rate-limits applies.
+This guide covers **Fill & Apply** behavior when submitting applications through supported ATS and job boards, with special attention to **multi-profile** Options, **Ashby** apply caps, **NaukriGulf** profile completeness, **Remote OK** / **We Work Remotely** paid access, **Working Nomads → Greenhouse** handoff, **CATS** external apply forms, and how the extension rate-limits applies.
 
 ## Ashby published limits
 
@@ -39,6 +39,17 @@ Stored under `chrome.storage.local` key `fillApply.applyHistory`.
 5. The side panel mirrors the same inputs (changes auto-save).
 
 **Ashby note in the UI:** *Ashby allows at most 3 apps / 60 days; we default to 2.*
+
+## Multi-profile (Options)
+
+Fill & Apply supports **multiple applicant profiles** (v1.9+):
+
+1. Open **Options** → **Profiles** (top of the page).
+2. Use **New profile** / **Rename** / **Duplicate** / **Delete** / **Set active**, or pick a name from the dropdown (sets active).
+3. Edit Identity / Location / Links / Q&A and click **Save profile** — writes the **active** profile only.
+4. The runner and side panel always use the active profile (`getProfile()`).
+5. Data is stored in `chrome.storage.local` keys `fillApply.profiles` and `fillApply.activeProfileId` so it **survives extension updates**. A legacy single profile migrates into **"Default"** when the multi store is empty.
+6. **Documents** (resume/cover) are **shared across profiles for now**. Export of profiles is TBD.
 
 ## Ashby adapter behavior
 

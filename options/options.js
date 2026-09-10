@@ -22,6 +22,17 @@
   const mockQueueUrlsEl = document.getElementById('mockQueueUrls');
   const bucketCountsEl = document.getElementById('bucketCounts');
 
+  const profileSelect = document.getElementById('profileSelect');
+  const profileActiveBadge = document.getElementById('profileActiveBadge');
+  const profileMgrStatus = document.getElementById('profileMgrStatus');
+  const headerActiveProfile = document.getElementById('headerActiveProfile');
+  const formActiveProfileHint = document.getElementById('formActiveProfileHint');
+  const btnProfileNew = document.getElementById('btnProfileNew');
+  const btnProfileRename = document.getElementById('btnProfileRename');
+  const btnProfileDuplicate = document.getElementById('btnProfileDuplicate');
+  const btnProfileSetActive = document.getElementById('btnProfileSetActive');
+  const btnProfileDelete = document.getElementById('btnProfileDelete');
+
   const TEXT_FIELDS = [
     'firstName', 'lastName', 'fullName', 'email', 'phone', 'phoneCountry',
     'location', 'street', 'city', 'state',
@@ -29,6 +40,12 @@
     'resumeSummary', 'workHistory', 'education', 'coverLetter',
     'authorizedToWork', 'requiresSponsorship'
   ];
+
+  let dirty = false;
+  let suppressDirty = false;
+  let profilesCache = [];
+  let activeIdCache = null;
+  let selectedIdCache = null;
 
   function setStatus(el, text, kind) {
     el.textContent = text || '';
@@ -51,6 +68,20 @@
     });
   }
 
+  function markDirty() {
+    if (suppressDirty) return;
+    dirty = true;
+  }
+
+  function clearDirty() {
+    dirty = false;
+  }
+
+  function confirmIfDirty(message) {
+    if (!dirty) return true;
+    return confirm(message || 'You have unsaved profile changes. Discard them?');
+  }
+
   function addQARow(question, answer) {
     const row = document.createElement('div');
     row.className = 'qa-row';
@@ -60,7 +91,12 @@
       '<button type="button" class="icon danger" title="Remove">×</button>';
     row.querySelector('.q').value = question || '';
     row.querySelector('.a').value = answer || '';
-    row.querySelector('button').addEventListener('click', function () { row.remove(); });
+    row.querySelector('button').addEventListener('click', function () {
+      row.remove();
+      markDirty();
+    });
+    row.querySelector('.q').addEventListener('input', markDirty);
+    row.querySelector('.a').addEventListener('input', markDirty);
     qaList.appendChild(row);
   }
 
@@ -76,6 +112,7 @@
   }
 
   function fillForm(profile) {
+    suppressDirty = true;
     TEXT_FIELDS.forEach(function (name) {
       const el = form.elements.namedItem(name);
       if (el) el.value = profile[name] || '';
@@ -84,6 +121,8 @@
     const list = Array.isArray(profile.customQA) ? profile.customQA : [];
     if (!list.length) addQARow('', '');
     else list.forEach(function (qa) { addQARow(qa.question, qa.answer); });
+    suppressDirty = false;
+    clearDirty();
   }
 
   function readForm() {
@@ -103,33 +142,227 @@
     return profile;
   }
 
+  function selectedProfileId() {
+    return profileSelect && profileSelect.value ? profileSelect.value : null;
+  }
+
+  function findMeta(id) {
+    for (var i = 0; i < profilesCache.length; i++) {
+      if (profilesCache[i].id === id) return profilesCache[i];
+    }
+    return null;
+  }
+
+  function updateActiveLabels() {
+    var meta = findMeta(activeIdCache);
+    var name = meta ? meta.name : '—';
+    if (headerActiveProfile) headerActiveProfile.textContent = name;
+    if (formActiveProfileHint) {
+      formActiveProfileHint.textContent = meta ? '(editing: ' + meta.name + ')' : '';
+    }
+    var sel = selectedProfileId();
+    if (profileActiveBadge) {
+      var isActive = !!sel && sel === activeIdCache;
+      profileActiveBadge.hidden = !isActive;
+    }
+  }
+
+  function renderProfileSelect() {
+    if (!profileSelect) return;
+    var keep = selectedIdCache || activeIdCache;
+    profileSelect.innerHTML = '';
+    profilesCache.forEach(function (p) {
+      var opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name + (p.id === activeIdCache ? ' ★' : '');
+      profileSelect.appendChild(opt);
+    });
+    if (keep && findMeta(keep)) {
+      profileSelect.value = keep;
+      selectedIdCache = keep;
+    } else if (activeIdCache) {
+      profileSelect.value = activeIdCache;
+      selectedIdCache = activeIdCache;
+    }
+    updateActiveLabels();
+  }
+
+  async function refreshProfilesUI(opts) {
+    opts = opts || {};
+    profilesCache = await FillApplyProfile.listProfiles();
+    activeIdCache = await FillApplyProfile.getActiveProfileId();
+    if (opts.selectId) selectedIdCache = opts.selectId;
+    else if (!selectedIdCache) selectedIdCache = activeIdCache;
+    renderProfileSelect();
+    if (opts.loadForm !== false) {
+      var profile = await FillApplyProfile.getProfile();
+      fillForm(profile);
+    }
+  }
+
+  async function switchToProfile(id, force) {
+    if (!id) return;
+    if (id === activeIdCache && !force) {
+      selectedIdCache = id;
+      updateActiveLabels();
+      return;
+    }
+    if (!confirmIfDirty('You have unsaved changes. Discard them and switch profile?')) {
+      profileSelect.value = selectedIdCache || activeIdCache;
+      return;
+    }
+    await FillApplyProfile.setActiveProfile(id);
+    activeIdCache = id;
+    selectedIdCache = id;
+    var profile = await FillApplyProfile.getProfile();
+    fillForm(profile);
+    renderProfileSelect();
+    setStatus(profileMgrStatus, 'Active profile: ' + (findMeta(id) || {}).name, 'ok');
+  }
+
+  form.addEventListener('input', markDirty);
+  form.addEventListener('change', markDirty);
+
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
       await FillApplyProfile.saveProfile(readForm());
-      setStatus(statusEl, 'Saved.', 'ok');
+      clearDirty();
+      setStatus(statusEl, 'Saved to active profile.', 'ok');
+      await refreshProfilesUI({ loadForm: false, selectId: activeIdCache });
     } catch (err) {
       setStatus(statusEl, 'Save failed: ' + err.message, 'err');
     }
   });
 
-  btnAddQA.addEventListener('click', function () { addQARow('', ''); });
+  btnAddQA.addEventListener('click', function () {
+    addQARow('', '');
+    markDirty();
+  });
 
   btnSeed.addEventListener('click', async function () {
     fillForm(FillApplyProfile.SAMPLE_PROFILE);
-    setStatus(statusEl, 'Sample loaded into form — click Save to persist.', 'ok');
+    markDirty();
+    setStatus(statusEl, 'Sample loaded into active form — click Save to persist.', 'ok');
   });
 
   btnReset.addEventListener('click', async function () {
-    if (!confirm('Clear the saved profile?')) return;
+    if (!confirm('Clear fields on the active profile?')) return;
     try {
       await FillApplyProfile.saveProfile(Object.assign({}, FillApplyProfile.DEFAULT_PROFILE));
       fillForm(FillApplyProfile.DEFAULT_PROFILE);
-      setStatus(statusEl, 'Cleared.', 'ok');
+      setStatus(statusEl, 'Cleared active profile fields.', 'ok');
     } catch (err) {
       setStatus(statusEl, err.message, 'err');
     }
   });
+
+  if (profileSelect) {
+    profileSelect.addEventListener('change', async function () {
+      var id = selectedProfileId();
+      selectedIdCache = id;
+      updateActiveLabels();
+      try {
+        await switchToProfile(id);
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnProfileNew) {
+    btnProfileNew.addEventListener('click', async function () {
+      if (!confirmIfDirty('You have unsaved changes. Discard them and create a new profile?')) return;
+      var name = prompt('New profile name:', 'New profile');
+      if (name == null) return;
+      name = String(name).trim();
+      if (!name) {
+        setStatus(profileMgrStatus, 'Name required.', 'err');
+        return;
+      }
+      try {
+        var meta = await FillApplyProfile.createProfile(name);
+        activeIdCache = meta.id;
+        selectedIdCache = meta.id;
+        await refreshProfilesUI({ selectId: meta.id });
+        setStatus(profileMgrStatus, 'Created and activated "' + meta.name + '".', 'ok');
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnProfileRename) {
+    btnProfileRename.addEventListener('click', async function () {
+      var id = selectedProfileId();
+      var meta = findMeta(id);
+      if (!meta) return;
+      var name = prompt('Rename profile:', meta.name);
+      if (name == null) return;
+      name = String(name).trim();
+      if (!name) {
+        setStatus(profileMgrStatus, 'Name required.', 'err');
+        return;
+      }
+      try {
+        await FillApplyProfile.renameProfile(id, name);
+        await refreshProfilesUI({ loadForm: false, selectId: id });
+        setStatus(profileMgrStatus, 'Renamed to "' + name + '".', 'ok');
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnProfileDuplicate) {
+    btnProfileDuplicate.addEventListener('click', async function () {
+      if (!confirmIfDirty('You have unsaved changes. Discard them and duplicate?')) return;
+      var id = selectedProfileId();
+      if (!id) return;
+      try {
+        var meta = await FillApplyProfile.duplicateProfile(id);
+        activeIdCache = meta.id;
+        selectedIdCache = meta.id;
+        await refreshProfilesUI({ selectId: meta.id });
+        setStatus(profileMgrStatus, 'Duplicated as "' + meta.name + '" (now active).', 'ok');
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnProfileSetActive) {
+    btnProfileSetActive.addEventListener('click', async function () {
+      var id = selectedProfileId();
+      try {
+        await switchToProfile(id, true);
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnProfileDelete) {
+    btnProfileDelete.addEventListener('click', async function () {
+      var id = selectedProfileId();
+      var meta = findMeta(id);
+      if (!meta) return;
+      if (profilesCache.length <= 1) {
+        setStatus(profileMgrStatus, 'Cannot delete the last profile.', 'err');
+        return;
+      }
+      if (!confirm('Delete profile "' + meta.name + '"? This cannot be undone.')) return;
+      try {
+        var result = await FillApplyProfile.deleteProfile(id);
+        selectedIdCache = result.activeId;
+        activeIdCache = result.activeId;
+        await refreshProfilesUI({ selectId: result.activeId });
+        setStatus(profileMgrStatus, 'Deleted "' + meta.name + '".', 'ok');
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
 
   async function loadConfig() {
     const cfg = await FillApplyStorage.getRunConfig();
@@ -283,7 +516,7 @@
   btnClearHistory.addEventListener('click', async function () {
     if (!confirm('Clear applied / failed / cancelled history? Queued is unchanged.')) return;
     try {
-      const data = await send('FILL_APPLY_CLEAR_HISTORY');
+      await send('FILL_APPLY_CLEAR_HISTORY');
       setStatus(mockUrlsStatus, 'History cleared.', 'ok');
       await refreshBucketCounts();
     } catch (e) {
@@ -300,7 +533,7 @@
     if (docs.cover && docs.cover.name) {
       parts.push('Cover: ' + docs.cover.name + ' (' + ((docs.cover.base64 || '').length) + ' b64 chars)');
     } else parts.push('Cover: none');
-    docsMeta.textContent = parts.join(' · ');
+    docsMeta.textContent = parts.join(' · ') + ' · Shared across profiles';
   }
 
   async function readFileAsDoc(fileInput) {
@@ -338,8 +571,7 @@
     setStatus(docsStatus, 'Documents cleared.', 'ok');
   });
 
-  FillApplyProfile.getProfile()
-    .then(fillForm)
+  refreshProfilesUI()
     .catch(function (err) {
       setStatus(statusEl, 'Load failed: ' + err.message, 'err');
       fillForm(FillApplyProfile.DEFAULT_PROFILE);

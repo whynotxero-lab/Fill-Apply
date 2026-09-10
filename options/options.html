@@ -15,11 +15,34 @@
           <div class="brand-text">
             <h1>Fill &amp; Apply</h1>
             <p class="tagline">Queue. Fill. Apply.</p>
+            <p class="active-profile-label">Active profile: <strong id="headerActiveProfile">…</strong></p>
           </div>
         </div>
         <img class="brand-banner" src="../brand/banner.png" alt="Fill &amp; Apply" />
-        <p class="lede">Profile, documents, and backend queue config (stored in <code>chrome.storage.local</code>).</p>
+        <p class="lede">Multi-profile, documents, and backend queue config (stored in <code>chrome.storage.local</code> — survives extension updates).</p>
       </header>
+
+      <section id="profileManager" class="profile-manager">
+        <h2>Profiles</h2>
+        <p class="hint">
+          Create and switch applicant profiles. The runner always fills the <strong>active</strong> profile.
+          Data lives in <code>fillApply.profiles</code> / <code>fillApply.activeProfileId</code> (chrome.storage.local).
+        </p>
+        <div class="profile-manager-row">
+          <label class="grow">Profile
+            <select id="profileSelect" aria-label="Select profile"></select>
+          </label>
+          <span id="profileActiveBadge" class="badge active-badge" hidden>Active</span>
+        </div>
+        <div class="actions profile-actions">
+          <button type="button" id="btnProfileNew" class="primary">New profile</button>
+          <button type="button" id="btnProfileRename" class="ghost">Rename</button>
+          <button type="button" id="btnProfileDuplicate" class="ghost">Duplicate</button>
+          <button type="button" id="btnProfileSetActive" class="ghost">Set active</button>
+          <button type="button" id="btnProfileDelete" class="danger">Delete</button>
+          <span id="profileMgrStatus" class="status" role="status"></span>
+        </div>
+      </section>
 
       <form id="configForm">
         <section>
@@ -130,7 +153,7 @@
 
       <section>
         <h2>Documents (resume / cover)</h2>
-        <p class="hint">Stored as base64 in <code>fillApply.documents</code> for DataTransfer attach to <code>input[type=file]</code> (including Greenhouse hidden inputs / Attach buttons). Prefer small PDFs.</p>
+        <p class="hint">Stored as base64 in <code>fillApply.documents</code> for DataTransfer attach to <code>input[type=file]</code> (including Greenhouse hidden inputs / Attach buttons). Prefer small PDFs. <strong>Documents are shared across profiles for now.</strong></p>
         <div class="grid">
           <label>Resume file
             <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,application/pdf" />
@@ -149,7 +172,7 @@
 
       <form id="profileForm">
         <section>
-          <h2>Identity</h2>
+          <h2>Identity <span class="section-sub" id="formActiveProfileHint"></span></h2>
           <div class="grid">
             <label>First name <input name="firstName" autocomplete="given-name" /></label>
             <label>Last name <input name="lastName" autocomplete="family-name" /></label>

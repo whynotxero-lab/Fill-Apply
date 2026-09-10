@@ -8,7 +8,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Docs:** [Job Application Guide](docs/APPLICATION_GUIDE.md) — Ashby limits, NaukriGulf 100% profile + Easy Apply modal, per-source caps, Options configuration, diversity survey policy.
 
-**Version 1.8.5** — Working Nomads → Greenhouse handoff; Greenhouse hardened (GitLab/Figma paste patterns); WWR → CATS; NaukriGulf Easy Apply; Ashby caps; Application Guide; Submit keep-N; PDF reports; Indeed multi-step; Cloudflare pause.
+**Version 1.9.0** — **Multi-profile** in Options (create / rename / duplicate / delete / set active; `chrome.storage.local` persists across updates); Working Nomads → Greenhouse; Greenhouse harden; WWR → CATS; NaukriGulf Easy Apply; Ashby caps; Submit keep-N; PDF reports.
 
 ## Load unpacked
 
@@ -16,8 +16,19 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 2. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
 3. Enable **Developer mode**.
 4. **Load unpacked** → select this folder (contains `manifest.json`).
-5. Open **Options**: seed/edit profile, paste **Mock queue** apply URLs, optionally upload resume/cover.
+5. Open **Options**: manage **profiles** (New / Rename / Duplicate / Delete / Set active), seed/edit the active profile, paste **Mock queue** apply URLs, optionally upload resume/cover (documents are shared across profiles for now).
 6. Click the **Fill & Apply** toolbar icon — the UI opens in Chrome’s **right sidebar** (not a tiny popup).
+
+## Multi-profile (v1.9)
+
+Options → **Profiles** at the top:
+
+- Dropdown of profiles by **name** (★ = active)
+- **New profile**, **Rename**, **Duplicate**, **Delete** (cannot delete the last one), **Set active** (selecting from the dropdown also activates)
+- Form edits save into the **active** profile only; switching warns if unsaved
+- Side panel summary shows `ProfileName · Person · email`
+- Storage: `fillApply.profiles` + `fillApply.activeProfileId` in **chrome.storage.local** (survives extension updates). Legacy `fillApply.profile` migrates into a **"Default"** profile on first load.
+- **Documents** (resume/cover) remain **global / shared across profiles** for now; export TBD.
 
 ## Side panel (Chrome right sidebar)
 
@@ -54,7 +65,7 @@ adapters/
 lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
   storage.js    run config, buckets, documents, mock URL list, applyHistory, source caps, pausedForHuman
-  profile.js    applicant profile (phoneCountry, postcode, street, customAnswers, work auth)
+  profile.js    multi-profile store (fillApply.profiles + activeProfileId; migrate legacy; phoneCountry, customAnswers, …)
   field-map.js  field heuristics
   files.js      base64 ↔ File + DataTransfer; Attach/Upload button discovery
   challenges.js Cloudflare / Turnstile / interactable CAPTCHA detection (no auto-click)
