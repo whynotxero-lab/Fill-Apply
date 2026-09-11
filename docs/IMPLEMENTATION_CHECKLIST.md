@@ -1,8 +1,102 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.14.1** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.3** on `main`.
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
+
+---
+
+## Fill engine (v1.15.0)
+
+Everything below fixes a defect that made forms unreadable or invisible regardless of which adapter matched. See [FILL_ENGINE.md](FILL_ENGINE.md).
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Cross-frame injection (`allFrames: true`) | ✅ | Was top-frame only, so every iframed ATS form was invisible |
+| Sub-frame guard + best-frame result ranking | ✅ | Ad/tracker frames return immediately; the frame that fills wins |
+| Signal-scored form detection | ✅ | `scoreApplicationForm()` replaces the container whitelist |
+| Async fill pass | ✅ | Waits for SPA render; awaits portalled listbox options |
+| Custom dropdown / combobox filling | ✅ | Previously impossible — options were queried in the same tick as the click |
+| Typeahead combobox typing | ✅ | Character-by-character with key events |
+| Shadow-DOM traversal | ✅ | `lib/dom-deep.js` |
+| Label resolution from wrapper divs / `aria-*` | ✅ | Was `previousElementSibling` only |
+| Required-field detection (incl. trailing `*`) | ✅ | Feeds `missingRequired` |
+| Real pointer clicks for checkbox / radio / CTA | ✅ | react-select, Radix, Headless UI, MUI ignore bare `.click()` |
+| Date normalization + `maxlength` truncation | ✅ | |
+| Page-furniture exclusion (search / newsletter / sign-in) | ✅ | |
+| `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
+| Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
+| Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
+| jsdom test suites | ✅ | `npm test` — 10 suites (includes JobPool status, run modes, backend POST) |
+| Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
+
+---
+
+## Value formatting (v1.15.1)
+
+Values were written verbatim apart from currency stripping and date normalization, so any control with real constraints rejected what it was given. `lib/format.js` shapes each value against the `type`, `pattern`, `maxlength`, `inputmode`, `step`, `min`/`max` and placeholder mask the control advertises.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Phone: dial code split from national number | ✅ | A form with its own country-code control no longer receives `+971 +971501234567` |
+| Phone: `pattern="\d{10}"` and `maxlength` respected | ✅ | Common on US career sites and Workday |
+| Phone: placeholder input masks | ✅ | `(555) 555-5555` filled in that exact shape |
+| Phone: trunk zero dropped, existing code not duplicated | ✅ | `0501234567` and `971501234567` both normalize |
+| Phone country code field | ✅ | `+971` for text/select, `971` where numeric |
+| Postal: US five digits, Canada and UK spacing, compact on strict patterns | ✅ | |
+| Date: ISO for `type=date`, placeholder order for text fields | ✅ | |
+| URL: scheme added, or reduced to a handle when asked for a username | ✅ | |
+| Number: step rounding and `min`/`max` clamping | ✅ | On top of the existing currency stripping |
+| Long text cut on a word boundary | ✅ | Replaces a mid-word `maxlength` cut |
+| Country and state alternate spellings for selects | ✅ | `United Arab Emirates` finds `AE`, `California` finds `CA` |
+
+## Documents (v1.15.1)
+
+Preloaded documents are attached by the engine itself, on whichever step asks for them.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Generic engine attaches documents | ✅ | Previously only site adapters did, so unknown sites and drifted adapters left the resume empty |
+| Documents passed into the generic fallback path | ✅ | `runner/runner.js` and `ui/panel-app.js` |
+| Re-attach after a Continue step | ✅ | Multi-step uploads only exist after advancing |
+| Upload-only step handled | ✅ | Reported as `documentStep`, not "no form fields found" |
+| Native file dialog never opened | ✅ | `click`/`showPicker` intercepted; the intercepted call names the input |
+| Labels bound to a file input never clicked | ✅ | A label opens the dialog through activation behaviour, which cannot be intercepted |
+| Existing upload detected and kept | ✅ | Reported in `alreadyAttached` instead of overwritten |
+| `accept` mismatch reported, not silently attached | ✅ | Names the types the form accepts |
+| Content type inferred from filename | ✅ | Forms validate `File.type`; a `.docx` with no type was rejected |
+| Idempotent across re-detect passes | ✅ | Attached inputs are marked |
+| Dropzone drop synthesis | ✅ | Only when no input exists |
+
+## Full applicant profile (v1.15.2)
+
+A CV paragraph cannot fill Workday's four education controls or Teamtailor's years-of-experience radios. The profile now stores each of those as its own value, and the engine matches the option the form actually offers.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Split education / professional fields on the profile | ✅ | school, degree, fieldOfStudy, graduationYear, yearsExperience, currentTitle, currentCompany, … |
+| App Settings form + completeness readout | ✅ | Names what is still blank; blank salary/DOB is deliberate |
+| Structured work and education entries | ✅ | Seven roles, two degrees — preserved on save |
+| Years-of-experience buckets | ✅ | `15` → `10+` / `10+ years` |
+| Education level matching + fallback | ✅ | `Master's` finds `Master's Degree`; falls back to `Bachelor's` when that is the highest option |
+| Nationality demonym | ✅ | `Pakistan` → `Pakistani` |
+| Immediate notice wordings | ✅ | `I can start immediately` → `Immediately` / Teamtailor `Onspot` |
+| Radio group question (not first option text) | ✅ | Legend / radiogroup mapped; option then clicked |
+| Short name/id no longer steals education/employment | ✅ | `edu` inside `education`, `emp` inside `employment` |
+| Never invent salary / DOB / licence | ✅ | Left blank; run pauses |
+
+---
+
+## Source fill checklist + JobPool (v1.15.3)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Honest per-source fill confidence | ✅ | [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) — Unattended / After gate / Handoff / Generic / Blocked |
+| New URL fills profile-backed fields | ✅ | Generic engine + field map + customAnswers; required blank → pause |
+| Start → fill → continue → submit | ✅ | Run modes; Apply-start in all modes |
+| JobPool `status` on every finish POST | ✅ | `FillApplyTypes.jobPoolOutcome` — only `submitted` = employer apply |
+| Live `POST /cancelled/:id` | ✅ | Stop and apply-cap; falls back to `POST /applied/:id` with `status=cancelled` if `/cancelled` is missing |
+| JobPool website server itself | ⏳ | Extension contract is ready; JobPool implements GET/POST |
 
 ---
 
@@ -61,7 +155,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 | Item | Status | Notes |
 |------|--------|-------|
 | Multi-profile (create / select / save / switch) | ✅ | v1.9.0 |
-| Zahid General built-in template | ✅ | v1.9.8 — `profiles/zahid-general.json` |
+| Zahid General built-in template | ✅ | v1.15.2 — full ATS field set in `profiles/zahid-general.json`; App Settings completeness readout |
 | Mock locked complete demo (non-deletable) | ✅ | v1.11.1 |
 | No invented answers + high-alert pause | ✅ | v1.9.9 |
 | Missing-fields in-panel popup | ✅ | v1.12.0 — Save & continue |
@@ -109,6 +203,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 | docs/APP_VISION_AND_FUNCTIONALITY.md | ✅ | This pack |
 | docs/SOURCES_AND_FIELDS.md | ✅ | This pack |
 | docs/CHAT_LOG.md | ✅ | This pack (paraphrased transcript) |
+| docs/SOURCE_FILL_CHECKLIST.md | ✅ | v1.15.3 — source confidence + JobPool contract |
 | docs/IMPLEMENTATION_CHECKLIST.md | ✅ | This file |
 
 ---
@@ -121,8 +216,8 @@ Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 | Invent EEO / diversity / passwords | ❌ Never — by design |
 | Cinematic cursor HUD | ⏳ Deferred |
 | Native store listing / packaged Web Store release | ⏳ Not started |
-| Real backend JobPool production integration beyond mock buckets | 🚧 Storage buckets + optional POST hooks; full server TBD |
+| Real backend JobPool production integration beyond mock buckets | 🚧 Extension POSTs `status` to `/applied/:id` and `/cancelled/:id`; JobPool website server is the integrator's work |
 
 ---
 
-*Last reviewed against repo `main` at v1.14.1 (Glassdoor Easy Apply click fix).*
+*Last reviewed against repo at v1.15.3 (source fill checklist + JobPool status contract).*

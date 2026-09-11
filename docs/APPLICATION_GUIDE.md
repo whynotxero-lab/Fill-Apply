@@ -769,4 +769,5 @@ Sources that mainly deep-link into Greenhouse/Ashby/Lever/CATS may need little/n
 ## Related docs
 
 - Main project README (load unpacked, architecture, Greenhouse / Indeed notes).
+- [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) — per-source fill confidence, start/fill/continue/submit, JobPool POST contract.
 - Adapter comments in `adapters/ats/ashby.js` restate Ashby’s 3/60 and 180-day rules for maintainers.

@@ -250,6 +250,50 @@ Chronological narrative of the Fill & Apply build conversation between **User** 
 **Assistant:** Removed footer “Indeed, Inc.” from wizard detection; tightened contact markers; always click Easy Apply + `clickedApplyStart`/`reDetect` if wizard slow; Easy Apply attrs + banner skips in `findEasyApplyButton`; synonyms `isEasyApplyCta` / `isApplyStartCtaForHost`; smoke `smoke-glassdoor-inflow.js` — **v1.14.1**.
 
 
+## Fill engine rebuild 1.15.0
+
+**User:** The extension is not working as intended, even on the pages it was trained on. It does not fetch or know the actual buttons, navigations, fields or field types, despite source-based profiles and documented application structures. Read the full documentation, chat logs and structure; understand the core failure reasons and fix them.
+
+**Assistant:** Traced the failures to the shared DOM layer rather than the adapters. Four structural gaps: injection targeted the top frame only (so every iframed ATS form was invisible); `isApplicationFormOpen` matched a hard-coded container whitelist (so React-rendered forms scored zero and the engine returned "No Apply button found on this page"); the fill pass was synchronous, querying listbox options in the same tick as the click that opens them (so no custom dropdown could ever be filled); and label resolution only checked `previousElementSibling` (so the most common ATS layout produced no label and no field type). A fifth issue discarded configured answers — source profiles store under `customAnswers`, which the engine never read.
+
+Shipped `lib/dom-deep.js` (shadow/frame-piercing queries, ancestor label walk, required detection, real pointer clicks, native-setter writes, typeahead typing, MutationObserver waits), signal-scored form detection, an async type-aware fill pass, cross-frame injection with best-frame ranking, the generic engine as a fallback behind drifted adapters, run diagnostics, and both jsdom and real-Chrome tests — **v1.15.0**. See [FILL_ENGINE.md](FILL_ENGINE.md).
+
+---
+
+## Value formats + preloaded documents 1.15.1
+
+**User:** The app has a documents section that pre-loads the applicant's documents ahead of an application. When the application reaches the CV/resume or cover-letter upload it should use the one already loaded in the app, rather than asking again to upload from storage. Also, when fields, elements and buttons are found and their names are known, there are format issues — phone, zip and others.
+
+**Assistant:** Two gaps, both downstream of detection.
+
+Formats: values were written verbatim apart from currency stripping and date normalization, so a control with real constraints rejected what it was given. Worst case was the phone number — with a country-code selector beside the number field the engine still wrote the full international number, so a form holding `+966` received `+966500000000` in the number box. Added `lib/format.js`, which shapes each value against the `type`, `pattern`, `maxlength`, `inputmode`, `step`, `min`/`max` and placeholder mask the control advertises: phone (dial-code split, masks, exact-digit patterns, trunk zero, no duplicated code), postal (US five digits, Canadian and UK spacing, compact on strict patterns), date, url (scheme or handle), number (step rounding, min/max clamping) and word-boundary truncation for long answers. Selects and listboxes also try alternate spellings, so `United Arab Emirates` finds `AE`.
+
+Documents: only site adapters attached them, and in a single pass before any Continue click. The generic engine — which runs on unknown sites and behind an adapter that matched nothing — filled the form and left the resume empty, and a multi-step application whose upload step comes later never received the file. The engine now owns attaching: it waits for the upload control, assigns the stored file through `DataTransfer`, and re-attaches after advancing a step. The native file dialog is never opened; intercepting the site's own `input.click()` still reveals which input it wanted. Also fixed: content type inferred from the filename (forms validate `File.type`), an `accept` mismatch reported for manual upload instead of counted as success, an upload the site already holds left alone and reported, attached inputs marked so re-detect passes do not attach twice, and a synthesized drop for dropzones with no input — **v1.15.1**. See [FILL_ENGINE.md](FILL_ENGINE.md).
+
+---
+
+## Full applicant profile 1.15.2
+
+**User:** Use this CV to build a single full profile usable across all job sources that can fill any and all fields. Make sure it can fill checks, yes/no, dropdown, radio, date, educational and the other listed field types accurately.
+
+**Assistant:** The Zahid General record was a contact card with a work-history paragraph. ATS forms do not ask for a paragraph — they ask for school, degree, field of study, graduation year, years of experience as a bucket, highest education as a select, nationality as a demonym. Those values were not stored, so the engine had nothing to write.
+
+Expanded the profile schema and App Settings form to the fields every listed source asks for. Stored each of them on Zahid General from the CV (seven roles, two degrees, CMA/ACCA, 15 years, Master's, Riyadh, Pakistani, immediately available). Left salary, date of birth and driving licence blank on purpose.
+
+The fill engine now matches the option the form offers: `15` lands in `10+`, `Master's` finds `Master's Degree` and falls back to `Bachelor's` when that is the highest option, `Pakistan` finds `Pakistani`, `I can start immediately` finds Teamtailor `Onspot`. Radio groups are mapped from the question (the legend), not from the first option's text. Short control ids like `edu` no longer steal the education paragraph because they happen to sit inside the word "education". Consent and EEO are still skipped. `npm test` is 7 suites / 184 assertions — **v1.15.2**. See [FILL_ENGINE.md](FILL_ENGINE.md).
+
+---
+
+## Source fill checklist + JobPool 1.15.3
+
+**User:** Make a Checklist. Confirm the app can confidently fill all job applications from the sources already shared. Also, if a new application asks fields already in the user profile, can fill it; the app can start application — fill & continue and submit. Integrating a JobPool website: Application URLs go into the Application Queue; once actually applied / submitted, POST back to JobPool to change status there.
+
+**Assistant:** Documented honest confidence rather than claiming every source is unattended. Documented sources fill once the form is reachable (Unattended / After gate / Handoff / Generic / Blocked). A new URL that asks for profile-backed fields is filled by the generic engine; required blanks still pause. Run modes already cover start → fill → continue → submit.
+
+Closed the JobPool semantic gap: local bucket `applied` meant “processed for the current mode,” which would have flipped JobPool to Applied after a fill-only run. `FillApplyTypes.jobPoolOutcome` now stamps every finish POST with `status` (`submitted` / `ready` / `filled` / `processed` / `failed` / `cancelled`). Live Stop also `POST /cancelled/:id`. JobPool must treat only `status=submitted` as Applied. See [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) — **v1.15.3**.
+
+---
+
 ## Notes for readers
 
 - Timestamps omitted; order follows the agent transcript turn sequence.

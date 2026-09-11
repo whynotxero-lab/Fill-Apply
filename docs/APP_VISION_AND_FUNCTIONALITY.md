@@ -42,6 +42,8 @@ adapters/
                     Remote OK, WWR, Working Nomads, …
   agencies/         Michael Page, Hays, Robert Half, …
 lib/
+  dom-deep.js       deep DOM engine — shadow roots + same-origin frames, labels,
+                    required detection, real clicks, waits (used by every layer)
   profile.js        multi-profile store + missing-field apply + number sanitize
   source-profiles.js per-source compulsory fields, Start gate, merge-over-base
   storage.js        run config, buckets, documents, caps, pause state
@@ -132,9 +134,15 @@ Stop → current → cancelled; remaining stay queued. Apply caps: per-source de
 | **1.11.1** | Locked Mock demo + Teamtailor Apply-start harden |
 | **1.12.0** | Missing-fields popup; Single settle/pace; number/salary sanitize |
 | **1.13.0** | Source profiles + Start gate; batch-by-source; Options → App Settings rename |
+| **1.14.x** | Glassdoor Easy Apply multi-step, frame-churn retry, `inFlow` false-positive fix |
+| **1.15.0** | Fill engine rebuild — cross-frame injection, signal-scored form detection, async dropdown handling, deep DOM field reading, `customAnswers` reaching the page, run diagnostics, jsdom + real-Chrome tests ([FILL_ENGINE.md](FILL_ENGINE.md)) |
+| **1.15.1** | Per-control value formatting (phone country-code split, masks and patterns, postal codes, dates, URLs, numbers, country/state spellings) + preloaded resume and cover letter attached by the engine on whichever step asks for them, without the OS file chooser ([FILL_ENGINE.md](FILL_ENGINE.md)) |
+| **1.15.2** | Full applicant profile — every ATS field type (select, radio, checkbox, date, education level, years-of-experience bucket, demonym) filled from a single Zahid General record; blanks (salary, DOB) left blank ([FILL_ENGINE.md](FILL_ENGINE.md)) |
+| **1.15.3** | Source fill checklist + JobPool status contract — honest per-source confidence; unknown URLs fill profile-backed fields; `POST /applied/:id` includes `status` (`submitted` only = Applied); live `POST /cancelled/:id` ([SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md)) |
 
 ## Related
 
+- [FILL_ENGINE.md](FILL_ENGINE.md) — how forms are found, read and filled; failure modes and diagnostics
 - [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) — detailed per-source operator guide
 - [SOURCES_AND_FIELDS.md](SOURCES_AND_FIELDS.md) — field comparison
 - [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) — status checklist

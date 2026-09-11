@@ -245,6 +245,7 @@ Per-source apply caps still apply.
 | Notice period | — | Teamtailor*, iCIMS* |
 | Current / expected salary | — | Teamtailor*, Indeed*, LinkedIn Easy, Swooped OTE |
 | Years experience | — | Teamtailor buckets; LinkedIn Easy; Indeed |
+| Highest Education | — | LinkedIn Easy, Indeed, iCIMS; stored as a level (`Master's Degree`) so selects resolve |
 | Gender / DOB / salutation | — | LinkedIn Easy / iCIMS / Indeed (optional or * per paste) |
 | Based in Riyadh / UAE / KSA | — | Teamtailor Riyadh; NaukriGulf UAE; Swooped KSA |
 | Team size / cert / tools rating | — | Teamtailor Noon screening |
@@ -259,6 +260,7 @@ Per-source apply caps still apply.
 
 ## Related
 
+- [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) — honest fill confidence, start/fill/continue/submit, JobPool POST
 - [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) — full operator pastes and mode matrices
 - [APP_VISION_AND_FUNCTIONALITY.md](APP_VISION_AND_FUNCTIONALITY.md)
 - Source catalog implementation: `lib/source-profiles.js`, `adapters/catalog.js`

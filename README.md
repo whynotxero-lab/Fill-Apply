@@ -6,11 +6,17 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Adaptive fill:** synonym CTAs (Apply / Apply Now / Start Apply / Apply for this Job / …) and Resume≈CV via `lib/synonyms.js` + **universal Apply-start** (click Apply to open the form when still on a job overview) + generic fallback for unknown hosts.
 
-**Docs:** [Docs index](docs/README.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
+**Docs:** [Docs index](docs/README.md) · [Fill engine](docs/FILL_ENGINE.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
-**Version 1.14.1** — **Glassdoor Easy Apply click fix**: footer `Indeed, Inc.` no longer forces `inFlow` (skipped Easy Apply); always click Easy Apply when found + `clickedApplyStart`/`reDetect` if wizard slow; tighter contact/wizard markers; Easy Apply attrs in `findEasyApplyButton`. Prior **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
+**Version 1.15.3** — **source fill checklist + JobPool status**. Honest per-source confidence (not “every board unattended”), confirmation that a new application can fill any field already on the profile, and a live JobPool contract: pull apply URLs from `GET /queue`, POST `/applied/:id` with `status`, and treat **only `submitted`** as Applied. See [Source fill checklist](docs/SOURCE_FILL_CHECKLIST.md).
+
+**Version 1.15.1** — **value formats + preloaded documents**. Every value is now shaped for the control receiving it: `lib/format.js` reads the `type`, `pattern`, `maxlength`, `inputmode`, `step` and placeholder mask a field advertises, so a phone number arrives as `+971501234567` in a single field but as `501234567` where the form has its own country-code selector, and as ten bare digits where the control declares `pattern="\d{10}"`. Postal codes, dates, URLs and numbers follow the same rule, and selects try alternate spellings (`United Arab Emirates` → `AE`). The **resume and cover letter loaded in App Settings are attached by the engine itself**, on whichever step asks for them, without ever opening the operating system's file chooser. See [Fill engine](docs/FILL_ENGINE.md).
+
+**Version 1.15.0** — **fill engine rebuild**. Injection now runs in **all frames**, so ATS forms embedded in iframes (Greenhouse / Lever / Workable / SmartRecruiters embeds, iCIMS, Glassdoor→Indeed) are reachable for the first time. Form detection is **signal-scored** instead of matching a container whitelist, so React-rendered forms (Ashby, Lever, Teamtailor, Workday) are recognised. The fill pass is **async**, so custom dropdown options are awaited rather than queried in the same tick — previously no custom dropdown could ever be filled. New `lib/dom-deep.js` pierces shadow roots, resolves labels from wrapper divs, and clicks with real pointer events. Source-profile answers under `customAnswers` now reach reworded page labels.
+
+Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
 ## Load unpacked
 
@@ -32,7 +38,7 @@ App Settings → **Profiles** (collapsible; expanded by default):
 - Side panel shows active applicant `Person · email` only (not chip·person·email)
 - Storage: `fillApply.profiles` + `fillApply.activeProfileId`. Legacy migrates to **"Mock"**. Section open-state: `fillApply.ui.sections`.
 - **Documents**: file upload + optional Resume/Cover Drive/URL (`resumeLink`/`coverLink` + profile `resumeUrl`/`coverUrl`). Fetch→blob is best-effort; Drive auth/CORS → pause + manual upload.
-- **Zahid General**: Create/Reset loads Chaudhary Zahid Ali’s KSA FP&A template (see `profiles/zahid-general.json`).
+- **Zahid General**: Create/Reset loads Chaudhary Zahid Ali’s full KSA FP&A profile — every ATS field type, not just contact + a paragraph (see `profiles/zahid-general.json`). Salary, date of birth and driving licence stay blank until supplied.
 - **Missing profile fields**: never invented — OS notification + **in-panel popup** to type values → Save & continue writes the active profile, then Resume (batch) or re-runs Single.
 
 ## Single vs Batch (v1.12)
@@ -95,11 +101,17 @@ adapters/
   boards/       Indeed (multi-step), LinkedIn (Easy Apply + External Apply → iCIMS), NaukriGulf (Easy Apply modal), eFinancialCareers (account-first modal → employer), Wellfound, Remote OK, We Work Remotely (external Apply handoff), Working Nomads (→ Greenhouse), Jooble (→ Swooped/ATS), Swooped (Apply manually instead), …
   agencies/     Michael Page, Hays, Robert Half, …
 lib/
+  dom-deep.js   deep DOM engine — shadow roots + same-origin frames, label resolution,
+                required detection, real pointer clicks, native-setter writes,
+                typeahead typing, MutationObserver waits
   types.js      shapes + storage keys + message constants + runMode + pause flags
   storage.js    run config, buckets, documents, mock URL list, applyHistory, source caps, pausedForHuman
   profile.js    multi-profile store (fillApply.profiles + activeProfileId; migrate legacy; phoneCountry, customAnswers, …)
   field-map.js  field heuristics
-  files.js      base64 ↔ File + DataTransfer; Attach/Upload button discovery
+  format.js     per-control value shaping — phone, postal, date, url, number,
+                text truncation, country/state spellings
+  files.js      base64 ↔ File + DataTransfer; Attach/Upload discovery with the
+                native file dialog suppressed; accept + existing-upload checks
   challenges.js Cloudflare / Turnstile / interactable CAPTCHA detection (no auto-click); auth-wall bridge
   auth-walls.js Sign in / Register / Create a login / Password Re-enter detection (optional for adapters)
   backend.js    getNextJob / markApplied / markFailed / markCancelled + buckets
@@ -121,6 +133,32 @@ Replace the old auto-submit checkbox with a three-way control:
 
 Legacy `autoSubmit: true` migrates to `runMode: 'submit'`; otherwise `fill`.
 
+## Fill engine
+
+The DOM layer every adapter builds on. Full detail in [docs/FILL_ENGINE.md](docs/FILL_ENGINE.md).
+
+- **Cross-frame** — injection runs with `allFrames: true`, so ATS forms embedded in iframes are reachable. Sub-frames with no form and no Apply CTA return immediately; the frame that fills the form wins.
+- **Signal-scored detection** — `scoreApplicationForm()` weighs named application fields, resume inputs, final-submit CTAs and field density instead of matching a container whitelist, so React-rendered forms count. Search boxes, newsletter signups and sign-in forms are excluded.
+- **Async** — the pass waits for a slow SPA to render, awaits listbox options after opening a dropdown (they render a tick later, usually portalled to `<body>`), and types into typeahead comboboxes.
+- **Deep and typed** — shadow roots are traversed, labels resolve from wrapper divs and `aria-*`, required fields are detected including a trailing `*`, and checkboxes and radios use real pointer clicks so framework state updates.
+- **Formatted per control** — `lib/format.js` shapes each value for the field receiving it, reading its `type`, `pattern`, `maxlength`, `inputmode`, `step` and placeholder mask. Phone numbers split into a dial code and a national number depending on whether the form has its own country-code control; postal codes, dates, URLs and numbers follow the same rule; selects try alternate spellings so `United Arab Emirates` finds `AE`. Years-of-experience buckets (`15` → `10+`), education levels (`Master's` → `Master's Degree`, falling back to `Bachelor's` when that is the highest option) and nationality demonyms (`Pakistan` → `Pakistani`) are resolved the same way.
+- **Documents attached from storage** — the resume and cover letter loaded in App Settings go onto the page's upload control via `DataTransfer`, on whichever step asks for them, including one revealed by Continue. The operating system's file chooser is never opened; an upload the site already holds is kept and reported; a file type the form's `accept` list forbids is reported for manual upload rather than counted as attached.
+- **Reported, never invented** — consent checkboxes and voluntary self-identification are skipped and reported; required fields with no answer are named in `missingRequired`, which drives the missing-fields popup.
+
+Every result carries `details[]`, `skipped[]`, `missingRequired[]`, `filesAttached`, `formSignals`, `inspection` and `frames[]`, so a failure shows what the engine actually saw.
+
+## Tests
+
+The extension has no build step; `package.json` exists only for the test harness.
+
+```bash
+npm install
+npm test                      # jsdom suites: detection, fill engine, value formats, documents, full profile
+node scripts/browser-e2e.js   # real Chrome + unpacked extension (needs a display)
+```
+
+`scripts/browser-e2e.js` serves a career page whose application form lives in an iframe on a **different** origin, installs the unpacked extension, and drives the real runner injection path from the service worker. It also checks the phone number is split across the country-code control and the number field, that the preloaded resume reaches an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog.
+
 ## Queue buckets
 
 Structured lists in `chrome.storage.local` (not a single looping mock queue):
@@ -128,7 +166,7 @@ Structured lists in `chrome.storage.local` (not a single looping mock queue):
 | Bucket | Meaning |
 |--------|---------|
 | `queued` | Waiting to process |
-| `applied` | Successfully processed for the current mode (fill / ready / submit completed ok) |
+| `applied` | Successfully processed for the current mode (fill / ready / submit completed ok). **Not** the same as employer-submitted — JobPool must read `status` / `jobPoolStatus`. |
 | `failed` | Error / inject failure / no adapter / critical file failure |
 | `cancelled` | User Stop aborted the current job (incomplete) |
 
@@ -280,19 +318,22 @@ Hosts: `jobs.ashbyhq.com`, `ashbyhq.com`, `*.ashbyhq.com`.
 
 Before filling, `inspectForm(document)` catalogs inputs, textareas, select options, contenteditables, file inputs, Attach buttons, and custom dropdown triggers. A summary (`field count by type`) is returned in the fill result and used to drive select / listbox matching (fuzzy Yes/No, country lists, etc.).
 
-## Backend contract (live mode)
+## Backend contract (live mode / JobPool)
 
-Set **Backend base URL** and turn **Mock mode** off.
+Set **Backend base URL** (the JobPool origin) and turn **Mock / Queue mode** off. JobPool publishes apply URLs; after each run the extension POSTs the outcome so JobPool can change status there. Full checklist: [docs/SOURCE_FILL_CHECKLIST.md](docs/SOURCE_FILL_CHECKLIST.md).
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/queue` | List jobs `{ id, title, company, url, ats? }[]` |
+| GET | `/queue` | List jobs `{ id, title, company, url, ats?, sourceId? }[]` or `{ jobs: […] }` |
 | GET | `/queue/next` | Next job or empty |
-| POST | `/applied/:id` | Body: fill result / submitted / runMode / `reportSummary` (+ optional `pdfBase64`) |
+| POST | `/applied/:id` | Body: fill result / `runMode` / `reportSummary` (+ optional `pdfBase64`) **and `status` / `outcome`** |
+| POST | `/cancelled/:id` | Stop or apply-cap skip — `{ status: "cancelled", reason }`. If missing, falls back to `POST /applied/:id` with the same cancelled body. |
 | GET | `/profile` | Optional remote profile |
 | GET | `/documents` | `{ resume, cover }` each `{ name, mime, base64 }` or URL |
 
-With mock mode (or empty base URL), `lib/backend.js` serves the in-extension **queued** bucket built from **Options → Application queue** URLs.
+`status` is `submitted` | `ready` | `filled` | `processed` | `failed` | `cancelled` from `FillApplyTypes.jobPoolOutcome`. **Only `status=submitted` means the employer received the application.** A fill-only or ready success still lands in the local `applied` bucket; JobPool must not treat that as Applied.
+
+With mock mode (or empty base URL), `lib/backend.js` serves the in-extension **queued** bucket built from **Options → Application queue** URLs. The same `status` is stored on the job as `jobPoolStatus`.
 
 ## File attach method
 
