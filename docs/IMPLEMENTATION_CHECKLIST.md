@@ -27,7 +27,7 @@ Everything below fixes a defect that made forms unreadable or invisible regardle
 | `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
 | Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
 | Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
-| jsdom test suites | ✅ | `npm test` — 8 suites (includes JobPool status) |
+| jsdom test suites | ✅ | `npm test` — 10 suites (includes JobPool status, run modes, backend POST) |
 | Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
 
 ---
@@ -95,7 +95,7 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | New URL fills profile-backed fields | ✅ | Generic engine + field map + customAnswers; required blank → pause |
 | Start → fill → continue → submit | ✅ | Run modes; Apply-start in all modes |
 | JobPool `status` on every finish POST | ✅ | `FillApplyTypes.jobPoolOutcome` — only `submitted` = employer apply |
-| Live `POST /cancelled/:id` | ✅ | Stop and apply-cap |
+| Live `POST /cancelled/:id` | ✅ | Stop and apply-cap; falls back to `POST /applied/:id` with `status=cancelled` if `/cancelled` is missing |
 | JobPool website server itself | ⏳ | Extension contract is ready; JobPool implements GET/POST |
 
 ---

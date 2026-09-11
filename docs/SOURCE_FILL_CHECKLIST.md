@@ -122,7 +122,7 @@ App Settings → **Backend / runner**: set **Backend base URL** to the JobPool o
 | GET | `/queue` | List | `{ jobs: [{ id, title, company, url, source?, sourceId?, ats? }] }` or a bare array |
 | GET | `/queue/next` | Next reserved job | `{ id, url, … }` or `{ job: {…} }` or empty |
 | POST | `/applied/:id` | After every finished run (fill / ready / submit / fail) | See payload below |
-| POST | `/cancelled/:id` | Stop, or skip for apply-cap | `{ job, jobId, reason, status: "cancelled", outcome: "cancelled", cancelled: true, ok: false }` |
+| POST | `/cancelled/:id` | Stop, or skip for apply-cap | `{ job, jobId, reason, status: "cancelled", outcome: "cancelled", cancelled: true, ok: false }`. If this path is missing, the extension falls back to `POST /applied/:id` with the same cancelled body. |
 | GET | `/profile` | Optional | Remote profile |
 | GET | `/documents` | Optional | `{ resume, cover }` each `{ name, mime, base64 }` |
 

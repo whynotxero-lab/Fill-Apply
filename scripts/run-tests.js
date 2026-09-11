@@ -15,7 +15,9 @@ const SUITES = [
   'smoke-value-format.js',
   'smoke-documents.js',
   'smoke-profile-fill.js',
-  'smoke-jobpool-status.js'
+  'smoke-jobpool-status.js',
+  'smoke-run-modes.js',
+  'smoke-backend-jobpool.js'
 ];
 
 let failed = 0;
