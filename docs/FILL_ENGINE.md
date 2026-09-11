@@ -202,7 +202,7 @@ Every run reports what the engine actually saw, which is what makes a failure ex
 
 ```bash
 npm install
-npm test                      # 7 suites, 184 assertions, jsdom
+npm test                      # 8 suites, jsdom
 node scripts/browser-e2e.js   # real Chrome, needs a display
 ```
 
@@ -213,6 +213,7 @@ node scripts/browser-e2e.js   # real Chrome, needs a display
 | `smoke-value-format.js` | Phone, postal, date, url, number and text shaping, and select spellings |
 | `smoke-documents.js` | Preloaded document attach, picker suppression, accept mismatch, existing uploads, multi-step |
 | `smoke-profile-fill.js` | Full Zahid profile across text, select, radio, checkbox, buckets, education levels, demonyms; blanks, consent and EEO left alone |
+| `smoke-jobpool-status.js` | JobPool `status` mapping — only `submitted` means Applied |
 
 `scripts/browser-e2e.js` is the honest end-to-end check. It serves a career page on one origin whose application form lives in an iframe on a **different** origin — a shape no same-document traversal can reach — installs the unpacked extension, and drives the real runner injection path from the extension's own service worker. It asserts that the cross-origin form is filled, that the async portalled listbox option is selected, that the winning result came from the sub-frame, that the phone number is split across the country-code control and the number field, that the preloaded resume lands on an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog while doing it.
 

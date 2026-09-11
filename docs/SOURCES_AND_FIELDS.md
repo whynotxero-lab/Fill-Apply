@@ -260,6 +260,7 @@ Per-source apply caps still apply.
 
 ## Related
 
+- [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) — honest fill confidence, start/fill/continue/submit, JobPool POST
 - [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) — full operator pastes and mode matrices
 - [APP_VISION_AND_FUNCTIONALITY.md](APP_VISION_AND_FUNCTIONALITY.md)
 - Source catalog implementation: `lib/source-profiles.js`, `adapters/catalog.js`

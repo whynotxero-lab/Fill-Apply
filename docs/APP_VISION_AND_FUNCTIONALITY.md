@@ -138,6 +138,7 @@ Stop → current → cancelled; remaining stay queued. Apply caps: per-source de
 | **1.15.0** | Fill engine rebuild — cross-frame injection, signal-scored form detection, async dropdown handling, deep DOM field reading, `customAnswers` reaching the page, run diagnostics, jsdom + real-Chrome tests ([FILL_ENGINE.md](FILL_ENGINE.md)) |
 | **1.15.1** | Per-control value formatting (phone country-code split, masks and patterns, postal codes, dates, URLs, numbers, country/state spellings) + preloaded resume and cover letter attached by the engine on whichever step asks for them, without the OS file chooser ([FILL_ENGINE.md](FILL_ENGINE.md)) |
 | **1.15.2** | Full applicant profile — every ATS field type (select, radio, checkbox, date, education level, years-of-experience bucket, demonym) filled from a single Zahid General record; blanks (salary, DOB) left blank ([FILL_ENGINE.md](FILL_ENGINE.md)) |
+| **1.15.3** | Source fill checklist + JobPool status contract — honest per-source confidence; unknown URLs fill profile-backed fields; `POST /applied/:id` includes `status` (`submitted` only = Applied); live `POST /cancelled/:id` ([SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md)) |
 
 ## Related
 

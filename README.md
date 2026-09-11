@@ -10,7 +10,7 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
-**Version 1.15.2** — **full applicant profile**. The Zahid General record now carries every field ATS forms are known to ask for as its own value — school, degree, field of study, graduation year, years of experience, current title, and the rest — instead of burying them in a paragraph the engine cannot split. Selects, radios and listboxes resolve buckets (`15` → `10+ years`), education levels (`Master's / MBA` → `Master's Degree`, falling back to `Bachelor's` when that is the highest option offered) and demonyms (`Pakistan` → `Pakistani`). Blank salary and date of birth stay blank. See [Fill engine](docs/FILL_ENGINE.md).
+**Version 1.15.3** — **source fill checklist + JobPool status**. Honest per-source confidence (not “every board unattended”), confirmation that a new application can fill any field already on the profile, and a live JobPool contract: pull apply URLs from `GET /queue`, POST `/applied/:id` with `status`, and treat **only `submitted`** as Applied. See [Source fill checklist](docs/SOURCE_FILL_CHECKLIST.md).
 
 **Version 1.15.1** — **value formats + preloaded documents**. Every value is now shaped for the control receiving it: `lib/format.js` reads the `type`, `pattern`, `maxlength`, `inputmode`, `step` and placeholder mask a field advertises, so a phone number arrives as `+971501234567` in a single field but as `501234567` where the form has its own country-code selector, and as ten bare digits where the control declares `pattern="\d{10}"`. Postal codes, dates, URLs and numbers follow the same rule, and selects try alternate spellings (`United Arab Emirates` → `AE`). The **resume and cover letter loaded in App Settings are attached by the engine itself**, on whichever step asks for them, without ever opening the operating system's file chooser. See [Fill engine](docs/FILL_ENGINE.md).
 
@@ -166,7 +166,7 @@ Structured lists in `chrome.storage.local` (not a single looping mock queue):
 | Bucket | Meaning |
 |--------|---------|
 | `queued` | Waiting to process |
-| `applied` | Successfully processed for the current mode (fill / ready / submit completed ok) |
+| `applied` | Successfully processed for the current mode (fill / ready / submit completed ok). **Not** the same as employer-submitted — JobPool must read `status` / `jobPoolStatus`. |
 | `failed` | Error / inject failure / no adapter / critical file failure |
 | `cancelled` | User Stop aborted the current job (incomplete) |
 
@@ -318,19 +318,22 @@ Hosts: `jobs.ashbyhq.com`, `ashbyhq.com`, `*.ashbyhq.com`.
 
 Before filling, `inspectForm(document)` catalogs inputs, textareas, select options, contenteditables, file inputs, Attach buttons, and custom dropdown triggers. A summary (`field count by type`) is returned in the fill result and used to drive select / listbox matching (fuzzy Yes/No, country lists, etc.).
 
-## Backend contract (live mode)
+## Backend contract (live mode / JobPool)
 
-Set **Backend base URL** and turn **Mock mode** off.
+Set **Backend base URL** (the JobPool origin) and turn **Mock / Queue mode** off. JobPool publishes apply URLs; after each run the extension POSTs the outcome so JobPool can change status there. Full checklist: [docs/SOURCE_FILL_CHECKLIST.md](docs/SOURCE_FILL_CHECKLIST.md).
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/queue` | List jobs `{ id, title, company, url, ats? }[]` |
+| GET | `/queue` | List jobs `{ id, title, company, url, ats?, sourceId? }[]` or `{ jobs: […] }` |
 | GET | `/queue/next` | Next job or empty |
-| POST | `/applied/:id` | Body: fill result / submitted / runMode / `reportSummary` (+ optional `pdfBase64`) |
+| POST | `/applied/:id` | Body: fill result / `runMode` / `reportSummary` (+ optional `pdfBase64`) **and `status` / `outcome`** |
+| POST | `/cancelled/:id` | Stop or apply-cap skip — `{ status: "cancelled", reason }` |
 | GET | `/profile` | Optional remote profile |
 | GET | `/documents` | `{ resume, cover }` each `{ name, mime, base64 }` or URL |
 
-With mock mode (or empty base URL), `lib/backend.js` serves the in-extension **queued** bucket built from **Options → Application queue** URLs.
+`status` is `submitted` | `ready` | `filled` | `processed` | `failed` | `cancelled` from `FillApplyTypes.jobPoolOutcome`. **Only `status=submitted` means the employer received the application.** A fill-only or ready success still lands in the local `applied` bucket; JobPool must not treat that as Applied.
+
+With mock mode (or empty base URL), `lib/backend.js` serves the in-extension **queued** bucket built from **Options → Application queue** URLs. The same `status` is stored on the job as `jobPoolStatus`.
 
 ## File attach method
 

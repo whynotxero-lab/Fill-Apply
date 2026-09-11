@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.2** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.3** on `main`.
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -27,7 +27,7 @@ Everything below fixes a defect that made forms unreadable or invisible regardle
 | `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
 | Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
 | Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
-| jsdom test suites | ✅ | `npm test` — 7 suites, 184 assertions |
+| jsdom test suites | ✅ | `npm test` — 8 suites (includes JobPool status) |
 | Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
 
 ---
@@ -84,6 +84,19 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | Radio group question (not first option text) | ✅ | Legend / radiogroup mapped; option then clicked |
 | Short name/id no longer steals education/employment | ✅ | `edu` inside `education`, `emp` inside `employment` |
 | Never invent salary / DOB / licence | ✅ | Left blank; run pauses |
+
+---
+
+## Source fill checklist + JobPool (v1.15.3)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Honest per-source fill confidence | ✅ | [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) — Unattended / After gate / Handoff / Generic / Blocked |
+| New URL fills profile-backed fields | ✅ | Generic engine + field map + customAnswers; required blank → pause |
+| Start → fill → continue → submit | ✅ | Run modes; Apply-start in all modes |
+| JobPool `status` on every finish POST | ✅ | `FillApplyTypes.jobPoolOutcome` — only `submitted` = employer apply |
+| Live `POST /cancelled/:id` | ✅ | Stop and apply-cap |
+| JobPool website server itself | ⏳ | Extension contract is ready; JobPool implements GET/POST |
 
 ---
 
@@ -190,6 +203,7 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | docs/APP_VISION_AND_FUNCTIONALITY.md | ✅ | This pack |
 | docs/SOURCES_AND_FIELDS.md | ✅ | This pack |
 | docs/CHAT_LOG.md | ✅ | This pack (paraphrased transcript) |
+| docs/SOURCE_FILL_CHECKLIST.md | ✅ | v1.15.3 — source confidence + JobPool contract |
 | docs/IMPLEMENTATION_CHECKLIST.md | ✅ | This file |
 
 ---
@@ -202,8 +216,8 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | Invent EEO / diversity / passwords | ❌ Never — by design |
 | Cinematic cursor HUD | ⏳ Deferred |
 | Native store listing / packaged Web Store release | ⏳ Not started |
-| Real backend JobPool production integration beyond mock buckets | 🚧 Storage buckets + optional POST hooks; full server TBD |
+| Real backend JobPool production integration beyond mock buckets | 🚧 Extension POSTs `status` to `/applied/:id` and `/cancelled/:id`; JobPool website server is the integrator's work |
 
 ---
 
-*Last reviewed against repo at v1.15.2 (full applicant profile across ATS field types).*
+*Last reviewed against repo at v1.15.3 (source fill checklist + JobPool status contract).*

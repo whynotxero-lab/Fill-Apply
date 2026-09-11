@@ -193,8 +193,9 @@
           <form id="configForm" onsubmit="return false;">
             <div class="grid">
               <label class="span2">Backend base URL
-                <input name="backendBaseUrl" id="backendBaseUrl" type="url" placeholder="https://api.example.com" />
+                <input name="backendBaseUrl" id="backendBaseUrl" type="url" placeholder="https://jobpool.example.com" />
               </label>
+              <p class="hint span2">JobPool live mode: uncheck Queue mode and set this URL. The extension GETs <code>/queue</code> and <code>/queue/next</code>, then POSTs <code>/applied/:id</code> with <code>status</code>. Only <code>status=submitted</code> means the employer received the application. Fill / Ready successes are <code>filled</code> / <code>ready</code>. Stop sends <code>POST /cancelled/:id</code>.</p>
               <label class="check span2">
                 <input type="checkbox" id="mockMode" checked />
                 Queue mode (URLs below — no backend required)
@@ -237,6 +238,7 @@
                 <em>fill</em> never clicks Next/Submit; <em>ready</em> advances multi-step but never final Submit;
                 <em>submit</em> includes final Submit when confidently found. Auto-close only after submit success.
                 Queues: <code>queued</code> → <code>applied</code> / <code>failed</code> / <code>cancelled</code>.
+                Local <code>applied</code> means processed for the current mode — JobPool must read <code>status</code>, not the bucket name.
               </p>
             </details>
             <div class="actions">

@@ -8,8 +8,9 @@ Index of project docs for the **Fill & Apply** Chrome MV3 extension.
 | [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) | Per-source ATS/board behavior, caps, human gates, operator checklists (~48KB) |
 | [APP_VISION_AND_FUNCTIONALITY.md](APP_VISION_AND_FUNCTIONALITY.md) | Product vision, architecture, UI sections, modes, version milestones |
 | [SOURCES_AND_FIELDS.md](SOURCES_AND_FIELDS.md) | Application flows and required/optional fields per major source + comparison table |
+| [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) | Honest per-source fill confidence, start/fill/continue/submit, unknown-site behaviour, JobPool POST contract |
 | [CHAT_LOG.md](CHAT_LOG.md) | Chronological reconstruct of user ↔ Extension Engineer / Grok Bot chat (paraphrased) |
 | [IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md) | Honest status of what was shipped (✅ / 🚧 / ⏳) |
 | [../README.md](../README.md) | Root README — load unpacked, architecture, run modes, queue, adapters |
 
-**Repo:** [whynotxero-lab/Fill-Apply](https://github.com/whynotxero-lab/Fill-Apply) · **Current version:** 1.15.2
+**Repo:** [whynotxero-lab/Fill-Apply](https://github.com/whynotxero-lab/Fill-Apply) · **Current version:** 1.15.3

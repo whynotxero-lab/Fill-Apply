@@ -1,6 +1,6 @@
 {
   "name": "fill-and-apply",
-  "version": "1.15.0",
+  "version": "1.15.3",
   "private": true,
   "description": "Chrome MV3 queue-driven job-application filler. The extension itself has no build step; this manifest only wires up the test harness.",
   "scripts": {

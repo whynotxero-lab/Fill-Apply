@@ -284,6 +284,16 @@ The fill engine now matches the option the form offers: `15` lands in `10+`, `Ma
 
 ---
 
+## Source fill checklist + JobPool 1.15.3
+
+**User:** Make a Checklist. Confirm the app can confidently fill all job applications from the sources already shared. Also, if a new application asks fields already in the user profile, can fill it; the app can start application — fill & continue and submit. Integrating a JobPool website: Application URLs go into the Application Queue; once actually applied / submitted, POST back to JobPool to change status there.
+
+**Assistant:** Documented honest confidence rather than claiming every source is unattended. Documented sources fill once the form is reachable (Unattended / After gate / Handoff / Generic / Blocked). A new URL that asks for profile-backed fields is filled by the generic engine; required blanks still pause. Run modes already cover start → fill → continue → submit.
+
+Closed the JobPool semantic gap: local bucket `applied` meant “processed for the current mode,” which would have flipped JobPool to Applied after a fill-only run. `FillApplyTypes.jobPoolOutcome` now stamps every finish POST with `status` (`submitted` / `ready` / `filled` / `processed` / `failed` / `cancelled`). Live Stop also `POST /cancelled/:id`. JobPool must treat only `status=submitted` as Applied. See [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) — **v1.15.3**.
+
+---
+
 ## Notes for readers
 
 - Timestamps omitted; order follows the agent transcript turn sequence.

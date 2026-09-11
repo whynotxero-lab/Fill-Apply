@@ -124,6 +124,15 @@
     return winner;
   }
 
+  function withJobPoolStatus(payload) {
+    const body = Object.assign({}, payload || {});
+    if (global.FillApplyTypes && typeof global.FillApplyTypes.jobPoolOutcome === 'function') {
+      body.status = body.status || global.FillApplyTypes.jobPoolOutcome(body);
+      body.outcome = body.outcome || body.status;
+    }
+    return body;
+  }
+
   function sleep(ms) {
     return new Promise(function (resolve) {
       delayTimer = setTimeout(function () {
@@ -1052,13 +1061,13 @@
                   sourceId: cap.sourceId
                 });
               } else {
-                await B.markApplied(job.id, {
+                await B.markApplied(job.id, withJobPoolStatus({
                   failed: true,
                   error: reason,
                   blocked: true,
                   sourceCap: true,
                   url: job.url
-                });
+                }));
               }
               currentJobId = null;
               const counts = B.refreshCounts ? await B.refreshCounts() : { queued: 0 };
@@ -1441,7 +1450,15 @@
             markPayload.pdfBase64 = reportPdfBase64;
           }
 
-          await B.markApplied(job.id, markPayload);
+          const reported = withJobPoolStatus(markPayload);
+          await B.markApplied(job.id, reported);
+          await S.appendSessionLog({
+            type: 'jobpool_status',
+            jobId: job.id,
+            url: job.url,
+            status: reported.status,
+            runMode: runMode
+          });
           moved = true;
           currentJobId = null;
 
@@ -1520,24 +1537,24 @@
 
               const failedRetry = isCriticalFailure(fillResult);
               if (!failedRetry) {
-                await B.markApplied(job.id, {
+                await B.markApplied(job.id, withJobPoolStatus({
                   fillResult: fillResult,
                   submitted: !!(fillResult && fillResult.submitted),
                   advanced: !!(fillResult && fillResult.advanced),
                   runMode: runMode,
                   resumeAttached: !!(fillResult && fillResult.resumeAttached),
                   url: job.url
-                });
+                }));
                 moved = true;
                 currentJobId = null;
                 tab = null;
               } else {
-                await B.markApplied(job.id, {
+                await B.markApplied(job.id, withJobPoolStatus({
                   error: (fillResult && fillResult.error) || msg,
                   failed: true,
                   runMode: runMode,
                   url: job.url
-                });
+                }));
                 moved = true;
                 currentJobId = null;
                 tab = null;
@@ -1550,12 +1567,12 @@
                 try {
                   // Only hard-fail if retry also failed for a non-frame reason
                   if (!isFrameInvalidError(retryErr)) {
-                    await B.markApplied(job.id, {
+                    await B.markApplied(job.id, withJobPoolStatus({
                       error: rmsg,
                       failed: true,
                       runMode: runMode,
                       url: job.url
-                    });
+                    }));
                     moved = true;
                   } else {
                     // Keep queued — pause for human so Ready loop can resume
@@ -1578,12 +1595,12 @@
 
             if (!moved) {
               try {
-                await B.markApplied(job.id, {
+                await B.markApplied(job.id, withJobPoolStatus({
                   error: msg,
                   failed: true,
                   runMode: runMode,
                   url: job.url
-                });
+                }));
                 moved = true;
               } catch (_e2) {
                 /* ignore */
