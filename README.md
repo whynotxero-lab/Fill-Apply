@@ -327,7 +327,7 @@ Set **Backend base URL** (the JobPool origin) and turn **Mock / Queue mode** off
 | GET | `/queue` | List jobs `{ id, title, company, url, ats?, sourceId? }[]` or `{ jobs: […] }` |
 | GET | `/queue/next` | Next job or empty |
 | POST | `/applied/:id` | Body: fill result / `runMode` / `reportSummary` (+ optional `pdfBase64`) **and `status` / `outcome`** |
-| POST | `/cancelled/:id` | Stop or apply-cap skip — `{ status: "cancelled", reason }` |
+| POST | `/cancelled/:id` | Stop or apply-cap skip — `{ status: "cancelled", reason }`. If missing, falls back to `POST /applied/:id` with the same cancelled body. |
 | GET | `/profile` | Optional remote profile |
 | GET | `/documents` | `{ resume, cover }` each `{ name, mime, base64 }` or URL |
 
