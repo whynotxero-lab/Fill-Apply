@@ -24,6 +24,7 @@
     'lib/knowledge-learn.js',
     'lib/files.js',
     'lib/auth-walls.js',
+    'lib/ats-auth.js',
     'lib/challenges.js',
     'lib/easy-apply-steps.js',
     'content/focus-hud.js',
@@ -565,7 +566,7 @@
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tabId },
-        files: ['lib/auth-walls.js', 'lib/challenges.js']
+        files: ['lib/auth-walls.js', 'lib/ats-auth.js', 'lib/challenges.js']
       });
       const results = await chrome.scripting.executeScript({
         target: { tabId: tabId },
@@ -589,6 +590,352 @@
       return { challenged: false, kind: null, detail: '', markers: [] };
     }
   }
+
+  /** Auth-only inject target — composed separately so INJECT_TARGET stays untouched. */
+  const AUTH_INJECT_FILES = ['lib/auth-walls.js', 'lib/ats-auth.js', 'lib/challenges.js'];
+
+  async function injectAtsAuthLibs(tabId, allFrames) {
+    const target = allFrames
+      ? Object.assign({ tabId: tabId }, { allFrames: true })
+      : { tabId: tabId };
+    await chrome.scripting.executeScript({
+      target: target,
+      files: AUTH_INJECT_FILES
+    });
+  }
+
+  async function inspectAuthInTab(tabId, profile, opts) {
+    opts = opts || {};
+    try {
+      await injectAtsAuthLibs(tabId, !!opts.allFrames);
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: function (profileArg, forceChooser) {
+          const A = globalThis.FillApplyAtsAuth;
+          if (!A || !A.inspectAuthPage) {
+            return { result: 'AUTH_FAILED', pause: true, detail: 'AtsAuth missing' };
+          }
+          return A.inspectAuthPage(document, profileArg, {
+            forceGoogleChooser: !!forceChooser
+          });
+        },
+        args: [profile || null, !!opts.forceGoogleChooser]
+      });
+      return (
+        (results && results[0] && results[0].result) || {
+          result: 'AUTH_FAILED',
+          pause: true,
+          detail: 'inspectAuthInTab empty'
+        }
+      );
+    } catch (e) {
+      return {
+        result: 'AUTH_FAILED',
+        pause: true,
+        detail: String((e && e.message) || e || 'inspect failed')
+      };
+    }
+  }
+
+  async function performAuthActionInTab(tabId, profile) {
+    try {
+      await injectAtsAuthLibs(tabId, false);
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: function (profileArg) {
+          const A = globalThis.FillApplyAtsAuth;
+          if (!A || !A.performAuthAction) return { ok: false, detail: 'AtsAuth missing' };
+          const inspection = A.inspectAuthPage(document, profileArg);
+          return A.performAuthAction(document, profileArg, inspection);
+        },
+        args: [profile || null]
+      });
+      return (results && results[0] && results[0].result) || { ok: false, detail: 'no result' };
+    } catch (e) {
+      return { ok: false, detail: String((e && e.message) || e) };
+    }
+  }
+
+  async function findGoogleOauthTab(openerTabId) {
+    try {
+      const tabs = await chrome.tabs.query({
+        url: ['https://accounts.google.com/*', 'https://*.google.com/o/oauth2/*']
+      });
+      if (!tabs || !tabs.length) return null;
+      // Prefer most recently accessed / highest id near opener
+      tabs.sort(function (a, b) {
+        return (b.id || 0) - (a.id || 0);
+      });
+      for (var i = 0; i < tabs.length; i++) {
+        if (tabs[i] && tabs[i].id != null && tabs[i].id !== openerTabId) {
+          return tabs[i];
+        }
+      }
+      // Same tab navigated to Google
+      for (var j = 0; j < tabs.length; j++) {
+        if (tabs[j] && tabs[j].id === openerTabId) return tabs[j];
+      }
+      return tabs[0] || null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  async function persistAtsAuthState(job, profile, authOutcome) {
+    const Store = global.FillApplyAtsAuthStore;
+    if (!Store || !Store.upsert) return;
+    try {
+      const code = authOutcome && authOutcome.result;
+      await Store.upsert({
+        url: (job && job.url) || (authOutcome && authOutcome.href) || '',
+        email: (profile && profile.email) || null,
+        status: Store.statusFromAuthResult
+          ? Store.statusFromAuthResult(code)
+          : 'unknown',
+        lastResult: code || null,
+        lastDetail: (authOutcome && authOutcome.detail) || null,
+        googleUsed: !!(authOutcome && authOutcome.googleUsed)
+      });
+    } catch (_e) {
+      /* best-effort */
+    }
+  }
+
+  /**
+   * ATS auth lifecycle: try Google OAuth UI once before fill continues.
+   * Existing challenge / human-pause gates remain authoritative when needed.
+   *
+   * @returns {{ proceed: boolean, paused?: boolean, outcome: object }}
+   */
+  async function attemptAtsGoogleAuthLifecycle(tabId, profile, job) {
+    const A = global.FillApplyAtsAuth;
+    const AR = (A && A.AUTH_RESULTS) || {};
+    const S = global.FillApplyStorage;
+
+    async function logAuth(message, extra) {
+      try {
+        await S.appendSessionLog(
+          Object.assign(
+            {
+              type: 'ats_auth',
+              jobId: job && job.id,
+              message: message
+            },
+            extra || {}
+          )
+        );
+      } catch (_e) {}
+    }
+
+    // Skip if we already know this host is authenticated for this email
+    try {
+      const Store = global.FillApplyAtsAuthStore;
+      if (Store && Store.getForHost && job && job.url) {
+        const prior = await Store.getForHost(job.url, profile && profile.email);
+        if (prior && prior.status === 'authenticated') {
+          const snap = await inspectAuthInTab(tabId, profile);
+          if (snap && (snap.result === AR.AUTHENTICATED || snap.result === AR.NOT_REQUIRED)) {
+            await logAuth('ATS auth already recorded for host — continuing', {
+              result: snap.result
+            });
+            return { proceed: true, outcome: snap };
+          }
+        }
+      }
+    } catch (_prior) {}
+
+    let inspection = await inspectAuthInTab(tabId, profile);
+    await logAuth('ATS auth inspect', {
+      result: inspection && inspection.result,
+      detail: inspection && inspection.detail
+    });
+
+    if (!inspection) {
+      return {
+        proceed: false,
+        paused: true,
+        outcome: { result: AR.AUTH_FAILED || 'AUTH_FAILED', detail: 'No inspection' }
+      };
+    }
+
+    if (inspection.result === AR.NOT_REQUIRED) {
+      return { proceed: true, outcome: inspection };
+    }
+
+    if (inspection.result === AR.AUTHENTICATED) {
+      await persistAtsAuthState(job, profile, Object.assign({}, inspection, { googleUsed: false }));
+      return { proceed: true, outcome: inspection };
+    }
+
+    if (inspection.pause && inspection.result !== AR.ACCOUNT_ALREADY_EXISTS) {
+      // CAPTCHA / MFA / unsupported / ambiguous — do not click
+      await persistAtsAuthState(job, profile, inspection);
+      return { proceed: false, paused: true, outcome: inspection };
+    }
+
+    // Google available or existing-account recovery with Google button
+    if (
+      inspection.action === 'click_google' ||
+      inspection.result === 'GOOGLE_AUTH_AVAILABLE' ||
+      (inspection.result === AR.ACCOUNT_ALREADY_EXISTS && inspection.action === 'click_google')
+    ) {
+      const clicked = await performAuthActionInTab(tabId, profile);
+      await logAuth('Clicked Google OAuth UI', {
+        ok: !!(clicked && clicked.ok),
+        detail: clicked && clicked.detail,
+        existingAccount: !!inspection.existingAccount
+      });
+      if (!clicked || !clicked.ok) {
+        const fail = {
+          result: AR.AUTH_FAILED || 'AUTH_FAILED',
+          pause: true,
+          detail: (clicked && clicked.detail) || 'Failed to click Google auth',
+          googleUsed: true
+        };
+        await persistAtsAuthState(job, profile, fail);
+        return { proceed: false, paused: true, outcome: fail };
+      }
+
+      // Wait for Google chooser popup/tab or in-page Continue as …
+      let authOutcome = null;
+      const deadline = Date.now() + 22000;
+      while (Date.now() < deadline) {
+        if (!(await S.isRunning())) {
+          return {
+            proceed: false,
+            paused: true,
+            outcome: {
+              result: AR.USER_ACTION_REQUIRED || 'USER_ACTION_REQUIRED',
+              detail: 'Stopped during auth'
+            }
+          };
+        }
+        await sleep(900 + Math.floor(Math.random() * 400));
+
+        // In-page progress on ATS tab
+        let again = await inspectAuthInTab(tabId, profile);
+        if (again && again.result === AR.AUTHENTICATED) {
+          authOutcome = Object.assign({}, again, {
+            googleUsed: true,
+            result:
+              inspection.existingAccount || inspection.result === AR.ACCOUNT_ALREADY_EXISTS
+                ? AR.AUTHENTICATED
+                : again.result
+          });
+          // First-time create heuristic: wall had create markers and we authenticated via Google
+          if (
+            !inspection.existingAccount &&
+            inspection.wall &&
+            inspection.wall.markers &&
+            inspection.wall.markers.some(function (m) {
+              return /create|sign up|register/i.test(String(m));
+            })
+          ) {
+            authOutcome.result = AR.ACCOUNT_CREATED || 'ACCOUNT_CREATED';
+            authOutcome.detail = 'Account created / linked via Google OAuth';
+          }
+          break;
+        }
+        if (again && again.pause && again.result !== 'GOOGLE_AUTH_AVAILABLE') {
+          authOutcome = Object.assign({}, again, { googleUsed: true });
+          break;
+        }
+        if (again && again.action === 'click_account') {
+          const sel = await performAuthActionInTab(tabId, profile);
+          await logAuth('Selected Google account on ATS tab', {
+            ok: !!(sel && sel.ok),
+            detail: sel && sel.detail
+          });
+          if (!sel || !sel.ok) {
+            authOutcome = {
+              result: AR.USER_ACTION_REQUIRED || 'USER_ACTION_REQUIRED',
+              pause: true,
+              detail: (sel && sel.detail) || 'Could not select Google account',
+              googleUsed: true
+            };
+            break;
+          }
+          continue;
+        }
+
+        // Popup / redirect to accounts.google.com
+        const gTab = await findGoogleOauthTab(tabId);
+        if (gTab && gTab.id != null) {
+          try {
+            await waitTabComplete(gTab.id, 12000);
+          } catch (_w) {}
+          await focusTab(gTab.id);
+          let gInspect = await inspectAuthInTab(gTab.id, profile, { forceGoogleChooser: true });
+          if (gInspect && gInspect.action === 'click_account') {
+            const gClick = await performAuthActionInTab(gTab.id, profile);
+            await logAuth('Selected Google account on accounts.google.com', {
+              ok: !!(gClick && gClick.ok),
+              detail: gClick && gClick.detail
+            });
+            if (!gClick || !gClick.ok) {
+              authOutcome = {
+                result: AR.USER_ACTION_REQUIRED || 'USER_ACTION_REQUIRED',
+                pause: true,
+                detail: (gClick && gClick.detail) || 'Select Google account manually',
+                googleUsed: true
+              };
+              break;
+            }
+            // After account click, Google may show consent / return to ATS
+            await sleep(1200);
+            continue;
+          }
+          if (gInspect && gInspect.pause) {
+            authOutcome = Object.assign({}, gInspect, { googleUsed: true });
+            break;
+          }
+          // MFA / captcha on Google host
+          if (
+            gInspect &&
+            (gInspect.result === AR.MFA_REQUIRED ||
+              gInspect.result === AR.CAPTCHA_REQUIRED ||
+              gInspect.result === AR.EMAIL_VERIFICATION_REQUIRED)
+          ) {
+            authOutcome = Object.assign({}, gInspect, { googleUsed: true });
+            break;
+          }
+        }
+      }
+
+      if (!authOutcome) {
+        // Final check on ATS tab
+        const finalInspect = await inspectAuthInTab(tabId, profile);
+        if (finalInspect && finalInspect.result === AR.AUTHENTICATED) {
+          authOutcome = Object.assign({}, finalInspect, { googleUsed: true });
+        } else if (finalInspect && finalInspect.pause) {
+          authOutcome = Object.assign({}, finalInspect, { googleUsed: true });
+        } else {
+          authOutcome = {
+            result: AR.TIMEOUT || 'TIMEOUT',
+            pause: true,
+            detail: 'Google OAuth timed out — complete sign-in manually, then Resume',
+            googleUsed: true
+          };
+        }
+      }
+
+      await persistAtsAuthState(job, profile, authOutcome);
+      if (
+        authOutcome.result === AR.AUTHENTICATED ||
+        authOutcome.result === AR.ACCOUNT_CREATED
+      ) {
+        await focusTab(tabId);
+        await logAuth('ATS Google auth succeeded', { result: authOutcome.result });
+        return { proceed: true, outcome: authOutcome };
+      }
+      return { proceed: false, paused: true, outcome: authOutcome };
+    }
+
+    // Auth wall without Google — already handled above; fallback pause
+    await persistAtsAuthState(job, profile, inspection);
+    return { proceed: false, paused: true, outcome: inspection };
+  }
+
 
   /**
    * Pause run for human (Cloudflare / CAPTCHA / Indeed structure drift).
@@ -727,6 +1074,45 @@
       await sleep(lo + Math.floor(Math.random() * Math.max(0, hi - lo + 1)));
     } else {
       await sleep(150 + Math.floor(Math.random() * 200));
+    }
+
+    // Single-tab fill/ready/submit: attempt Google ATS auth before filler inject
+    if (!(config && config.skipAtsAuth)) {
+      try {
+        let onceUrl = null;
+        try {
+          const tMeta0 = await chrome.tabs.get(tabId);
+          onceUrl = (tMeta0 && tMeta0.url) || null;
+        } catch (_tu0) {}
+        const authOnce = await attemptAtsGoogleAuthLifecycle(tabId, profile, {
+          id: (config && config.jobId) || null,
+          url: onceUrl,
+          title: 'Fill once'
+        });
+        if (authOnce && authOnce.paused && authOnce.outcome) {
+          const Aref2 = global.FillApplyAtsAuth;
+          const AR2 = (Aref2 && Aref2.AUTH_RESULTS) || {};
+          return {
+            ok: false,
+            needsHuman: true,
+            pauseReason: 'ats_auth',
+            authResult: authOnce.outcome.result,
+            error:
+              (Aref2 && Aref2.pauseMessageForResult
+                ? Aref2.pauseMessageForResult(authOnce.outcome.result, authOnce.outcome.detail)
+                : authOnce.outcome.detail) || 'Authentication required',
+            challenge: authOnce.outcome.challenge || {
+              kind: 'ats_auth',
+              detail: authOnce.outcome.detail
+            },
+            filled: 0,
+            unmatched: 0,
+            total: 0
+          };
+        }
+      } catch (_authOnceErr) {
+        /* non-fatal — proceed to fill */
+      }
     }
 
     await chrome.scripting.executeScript({
@@ -1422,7 +1808,7 @@
       await S.appendSessionLog({ type: 'start' });
 
       while (await S.isRunning()) {
-        const config = await S.getRunConfig();
+        let config = await S.getRunConfig();
         const runMode = resolveRunMode(config);
         let job = null;
         try {
@@ -1613,6 +1999,39 @@
               }
             }
           } catch (_docLinkErr) { /* continue with whatever blobs we have */ }
+
+          // ATS account / Google OAuth lifecycle (once) before fill continues.
+          // fillTabWithApplyStart (panel) owns handoff/preHandoffUrl; skipAtsAuth
+          // prevents a second auth pass inside injectAndFillOnce.
+          try {
+            const authAttempt = await attemptAtsGoogleAuthLifecycle(tab.id, profile, job);
+            const authOut = authAttempt && authAttempt.outcome;
+            if (authAttempt && authAttempt.paused && authOut) {
+              const Aref = global.FillApplyAtsAuth;
+              const msg =
+                (Aref && Aref.pauseMessageForResult
+                  ? Aref.pauseMessageForResult(authOut.result, authOut.detail)
+                  : null) ||
+                authOut.detail ||
+                'Paused — authentication required';
+              await pauseForHuman(job, tab.id, 'ats_auth', {
+                message: msg,
+                authResult: authOut.result,
+                challenge: authOut.challenge || { kind: 'ats_auth', detail: authOut.detail },
+                pauseReason: 'ats_auth'
+              });
+              return getStatusSnapshot();
+            }
+          } catch (authErr) {
+            await S.appendSessionLog({
+              type: 'ats_auth',
+              jobId: job && job.id,
+              message: 'ATS auth lifecycle error — continuing to fill',
+              error: String((authErr && authErr.message) || authErr)
+            });
+          }
+          // Prevent re-entry inside injectAndFillOnce for this job tick
+          config = Object.assign({}, config || {}, { skipAtsAuth: true, jobId: job && job.id });
 
           {
             const packed = await fillTabWithApplyStart(
@@ -2094,6 +2513,7 @@
     injectAndFill: injectAndFill,
     fillTabWithApplyStart: fillTabWithApplyStart,
     runOnceOnTab: runOnceOnTab,
+    attemptAtsGoogleAuthLifecycle: attemptAtsGoogleAuthLifecycle,
     INJECT_FILES: INJECT_FILES
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

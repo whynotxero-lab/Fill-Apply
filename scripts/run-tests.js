@@ -19,7 +19,8 @@ const SUITES = [
   'smoke-run-modes.js',
   'smoke-knowledge.js',
   'smoke-backend-jobpool.js',
-  'smoke-page-panel.js'
+  'smoke-page-panel.js',
+  'smoke-ats-auth.js'
 ];
 
 let failed = 0;

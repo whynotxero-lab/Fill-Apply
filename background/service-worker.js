@@ -14,6 +14,8 @@ importScripts(
   '../lib/source-profiles.js',
   '../lib/backend.js',
   '../lib/report.js',
+  '../lib/ats-auth.js',
+  '../lib/ats-auth-store.js',
   '../runner/runner.js'
 );
 
