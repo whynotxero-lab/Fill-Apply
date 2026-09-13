@@ -496,6 +496,42 @@
     if (els.modal) els.modal.hidden = true;
   }
 
+  function updateMissingProgress() {
+    var els = getMissingModalEls();
+    var progressEl = document.getElementById('missingFieldsProgress');
+    if (!els.list || !progressEl) return;
+    var inputs = els.list.querySelectorAll('input[data-field], textarea[data-field]');
+    var total = inputs.length;
+    var done = 0;
+    inputs.forEach(function (inp) {
+      var wrap = inp.closest('.mf-field');
+      var filled = !!(inp.value || '').trim();
+      if (filled) done += 1;
+      if (wrap) {
+        wrap.classList.toggle('mf-done', filled);
+        var mark = wrap.querySelector('.mf-check');
+        if (mark) mark.hidden = !filled;
+      }
+    });
+    progressEl.textContent = done + ' of ' + total + ' answered';
+  }
+
+  function describeMissingField(label) {
+    var C = globalThis.FillApplyKnowledgeCanonical;
+    var info = { label: String(label || ''), key: '', type: 'string' };
+    if (C && C.matchCanonical) {
+      var hit = C.matchCanonical(info.label, {});
+      if (hit && hit.key) info.key = hit.key;
+      if (hit && hit.fieldType) {
+        info.type = C.toUserFieldType ? C.toUserFieldType(hit.fieldType) : hit.fieldType;
+      }
+    }
+    if (!info.key && C && C.deriveCanonicalKey) {
+      info.key = C.deriveCanonicalKey(info.label);
+    }
+    return info;
+  }
+
   function showMissingFieldsModal(payload) {
     payload = payload || {};
     var fields = Array.isArray(payload.missingProfileFields)
@@ -513,7 +549,7 @@
     var els = getMissingModalEls();
     if (!els.modal || !els.list) {
       setStatus(
-        'Missing profile field(s): ' + fields.join(', ') + ' — open App Settings or reload panel.',
+        'Missing information: ' + fields.join(', ') + ' — open App Settings or reload panel.',
         'warn'
       );
       return;
@@ -521,43 +557,84 @@
     if (els.msg) {
       els.msg.textContent =
         payload.message ||
-        'Enter values for the fields below. They save into your active profile, then fill continues.';
+        'Complete each item below. Answers normalize to Key / Aliases / Type / Value, save to adaptive knowledge, apply to this application, then fill continues.';
     }
     els.list.innerHTML = '';
+    var types = (globalThis.FillApplyKnowledgeCanonical &&
+      globalThis.FillApplyKnowledgeCanonical.USER_FIELD_TYPES) || [
+      'boolean',
+      'string',
+      'number',
+      'date',
+      'select',
+      'multiselect'
+    ];
     fields.forEach(function (field, idx) {
+      var meta = describeMissingField(field);
       var wrap = document.createElement('div');
       wrap.className = 'mf-field';
       var id = 'mfInput' + idx;
       var long = /cover|summary|history|essay|why|describe|letter/i.test(String(field));
+      var check = document.createElement('span');
+      check.className = 'mf-check';
+      check.textContent = '✓';
+      check.hidden = true;
+      wrap.appendChild(check);
       var label = document.createElement('label');
       label.setAttribute('for', id);
       label.textContent = String(field);
+      wrap.appendChild(label);
+      if (meta.key) {
+        var hint = document.createElement('span');
+        hint.className = 'mf-keyhint';
+        hint.textContent = 'Key: ' + meta.key;
+        wrap.appendChild(hint);
+      }
+      var typeWrap = document.createElement('label');
+      typeWrap.className = 'mf-type';
+      typeWrap.textContent = 'Type ';
+      var typeSel = document.createElement('select');
+      typeSel.dataset.fieldTypeFor = String(field);
+      types.forEach(function (t) {
+        var opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        if (t === meta.type) opt.selected = true;
+        typeSel.appendChild(opt);
+      });
+      typeWrap.appendChild(typeSel);
+      wrap.appendChild(typeWrap);
       var input = document.createElement(long ? 'textarea' : 'input');
-      if (!long) input.type = 'text';
+      if (!long) {
+        if (meta.type === 'number') input.type = 'number';
+        else if (meta.type === 'date') input.type = 'date';
+        else input.type = 'text';
+      }
       input.id = id;
       input.dataset.field = String(field);
-      input.placeholder = 'Type value…';
+      if (meta.key) input.dataset.canonicalKey = meta.key;
+      input.placeholder = meta.type === 'boolean' ? 'Yes or No' : 'Type value…';
       input.autocomplete = 'off';
-      wrap.appendChild(label);
+      input.addEventListener('input', updateMissingProgress);
+      input.addEventListener('change', updateMissingProgress);
       wrap.appendChild(input);
       els.list.appendChild(wrap);
     });
     els.modal.hidden = false;
-    // Focus first input
+    updateMissingProgress();
     var first = els.list.querySelector('input, textarea');
     if (first) {
       try { first.focus(); } catch (_e) {}
     }
-    // Scroll modal card into view / highlight pause banner
     if (pauseBannerEl) {
       pauseBannerEl.hidden = false;
       if (pauseMessageEl) {
         pauseMessageEl.textContent =
           payload.message ||
-          ('Paused — missing: ' + fields.join(', '));
+          ('Paused — Complete Missing Information (' + fields.length + ')');
       }
     }
-    setStatus('Paused — enter missing profile fields, then Save & continue.', 'warn');
+    setStatus('Paused — Complete Missing Information, then Save & continue fill.', 'warn');
   }
 
   async function clearPauseStateStorage() {
@@ -588,22 +665,66 @@
     var els = getMissingModalEls();
     if (!els.list || !missingFieldsContext) return;
     var values = {};
-    els.list.querySelectorAll('input, textarea').forEach(function (inp) {
+    var typed = [];
+    els.list.querySelectorAll('input[data-field], textarea[data-field]').forEach(function (inp) {
       var field = inp.dataset.field || '';
       var val = (inp.value || '').trim();
-      if (field && val) values[field] = val;
+      if (!field || !val) return;
+      values[field] = val;
+      var typeSel = els.list.querySelector('select[data-field-type-for="' + CSS.escape(field) + '"]');
+      // CSS.escape may be missing in older environments
+      if (!typeSel) {
+        els.list.querySelectorAll('select[data-field-type-for]').forEach(function (s) {
+          if (s.getAttribute('data-field-type-for') === field) typeSel = s;
+        });
+      }
+      typed.push({
+        label: field,
+        value: val,
+        fieldType: typeSel ? typeSel.value : 'string',
+        canonicalKey: inp.dataset.canonicalKey || '',
+        kind: 'confirm'
+      });
     });
     var missing = (missingFieldsContext.fields || []).filter(function (f) {
       return !values[f] || !String(values[f]).trim();
     });
     if (missing.length) {
       setStatus('Please fill: ' + missing.join(', '), 'err');
+      updateMissingProgress();
       return;
     }
     if (els.save) els.save.disabled = true;
     try {
+      var profileId = null;
+      try {
+        if (FillApplyProfile && FillApplyProfile.getActiveProfileId) {
+          profileId = await FillApplyProfile.getActiveProfileId();
+        }
+      } catch (_pid) {}
+
+      // (a) Immediately normalize + persist adaptive KB (Key / Aliases / Type / Value)
+      if (globalThis.FillApplyKnowledgeLearn && FillApplyKnowledgeLearn.learn) {
+        for (var i = 0; i < typed.length; i++) {
+          try {
+            await FillApplyKnowledgeLearn.learn({
+              label: typed[i].label,
+              value: typed[i].value,
+              fieldType: typed[i].fieldType,
+              canonicalKey: typed[i].canonicalKey || undefined,
+              kind: 'confirm',
+              profileId: profileId
+            });
+          } catch (_learnOne) { /* continue remaining */ }
+        }
+      } else if (globalThis.FillApplyKnowledgeLearn && FillApplyKnowledgeLearn.learnMany) {
+        try {
+          await FillApplyKnowledgeLearn.learnMany(values, { kind: 'confirm', profileId: profileId });
+        } catch (_learnErr) { /* profile write still attempted */ }
+      }
+
+      // Also write known identity / customAnswers on the active profile
       if (!FillApplyProfile || !FillApplyProfile.applyMissingFieldAnswers) {
-        // Fallback: merge into profile manually
         var profile = await FillApplyProfile.getProfile();
         Object.keys(values).forEach(function (k) {
           profile.customAnswers = profile.customAnswers || {};
@@ -618,22 +739,22 @@
       } else {
         await FillApplyProfile.applyMissingFieldAnswers(values);
       }
-      if (globalThis.FillApplyKnowledgeLearn && FillApplyKnowledgeLearn.learnMany) {
-        try {
-          await FillApplyKnowledgeLearn.learnMany(values, { kind: 'confirm' });
-        } catch (_learnErr) { /* profile write still succeeded */ }
-      }
-      await liveLog('missing_fields_saved', 'Saved ' + Object.keys(values).length + ' field(s) to active profile');
+
+      await liveLog(
+        'missing_fields_saved',
+        'Complete Missing Information: saved ' + Object.keys(values).length + ' answer(s) to adaptive KB + profile'
+      );
       await clearPauseStateStorage();
       hideMissingFieldsModal();
-      setStatus('Saved to profile — continuing…', 'ok');
+      setStatus('Saved — applying to current form and continuing…', 'ok');
       var mode = missingFieldsContext.mode;
       missingFieldsContext = null;
+      // (b)+(c) apply to current application fields and continue remaining fill same session
       if (mode === 'batch') {
         try {
           const data = await send(MSG.RESUME || 'FILL_APPLY_RESUME');
           applyStatus(data);
-          setStatus('Resumed batch after saving profile fields.', 'ok');
+          setStatus('Resumed batch after Complete Missing Information.', 'ok');
         } catch (e) {
           setStatus('Saved, but Resume failed: ' + e.message, 'err');
         }

@@ -47,7 +47,7 @@ Values never come from invented AI guesses. AI/semantic matching may map *wordin
 {
   id,                    // uuid
   canonicalKey,          // willing_to_relocate  ≠  requires_sponsorship
-  fieldType,             // text | boolean | number | select | multi-select | date | url
+  fieldType,             // boolean | string | number | date | select | multiselect  (legacy: text, multi-select, url)
   value,                 // typed (boolean Yes/No stored as display "Yes"/"No" for HTML controls)
   displayValue,          // as the applicant typed/selected
   aliases,               // question wordings that resolved to this key
@@ -191,3 +191,17 @@ Manual (Load unpacked):
 3. Type/select an answer. It is learned (debounced). Re-run **Fill** on the same form or a reworded variant — the value is reused immediately.
 4. App Settings → **Adaptive knowledge** — review, edit, or delete the fact.
 5. Confirm identity fields still come from **Profile settings**, and Apply / Continue / Submit still use existing synonym detection.
+
+
+---
+
+## Complete Missing Information (v1.17.2)
+
+When fill hits unknown required/asked fields, the side panel opens **Complete Missing Information** (checklist):
+
+1. Detect fields → match profile + built-in + adaptive → fill known
+2. Unknown items appear as a checklist (Key hint + Type + Value)
+3. On Save & continue: **immediately** normalize to Key / Aliases / Type / Value, persist adaptive KB, write profile customAnswers, re-run fill in the same session
+4. Future applications reuse the same Key via aliases
+
+Options → Adaptive knowledge reviews the same Key — Aliases — Type — Value model.

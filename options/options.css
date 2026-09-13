@@ -425,3 +425,58 @@ label.check input { width: auto; }
 .knowledge-card select {
   margin-bottom: 4px;
 }
+
+
+/* Adaptive knowledge — Key / Aliases / Type / Value */
+.knowledge-list { display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
+.knowledge-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--card, #fff);
+}
+.knowledge-card .k-model { display: flex; flex-direction: column; gap: 6px; }
+.knowledge-card .k-row { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: 12px; }
+.knowledge-card .k-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: #64748b;
+}
+.knowledge-card .k-row-grid {
+  display: grid; grid-template-columns: 1fr 2fr; gap: 8px;
+}
+.knowledge-card input, .knowledge-card select {
+  font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 6px;
+  border: 1px solid #cbd5e1;
+}
+.knowledge-card .k-key-input { font-family: ui-monospace, monospace; background: #f8fafc; }
+.knowledge-card .k-meta-line { margin: 6px 0 0; font-size: 11px; color: #64748b; }
+.knowledge-card .k-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+/* Application database — collapsible groups */
+.app-db-list { display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
+.app-db-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--card, #fff);
+}
+.app-db-card > summary {
+  cursor: pointer; font-weight: 600; font-size: 13px; list-style: none;
+}
+.app-db-card > summary::-webkit-details-marker { display: none; }
+.app-db-meta { font-size: 11px; color: #64748b; margin: 2px 0 8px; }
+.app-db-group { margin: 4px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 8px; }
+.app-db-group > summary {
+  cursor: pointer; font-size: 12px; font-weight: 600; padding: 6px 0; color: #334155;
+}
+.app-db-group[open] > summary { color: #0f172a; }
+.app-db-table { width: 100%; border-collapse: collapse; margin: 0 0 8px; font-size: 12px; }
+.app-db-table td { padding: 3px 4px; border-top: 1px solid #f1f5f9; vertical-align: top; }
+.app-db-table td:first-child { color: #64748b; width: 40%; }
+
+.profile-hierarchy-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  color: #64748b; margin: 0 0 6px;
+}
+.profile-chip.primary-profile { border-color: #22c55e88; }
+.profile-chip.secondary-profile { opacity: 0.92; }

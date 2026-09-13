@@ -393,7 +393,144 @@ function pageWith(html) {
     );
   })();
 
-  suite.finish();
+  
+  await (async function keyAliasesTypeValueModel() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    const S = page.window.FillApplyKnowledgeStore;
+    S.resetMemory();
+    suite.ok(C.USER_FIELD_TYPES.indexOf('string') !== -1, 'user types include string');
+    suite.ok(C.USER_FIELD_TYPES.indexOf('multiselect') !== -1, 'user types include multiselect');
+    suite.equal(C.toUserFieldType('text'), 'string', 'legacy text maps to string');
+    suite.equal(C.toUserFieldType('multi-select'), 'multiselect', 'legacy multi-select maps to multiselect');
+    const rec = await S.putKnowledge({
+      canonicalKey: 'notice_period',
+      value: '30 days',
+      fieldType: 'text',
+      aliases: ['Notice period', 'notice period', 'What is your notice period?']
+    });
+    suite.equal(rec.fieldType, 'string', 'stored fieldType normalized to string');
+    suite.equal(rec.aliases.length, 2, 'duplicate aliases collapsed (case-insensitive)');
+    const view = S.toDisplayRecord(rec);
+    suite.equal(view.key, 'notice_period', 'display Key');
+    suite.ok(Array.isArray(view.aliases), 'display Aliases');
+    suite.equal(view.type, 'string', 'display Type');
+    suite.equal(view.value, '30 days', 'display Value');
+  })();
+
+  await (async function aliasExpansionSameKey() {
+    const page = pageWith();
+    const Learn = page.window.FillApplyKnowledgeLearn;
+    const S = page.window.FillApplyKnowledgeStore;
+    const K = page.window.FillApplyKnowledge;
+    S.resetMemory();
+    K.sessionClear();
+    await Learn.learn({
+      label: 'Do you have SAP experience?',
+      value: 'Yes',
+      fieldType: 'boolean',
+      kind: 'confirm'
+    });
+    await Learn.learn({
+      label: 'Experience with SAP',
+      value: 'Yes',
+      fieldType: 'boolean',
+      kind: 'confirm'
+    });
+    const list = await S.listKnowledge();
+    const sap = list.filter(function (r) { return r.canonicalKey === 'sap_experience'; });
+    suite.equal(sap.length, 1, 'no duplicate keys for equivalent SAP wording');
+    suite.ok(
+      (sap[0].aliases || []).some(function (a) { return /Experience with SAP/i.test(a); }),
+      'alias expansion attaches the new wording to the same Key'
+    );
+  })();
+
+  await (async function typesAndUnknown() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    const K = page.window.FillApplyKnowledge;
+    const S = page.window.FillApplyKnowledgeStore;
+    S.resetMemory();
+    K.sessionClear();
+    suite.equal(C.normalizeValue('true', 'boolean'), 'Yes', 'boolean type normalizes true→Yes');
+    suite.equal(C.normalizeValue(['A', 'B'], 'multiselect'), 'A; B', 'multiselect joins values');
+    const unknown = K.resolve({}, { label: 'Favourite colour of stapler', type: 'text' }, page.window.FillApplyFieldMap);
+    suite.equal(unknown.value, '', 'unknown handling leaves value empty');
+    suite.ok(!unknown.source, 'unknown has no invented source');
+  })();
+
+  await (async function immediatePersistSameSessionAndFuture() {
+    const page = pageWith();
+    const Learn = page.window.FillApplyKnowledgeLearn;
+    const S = page.window.FillApplyKnowledgeStore;
+    const K = page.window.FillApplyKnowledge;
+    S.resetMemory();
+    K.sessionClear();
+    const learned = await Learn.learn({
+      label: 'Are you willing to relocate?',
+      value: 'Yes',
+      fieldType: 'boolean',
+      kind: 'confirm'
+    });
+    suite.ok(learned.accepted, 'immediate persist accepts confirm');
+    const sameSession = K.resolve(
+      { __adaptiveKnowledge: { records: [] } },
+      { label: 'Would you relocate?', type: 'select' },
+      page.window.FillApplyFieldMap
+    );
+    suite.equal(sameSession.value, 'Yes', 'same-session reuse after immediate save');
+    const snap = await S.exportSnapshot();
+    const future = pageWith();
+    future.window.FillApplyKnowledgeStore.resetMemory();
+    future.window.FillApplyKnowledge.sessionClear();
+    future.window.FillApplyKnowledgeStore.importSnapshot(snap);
+    const later = future.window.FillApplyKnowledge.resolve(
+      { __adaptiveKnowledge: snap },
+      { label: 'Open to relocation', type: 'select' },
+      future.window.FillApplyFieldMap
+    );
+    suite.equal(later.value, 'Yes', 'future apps reuse the same Key');
+  })();
+
+  await (async function reportFieldGroups() {
+    const page = createPage('<div></div>', ['lib/report.js']);
+    const R = page.window.FillApplyReport;
+    suite.ok(R && R.groupApplicationFields, 'report groupApplicationFields exported');
+    const groups = R.groupApplicationFields({
+      'First name': 'Zahid',
+      Email: 'z@example.com',
+      'Requires sponsorship': 'No',
+      'Notice period': 'Immediate',
+      School: 'LUMS',
+      'Years of experience': '15',
+      'Favourite colour': 'Green'
+    });
+    const names = groups.map(function (g) { return g.group; });
+    suite.ok(names.indexOf('Personal') !== -1, 'Personal group present');
+    suite.ok(names.indexOf('Contact') !== -1, 'Contact group present');
+    suite.ok(names.indexOf('Work Auth') !== -1, 'Work Auth group present');
+    suite.ok(names.indexOf('Preferences') !== -1, 'Preferences group present');
+    suite.ok(names.indexOf('Education') !== -1, 'Education group present');
+    suite.ok(names.indexOf('Experience') !== -1, 'Experience group present');
+    suite.ok(names.indexOf('Other') !== -1, 'Other group present');
+    const html = R.buildHtmlReport({
+      title: 'Demo',
+      company: 'Acme',
+      fields: { Email: 'z@example.com', 'First name': 'Zahid' },
+      status: 'Submitted'
+    });
+    suite.ok(html.indexOf('<details class="field-group">') !== -1, 'HTML report uses collapsible groups');
+    const summary = R.reportSummary({
+      id: 'r1',
+      title: 'Demo',
+      fields: { Email: 'z@example.com' },
+      status: 'Submitted'
+    });
+    suite.equal(summary.fields.Email, 'z@example.com', 'report meta keeps fields for app DB UI');
+  })();
+
+suite.finish();
 })().catch(function (err) {
   console.error(err);
   process.exit(1);
