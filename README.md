@@ -10,6 +10,8 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
+**Version 1.16.0** — **on-page Auto Fill / Auto Ready / Auto Submit panel**. A compact, collapsible Shadow-DOM control sits on the current job/application tab (not the side panel) and runs the existing fill engine against `sender.tab.id`. Corners/edges are scored so the box avoids titles, Apply/Start/Submit CTAs, and form fields. Queue / side-panel flows are unchanged. See [Vision](docs/APP_VISION_AND_FUNCTIONALITY.md).
+
 **Version 1.15.3** — **source fill checklist + JobPool status**. Honest per-source confidence (not “every board unattended”), confirmation that a new application can fill any field already on the profile, and a live JobPool contract: pull apply URLs from `GET /queue`, POST `/applied/:id` with `status`, and treat **only `submitted`** as Applied. See [Source fill checklist](docs/SOURCE_FILL_CHECKLIST.md).
 
 **Version 1.15.1** — **value formats + preloaded documents**. Every value is now shaped for the control receiving it: `lib/format.js` reads the `type`, `pattern`, `maxlength`, `inputmode`, `step` and placeholder mask a field advertises, so a phone number arrives as `+971501234567` in a single field but as `501234567` where the form has its own country-code selector, and as ten bare digits where the control declares `pattern="\d{10}"`. Postal codes, dates, URLs and numbers follow the same rule, and selects try alternate spellings (`United Arab Emirates` → `AE`). The **resume and cover letter loaded in App Settings are attached by the engine itself**, on whichever step asks for them, without ever opening the operating system's file chooser. See [Fill engine](docs/FILL_ENGINE.md).
@@ -26,6 +28,7 @@ Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply
 4. **Load unpacked** → select this folder (contains `manifest.json`).
 5. Open **App Settings** (Options page): manage **profiles** (chips: Set active / Rename / Duplicate / Delete / Create-Reset Zahid), edit **Profile settings**, paste **Application queue** target apply URLs, optionally upload resume/cover or Drive/URL links (documents shared across profiles).
 6. Click the **Fill & Apply** toolbar icon — the UI opens in Chrome’s **right sidebar** (not a tiny popup).
+7. On a job/application page, a compact **Fill & Apply** box appears on the page itself with **Auto Fill / Auto Ready / Auto Submit** (current tab only; collapse it if it sits near a field).
 
 ## Multi-profile (v1.9)
 
@@ -116,6 +119,7 @@ lib/
   auth-walls.js Sign in / Register / Create a login / Password Re-enter detection (optional for adapters)
   backend.js    getNextJob / markApplied / markFailed / markCancelled + buckets
 content/fill.js fill engine, inspectForm, native + custom dropdowns
+content/page-panel.js on-page floating Auto Fill / Ready / Submit (Shadow DOM)
 demo/           sample application form (manual testing only — never enters the queue)
 ```
 
@@ -130,6 +134,10 @@ Replace the old auto-submit checkbox with a three-way control:
 | **Auto Fill** (`fill`) | Fill text / selects / files only. Do **not** click Continue / Next / Submit. |
 | **Auto Ready** (`ready`) | Fill + navigate multi-step forms (Next / Continue) as far as possible. **Never** click final Submit / Apply. |
 | **Auto Submit** (`submit`) | Full end-to-end, including final Submit / Apply when confidently found. |
+
+The same three modes are the buttons on the **on-page floating panel** (v1.16). They always target the tab the panel is sitting on (`FILL_APPLY_FILL_ONCE` → `FillApplyRunner.runOnceOnTab`). They do not change the saved side-panel runMode and do not consume the Application queue.
+
+**Positioning:** `content/page-panel.js` scores six slots (four corners + mid-left / mid-right) against keep-out boxes for `h1`/`h2` job titles, Apply / Start / Submit CTAs, and form fields. Least overlap wins; ties stay **bottom-right**. The host is `position: fixed` with `pointer-events` only on the panel (Shadow DOM + `all: initial`), so it does not overlay the page or steal scroll.
 
 Legacy `autoSubmit: true` migrates to `runMode: 'submit'`; otherwise `fill`.
 
@@ -158,6 +166,8 @@ node scripts/browser-e2e.js   # real Chrome + unpacked extension (needs a displa
 ```
 
 `scripts/browser-e2e.js` serves a career page whose application form lives in an iframe on a **different** origin, installs the unpacked extension, and drives the real runner injection path from the service worker. It also checks the phone number is split across the country-code control and the number field, that the preloaded resume reaches an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog.
+
+`scripts/smoke-page-panel.js` covers on-page panel gating, Fill/Ready/Submit mode mapping, and keep-out positioning.
 
 ## Queue buckets
 
