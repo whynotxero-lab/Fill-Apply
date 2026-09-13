@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.15.3** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.17.0** (experimental integration of panel + adaptive knowledge + ATS Google auth).
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -27,7 +27,7 @@ Everything below fixes a defect that made forms unreadable or invisible regardle
 | `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
 | Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
 | Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
-| jsdom test suites | ✅ | `npm test` — 10 suites (includes JobPool status, run modes, backend POST) |
+| jsdom test suites | ✅ | `npm test` — 13 suites (includes adaptive knowledge, ATS auth, JobPool status, run modes, backend POST, on-page panel) |
 | Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
 
 ---
@@ -118,6 +118,7 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | PDF application reports (Submit success) | ✅ | `lib/report.js` |
 | Auto-close old submitted tabs (keep N) | ✅ | Submit mode only |
 | Focus HUD (outline + scroll into view) | ✅ | Light HUD — `content/focus-hud.js` |
+| On-page Auto Fill / Ready / Submit panel | ✅ | v1.16.0 — Shadow DOM floating box on the current tab; `FILL_APPLY_FILL_ONCE` → `runOnceOnTab` |
 | Cinematic cursor / heavy animation | ⏳ | Deferred |
 
 ---
@@ -180,6 +181,7 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | Options → **App Settings** rename | ✅ | v1.13.0 (path still `options/options.html`) |
 | Single settle / paced clicks | ✅ | v1.12.0 |
 | Branding icons / mint accent | ✅ | |
+| On-page floating panel (collapsible, keep-out corners) | ✅ | v1.16.0 — `content/page-panel.js` |
 
 ---
 
@@ -204,6 +206,7 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | docs/SOURCES_AND_FIELDS.md | ✅ | This pack |
 | docs/CHAT_LOG.md | ✅ | This pack (paraphrased transcript) |
 | docs/SOURCE_FILL_CHECKLIST.md | ✅ | v1.15.3 — source confidence + JobPool contract |
+| docs/ADAPTIVE_KNOWLEDGE.md | ✅ | v1.16.0 — two-tier KB, resolver, IndexedDB, learning |
 | docs/IMPLEMENTATION_CHECKLIST.md | ✅ | This file |
 
 ---
@@ -220,4 +223,35 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 
 ---
 
-*Last reviewed against repo at v1.15.3 (source fill checklist + JobPool status contract).*
+---
+
+## Adaptive applicant knowledge (v1.16.0)
+
+Applicant-specific Q&A grows without an extension rebuild. See [ADAPTIVE_KNOWLEDGE.md](ADAPTIVE_KNOWLEDGE.md).
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Design plan with integration points | ✅ | `docs/ADAPTIVE_KNOWLEDGE.md` |
+| IndexedDB store + memory + hot overlay | ✅ | `lib/knowledge-store.js` — page never writes host-origin IDB |
+| Canonical / alias matching | ✅ | SAP variants share a key; relocate ≠ sponsorship |
+| Unified resolver precedence | ✅ | session → confirmed knowledge → profile → built-in → empty |
+| Explicit-only learning + correction provenance | ✅ | Noise / EEO / consent ignored |
+| Same-session reflection | ✅ | In-memory + `fillApply.knowledgeHot` |
+| Options review/edit UI | ✅ | App Settings → Adaptive knowledge |
+| Missing-fields popup also learns | ✅ | Confirm writes PROFILE and Tier 2 |
+| Apply / Continue / Submit unchanged | ✅ | Existing synonym detection |
+| Cloud sync | ⏳ | Seam only (`FillApplyKnowledgeSync.register`) |
+
+## ATS Google OAuth auth (v1.16.1 → integrated in 1.17.0)
+
+Safe Continue / Sign-in-with-Google before fill. Pauses on CAPTCHA / MFA / ambiguous accounts. Never stores passwords or OAuth tokens.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Detect auth walls + Google Continue | ✅ | `lib/ats-auth.js` + `lib/auth-walls.js` |
+| High-confidence applicant account select | ✅ | Chaudhry/Chaudary Zahid Ali only when unambiguous |
+| Existing-account → Google login resume | ✅ | Non-secret ATS state in `fillApply.atsAccounts` |
+| Pause CAPTCHA / MFA / ambiguous | ✅ | Never bypass |
+| No password / token storage | ✅ | By design |
+
+*Last reviewed against repo at v1.17.0 (experimental: panel + adaptive knowledge + ATS Google auth).*

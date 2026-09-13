@@ -18,11 +18,17 @@
     'lib/synonyms.js',
     'lib/pace.js',
     'lib/field-map.js',
+    'lib/knowledge-canonical.js',
+    'lib/knowledge-store.js',
+    'lib/knowledge-resolver.js',
+    'lib/knowledge-learn.js',
     'lib/files.js',
     'lib/auth-walls.js',
+    'lib/ats-auth.js',
     'lib/challenges.js',
     'lib/easy-apply-steps.js',
     'content/focus-hud.js',
+    'content/knowledge-observe.js',
     'content/fill.js',
     'adapters/registry.js',
     'adapters/fallback.js',
@@ -58,6 +64,7 @@
   const INJECT_TARGET = { allFrames: true };
 
   let loopActive = false;
+  let currentTabRunActive = false;
   let delayTimer = null;
   let currentJobId = null;
   let pausedTabId = null;
@@ -444,6 +451,21 @@
     }
   }
 
+  function notifyPagePanel(tabId, payload) {
+    if (tabId == null) return;
+    const body = Object.assign(
+      { type: 'FILL_APPLY_PAGE_PANEL_STATUS' },
+      payload || {}
+    );
+    try {
+      chrome.tabs.sendMessage(tabId, body, function () {
+        void chrome.runtime.lastError;
+      });
+    } catch (_e) {
+      /* tab may not have the page panel */
+    }
+  }
+
   function notifyActionNeeded(job, detail) {
     if (!chrome.notifications || !chrome.notifications.create) return;
     const host = jobHost(job);
@@ -544,7 +566,7 @@
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tabId },
-        files: ['lib/auth-walls.js', 'lib/challenges.js']
+        files: ['lib/auth-walls.js', 'lib/ats-auth.js', 'lib/challenges.js']
       });
       const results = await chrome.scripting.executeScript({
         target: { tabId: tabId },
@@ -568,6 +590,352 @@
       return { challenged: false, kind: null, detail: '', markers: [] };
     }
   }
+
+  /** Auth-only inject target — composed separately so INJECT_TARGET stays untouched. */
+  const AUTH_INJECT_FILES = ['lib/auth-walls.js', 'lib/ats-auth.js', 'lib/challenges.js'];
+
+  async function injectAtsAuthLibs(tabId, allFrames) {
+    const target = allFrames
+      ? Object.assign({ tabId: tabId }, { allFrames: true })
+      : { tabId: tabId };
+    await chrome.scripting.executeScript({
+      target: target,
+      files: AUTH_INJECT_FILES
+    });
+  }
+
+  async function inspectAuthInTab(tabId, profile, opts) {
+    opts = opts || {};
+    try {
+      await injectAtsAuthLibs(tabId, !!opts.allFrames);
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: function (profileArg, forceChooser) {
+          const A = globalThis.FillApplyAtsAuth;
+          if (!A || !A.inspectAuthPage) {
+            return { result: 'AUTH_FAILED', pause: true, detail: 'AtsAuth missing' };
+          }
+          return A.inspectAuthPage(document, profileArg, {
+            forceGoogleChooser: !!forceChooser
+          });
+        },
+        args: [profile || null, !!opts.forceGoogleChooser]
+      });
+      return (
+        (results && results[0] && results[0].result) || {
+          result: 'AUTH_FAILED',
+          pause: true,
+          detail: 'inspectAuthInTab empty'
+        }
+      );
+    } catch (e) {
+      return {
+        result: 'AUTH_FAILED',
+        pause: true,
+        detail: String((e && e.message) || e || 'inspect failed')
+      };
+    }
+  }
+
+  async function performAuthActionInTab(tabId, profile) {
+    try {
+      await injectAtsAuthLibs(tabId, false);
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: function (profileArg) {
+          const A = globalThis.FillApplyAtsAuth;
+          if (!A || !A.performAuthAction) return { ok: false, detail: 'AtsAuth missing' };
+          const inspection = A.inspectAuthPage(document, profileArg);
+          return A.performAuthAction(document, profileArg, inspection);
+        },
+        args: [profile || null]
+      });
+      return (results && results[0] && results[0].result) || { ok: false, detail: 'no result' };
+    } catch (e) {
+      return { ok: false, detail: String((e && e.message) || e) };
+    }
+  }
+
+  async function findGoogleOauthTab(openerTabId) {
+    try {
+      const tabs = await chrome.tabs.query({
+        url: ['https://accounts.google.com/*', 'https://*.google.com/o/oauth2/*']
+      });
+      if (!tabs || !tabs.length) return null;
+      // Prefer most recently accessed / highest id near opener
+      tabs.sort(function (a, b) {
+        return (b.id || 0) - (a.id || 0);
+      });
+      for (var i = 0; i < tabs.length; i++) {
+        if (tabs[i] && tabs[i].id != null && tabs[i].id !== openerTabId) {
+          return tabs[i];
+        }
+      }
+      // Same tab navigated to Google
+      for (var j = 0; j < tabs.length; j++) {
+        if (tabs[j] && tabs[j].id === openerTabId) return tabs[j];
+      }
+      return tabs[0] || null;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  async function persistAtsAuthState(job, profile, authOutcome) {
+    const Store = global.FillApplyAtsAuthStore;
+    if (!Store || !Store.upsert) return;
+    try {
+      const code = authOutcome && authOutcome.result;
+      await Store.upsert({
+        url: (job && job.url) || (authOutcome && authOutcome.href) || '',
+        email: (profile && profile.email) || null,
+        status: Store.statusFromAuthResult
+          ? Store.statusFromAuthResult(code)
+          : 'unknown',
+        lastResult: code || null,
+        lastDetail: (authOutcome && authOutcome.detail) || null,
+        googleUsed: !!(authOutcome && authOutcome.googleUsed)
+      });
+    } catch (_e) {
+      /* best-effort */
+    }
+  }
+
+  /**
+   * ATS auth lifecycle: try Google OAuth UI once before fill continues.
+   * Existing challenge / human-pause gates remain authoritative when needed.
+   *
+   * @returns {{ proceed: boolean, paused?: boolean, outcome: object }}
+   */
+  async function attemptAtsGoogleAuthLifecycle(tabId, profile, job) {
+    const A = global.FillApplyAtsAuth;
+    const AR = (A && A.AUTH_RESULTS) || {};
+    const S = global.FillApplyStorage;
+
+    async function logAuth(message, extra) {
+      try {
+        await S.appendSessionLog(
+          Object.assign(
+            {
+              type: 'ats_auth',
+              jobId: job && job.id,
+              message: message
+            },
+            extra || {}
+          )
+        );
+      } catch (_e) {}
+    }
+
+    // Skip if we already know this host is authenticated for this email
+    try {
+      const Store = global.FillApplyAtsAuthStore;
+      if (Store && Store.getForHost && job && job.url) {
+        const prior = await Store.getForHost(job.url, profile && profile.email);
+        if (prior && prior.status === 'authenticated') {
+          const snap = await inspectAuthInTab(tabId, profile);
+          if (snap && (snap.result === AR.AUTHENTICATED || snap.result === AR.NOT_REQUIRED)) {
+            await logAuth('ATS auth already recorded for host — continuing', {
+              result: snap.result
+            });
+            return { proceed: true, outcome: snap };
+          }
+        }
+      }
+    } catch (_prior) {}
+
+    let inspection = await inspectAuthInTab(tabId, profile);
+    await logAuth('ATS auth inspect', {
+      result: inspection && inspection.result,
+      detail: inspection && inspection.detail
+    });
+
+    if (!inspection) {
+      return {
+        proceed: false,
+        paused: true,
+        outcome: { result: AR.AUTH_FAILED || 'AUTH_FAILED', detail: 'No inspection' }
+      };
+    }
+
+    if (inspection.result === AR.NOT_REQUIRED) {
+      return { proceed: true, outcome: inspection };
+    }
+
+    if (inspection.result === AR.AUTHENTICATED) {
+      await persistAtsAuthState(job, profile, Object.assign({}, inspection, { googleUsed: false }));
+      return { proceed: true, outcome: inspection };
+    }
+
+    if (inspection.pause && inspection.result !== AR.ACCOUNT_ALREADY_EXISTS) {
+      // CAPTCHA / MFA / unsupported / ambiguous — do not click
+      await persistAtsAuthState(job, profile, inspection);
+      return { proceed: false, paused: true, outcome: inspection };
+    }
+
+    // Google available or existing-account recovery with Google button
+    if (
+      inspection.action === 'click_google' ||
+      inspection.result === 'GOOGLE_AUTH_AVAILABLE' ||
+      (inspection.result === AR.ACCOUNT_ALREADY_EXISTS && inspection.action === 'click_google')
+    ) {
+      const clicked = await performAuthActionInTab(tabId, profile);
+      await logAuth('Clicked Google OAuth UI', {
+        ok: !!(clicked && clicked.ok),
+        detail: clicked && clicked.detail,
+        existingAccount: !!inspection.existingAccount
+      });
+      if (!clicked || !clicked.ok) {
+        const fail = {
+          result: AR.AUTH_FAILED || 'AUTH_FAILED',
+          pause: true,
+          detail: (clicked && clicked.detail) || 'Failed to click Google auth',
+          googleUsed: true
+        };
+        await persistAtsAuthState(job, profile, fail);
+        return { proceed: false, paused: true, outcome: fail };
+      }
+
+      // Wait for Google chooser popup/tab or in-page Continue as …
+      let authOutcome = null;
+      const deadline = Date.now() + 22000;
+      while (Date.now() < deadline) {
+        if (!(await S.isRunning())) {
+          return {
+            proceed: false,
+            paused: true,
+            outcome: {
+              result: AR.USER_ACTION_REQUIRED || 'USER_ACTION_REQUIRED',
+              detail: 'Stopped during auth'
+            }
+          };
+        }
+        await sleep(900 + Math.floor(Math.random() * 400));
+
+        // In-page progress on ATS tab
+        let again = await inspectAuthInTab(tabId, profile);
+        if (again && again.result === AR.AUTHENTICATED) {
+          authOutcome = Object.assign({}, again, {
+            googleUsed: true,
+            result:
+              inspection.existingAccount || inspection.result === AR.ACCOUNT_ALREADY_EXISTS
+                ? AR.AUTHENTICATED
+                : again.result
+          });
+          // First-time create heuristic: wall had create markers and we authenticated via Google
+          if (
+            !inspection.existingAccount &&
+            inspection.wall &&
+            inspection.wall.markers &&
+            inspection.wall.markers.some(function (m) {
+              return /create|sign up|register/i.test(String(m));
+            })
+          ) {
+            authOutcome.result = AR.ACCOUNT_CREATED || 'ACCOUNT_CREATED';
+            authOutcome.detail = 'Account created / linked via Google OAuth';
+          }
+          break;
+        }
+        if (again && again.pause && again.result !== 'GOOGLE_AUTH_AVAILABLE') {
+          authOutcome = Object.assign({}, again, { googleUsed: true });
+          break;
+        }
+        if (again && again.action === 'click_account') {
+          const sel = await performAuthActionInTab(tabId, profile);
+          await logAuth('Selected Google account on ATS tab', {
+            ok: !!(sel && sel.ok),
+            detail: sel && sel.detail
+          });
+          if (!sel || !sel.ok) {
+            authOutcome = {
+              result: AR.USER_ACTION_REQUIRED || 'USER_ACTION_REQUIRED',
+              pause: true,
+              detail: (sel && sel.detail) || 'Could not select Google account',
+              googleUsed: true
+            };
+            break;
+          }
+          continue;
+        }
+
+        // Popup / redirect to accounts.google.com
+        const gTab = await findGoogleOauthTab(tabId);
+        if (gTab && gTab.id != null) {
+          try {
+            await waitTabComplete(gTab.id, 12000);
+          } catch (_w) {}
+          await focusTab(gTab.id);
+          let gInspect = await inspectAuthInTab(gTab.id, profile, { forceGoogleChooser: true });
+          if (gInspect && gInspect.action === 'click_account') {
+            const gClick = await performAuthActionInTab(gTab.id, profile);
+            await logAuth('Selected Google account on accounts.google.com', {
+              ok: !!(gClick && gClick.ok),
+              detail: gClick && gClick.detail
+            });
+            if (!gClick || !gClick.ok) {
+              authOutcome = {
+                result: AR.USER_ACTION_REQUIRED || 'USER_ACTION_REQUIRED',
+                pause: true,
+                detail: (gClick && gClick.detail) || 'Select Google account manually',
+                googleUsed: true
+              };
+              break;
+            }
+            // After account click, Google may show consent / return to ATS
+            await sleep(1200);
+            continue;
+          }
+          if (gInspect && gInspect.pause) {
+            authOutcome = Object.assign({}, gInspect, { googleUsed: true });
+            break;
+          }
+          // MFA / captcha on Google host
+          if (
+            gInspect &&
+            (gInspect.result === AR.MFA_REQUIRED ||
+              gInspect.result === AR.CAPTCHA_REQUIRED ||
+              gInspect.result === AR.EMAIL_VERIFICATION_REQUIRED)
+          ) {
+            authOutcome = Object.assign({}, gInspect, { googleUsed: true });
+            break;
+          }
+        }
+      }
+
+      if (!authOutcome) {
+        // Final check on ATS tab
+        const finalInspect = await inspectAuthInTab(tabId, profile);
+        if (finalInspect && finalInspect.result === AR.AUTHENTICATED) {
+          authOutcome = Object.assign({}, finalInspect, { googleUsed: true });
+        } else if (finalInspect && finalInspect.pause) {
+          authOutcome = Object.assign({}, finalInspect, { googleUsed: true });
+        } else {
+          authOutcome = {
+            result: AR.TIMEOUT || 'TIMEOUT',
+            pause: true,
+            detail: 'Google OAuth timed out — complete sign-in manually, then Resume',
+            googleUsed: true
+          };
+        }
+      }
+
+      await persistAtsAuthState(job, profile, authOutcome);
+      if (
+        authOutcome.result === AR.AUTHENTICATED ||
+        authOutcome.result === AR.ACCOUNT_CREATED
+      ) {
+        await focusTab(tabId);
+        await logAuth('ATS Google auth succeeded', { result: authOutcome.result });
+        return { proceed: true, outcome: authOutcome };
+      }
+      return { proceed: false, paused: true, outcome: authOutcome };
+    }
+
+    // Auth wall without Google — already handled above; fallback pause
+    await persistAtsAuthState(job, profile, inspection);
+    return { proceed: false, paused: true, outcome: inspection };
+  }
+
 
   /**
    * Pause run for human (Cloudflare / CAPTCHA / Indeed structure drift).
@@ -599,8 +967,10 @@
     );
     await S.setPausedForHuman(pauseInfo);
 
+    var skipQueue = !!(extra && extra.skipQueue);
+
     // Flag job in queued bucket; leave it queued for Resume
-    if (job && job.id && B.getQueued && B.setQueued) {
+    if (!skipQueue && job && job.id && B.getQueued && B.setQueued) {
       try {
         const queued = await B.getQueued();
         const next = queued.map(function (j) {
@@ -633,7 +1003,7 @@
       } catch (_e) {
         /* best-effort */
       }
-    } else if (job && S.getBucket && S.setBucket) {
+    } else if (!skipQueue && job && job.id && S.getBucket && S.setBucket) {
       try {
         let queued = await S.getBucket('queued');
         if (!queued.some(function (j) { return j.id === job.id; })) {
@@ -679,12 +1049,16 @@
         missingProfileFields: missingFields || [],
         message: pauseInfo.message,
         at: Date.now(),
-        mode: 'batch',
+        mode: (extra && extra.mode) || 'batch',
         reason: 'missing_profile_field'
       });
     } else {
       notifyActionNeeded(job, pauseInfo.message);
     }
+    notifyPagePanel(tabId, {
+      state: 'paused',
+      message: pauseInfo.message || 'Paused — action needed'
+    });
     currentJobId = null;
     return getStatusSnapshot();
   }
@@ -700,6 +1074,45 @@
       await sleep(lo + Math.floor(Math.random() * Math.max(0, hi - lo + 1)));
     } else {
       await sleep(150 + Math.floor(Math.random() * 200));
+    }
+
+    // Single-tab fill/ready/submit: attempt Google ATS auth before filler inject
+    if (!(config && config.skipAtsAuth)) {
+      try {
+        let onceUrl = null;
+        try {
+          const tMeta0 = await chrome.tabs.get(tabId);
+          onceUrl = (tMeta0 && tMeta0.url) || null;
+        } catch (_tu0) {}
+        const authOnce = await attemptAtsGoogleAuthLifecycle(tabId, profile, {
+          id: (config && config.jobId) || null,
+          url: onceUrl,
+          title: 'Fill once'
+        });
+        if (authOnce && authOnce.paused && authOnce.outcome) {
+          const Aref2 = global.FillApplyAtsAuth;
+          const AR2 = (Aref2 && Aref2.AUTH_RESULTS) || {};
+          return {
+            ok: false,
+            needsHuman: true,
+            pauseReason: 'ats_auth',
+            authResult: authOnce.outcome.result,
+            error:
+              (Aref2 && Aref2.pauseMessageForResult
+                ? Aref2.pauseMessageForResult(authOnce.outcome.result, authOnce.outcome.detail)
+                : authOnce.outcome.detail) || 'Authentication required',
+            challenge: authOnce.outcome.challenge || {
+              kind: 'ats_auth',
+              detail: authOnce.outcome.detail
+            },
+            filled: 0,
+            unmatched: 0,
+            total: 0
+          };
+        }
+      } catch (_authOnceErr) {
+        /* non-fatal — proceed to fill */
+      }
     }
 
     await chrome.scripting.executeScript({
@@ -894,6 +1307,411 @@
     throw lastErr || new Error('injectAndFill failed after frame retries');
   }
 
+  /**
+   * injectAndFill plus Apply-start / external-handoff re-detect retries.
+   * Shared by the queue loop and the on-page Auto Fill / Ready / Submit panel.
+   */
+  async function fillTabWithApplyStart(tabId, profile, documents, runMode, config, job, opts) {
+    opts = opts || {};
+    function progress(state, message) {
+      notifyPagePanel(tabId, { state: state || 'running', message: message || '' });
+      if (typeof opts.onProgress === 'function') {
+        try {
+          opts.onProgress(state, message);
+        } catch (_e) {}
+      }
+    }
+
+    let currentTabId = tabId;
+    let preHandoffUrl = '';
+    try {
+      const preTab = await chrome.tabs.get(currentTabId);
+      preHandoffUrl = (preTab && preTab.url) || '';
+    } catch (_ePre) {}
+
+    progress('running', 'Detecting adapter / filling…');
+    let packed = await injectAndFill(
+      currentTabId,
+      profile,
+      documents,
+      runMode,
+      config,
+      job,
+      { returnTabId: true, maxAttempts: 4 }
+    );
+    let fillResult = packed.result;
+    if (packed.tabId != null) currentTabId = packed.tabId;
+
+    if (
+      fillResult &&
+      fillResult.ok !== false &&
+      (fillResult.deferToPageAdapter ||
+        fillResult.handedOff ||
+        fillResult.externalApply ||
+        fillResult.clickedApplyStart ||
+        fillResult.reDetect) &&
+      !(fillResult.filled > 0) &&
+      !fillResult.submitted &&
+      !fillResult.needsHuman
+    ) {
+      try {
+        progress('running', 'Clicked Apply — waiting for form…');
+        await sleep(700 + Math.floor(Math.random() * 500));
+        await waitTabComplete(currentTabId, 45000);
+        await sleep(500 + Math.floor(Math.random() * 400));
+        let postUrl = '';
+        try {
+          const postTab = await chrome.tabs.get(currentTabId);
+          postUrl = (postTab && postTab.url) || '';
+        } catch (_ePost) {}
+        let hostChanged = false;
+        try {
+          const a = preHandoffUrl ? new URL(preHandoffUrl).hostname : '';
+          const b = postUrl ? new URL(postUrl).hostname : '';
+          hostChanged = !!(a && b && a !== b);
+        } catch (_eHost) {
+          hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
+        }
+        const sameHostOpen = !!(fillResult.clickedApplyStart || fillResult.reDetect);
+        if (hostChanged || sameHostOpen) {
+          progress('running', 'Re-detect / fill after Apply-start…');
+          const handedPack = await injectAndFill(
+            currentTabId,
+            profile,
+            documents,
+            runMode,
+            config,
+            job,
+            { returnTabId: true, maxAttempts: 4 }
+          );
+          const handed = handedPack && handedPack.result;
+          if (handedPack && handedPack.tabId != null) currentTabId = handedPack.tabId;
+          if (handed) {
+            if (hostChanged) handed.externalApply = true;
+            if (fillResult.clickedApplyStart) handed.fromApplyStart = true;
+            handed.fromBoardHandoff = (fillResult && fillResult.adapterId) || true;
+            if (!handed.message && fillResult && fillResult.message) {
+              handed.message = fillResult.message;
+            }
+            if (
+              handed.clickedApplyStart &&
+              fillResult.clickedApplyStart &&
+              !(handed.filled > 0) &&
+              !handed.needsHuman
+            ) {
+              try {
+                await sleep(900 + Math.floor(Math.random() * 500));
+                const handed2Pack = await injectAndFill(
+                  currentTabId,
+                  profile,
+                  documents,
+                  runMode,
+                  config,
+                  job,
+                  { returnTabId: true, maxAttempts: 3 }
+                );
+                const handed2 = handed2Pack && handed2Pack.result;
+                if (handed2Pack && handed2Pack.tabId != null) currentTabId = handed2Pack.tabId;
+                if (handed2 && (handed2.filled > 0 || handed2.needsHuman || handed2.submitted)) {
+                  fillResult = handed2;
+                  if (hostChanged) fillResult.externalApply = true;
+                  fillResult.fromApplyStart = true;
+                  fillResult.fromBoardHandoff =
+                    (fillResult && fillResult.adapterId) ||
+                    (fillResult && fillResult.fromBoardHandoff) ||
+                    true;
+                } else if (handed2 && !(handed2.clickedApplyStart && !(handed2.filled > 0))) {
+                  fillResult = handed2;
+                } else {
+                  handed.ok = true;
+                  handed.clickedApplyStart = false;
+                  handed.reDetect = false;
+                  handed.message =
+                    (handed.message || fillResult.message || 'Apply clicked') +
+                    ' — form still not open; open Apply manually or check page';
+                  fillResult = handed;
+                }
+              } catch (_eExtra) {
+                handed.ok = true;
+                handed.clickedApplyStart = false;
+                handed.reDetect = false;
+                handed.message =
+                  (handed.message || fillResult.message || 'Apply clicked') +
+                  ' — form still not open; open Apply manually or check page';
+                fillResult = handed;
+              }
+            } else {
+              fillResult = handed;
+            }
+          }
+        } else if (fillResult) {
+          fillResult.message =
+            (fillResult.message || 'External apply handoff') +
+            ' (same-tab host unchanged — destination may have opened in another tab; continue there or paste ATS URL in queue)';
+        }
+      } catch (handoffErr) {
+        if (fillResult && !fillResult.error) {
+          fillResult.handoffWaitError = String(
+            (handoffErr && handoffErr.message) || handoffErr || 'handoff wait failed'
+          );
+        }
+      }
+    }
+
+    return { result: fillResult, tabId: currentTabId };
+  }
+
+  function isRestrictedTabUrl(url) {
+    if (!url) return true;
+    if (/^chrome-extension:\/\//i.test(url)) return true;
+    return /^(chrome|edge|about|devtools|view-source):/i.test(url);
+  }
+
+  /**
+   * Single current-tab run for the on-page panel (and FILL_APPLY_FILL_ONCE).
+   * Reuses injectAndFill + Apply-start retries. Does not consume the queue
+   * or persist the requested runMode onto the saved side-panel config.
+   */
+  async function runOnceOnTab(tabId, runMode) {
+    const S = global.FillApplyStorage;
+    const P = global.FillApplyProfile;
+    const B = global.FillApplyBackend;
+
+    if (tabId == null) {
+      throw new Error('No tab id — open a job application page');
+    }
+    if (loopActive || (await S.isRunning())) {
+      throw new Error('Queue runner is busy. Stop the batch first.');
+    }
+    if (currentTabRunActive) {
+      throw new Error('A current-tab run is already in progress.');
+    }
+
+    let mode = runMode;
+    if (global.FillApplyTypes && global.FillApplyTypes.RUN_MODES) {
+      if (global.FillApplyTypes.RUN_MODES.indexOf(mode) === -1) mode = 'fill';
+    } else if (['fill', 'ready', 'submit'].indexOf(mode) === -1) {
+      mode = 'fill';
+    }
+
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab || isRestrictedTabUrl(tab.url)) {
+      throw new Error('Cannot fill this page. Open a real http(s) apply form.');
+    }
+
+    const job = {
+      title: tab.title || 'Current page',
+      url: tab.url
+    };
+
+    currentTabRunActive = true;
+    notifyPagePanel(tabId, { state: 'running', message: 'Starting ' + mode + '…' });
+
+    try {
+      if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.assertSelectedSourceComplete) {
+        const gate = await global.FillApplySourceProfiles.assertSelectedSourceComplete();
+        if (!gate.ok) {
+          const err = new Error(gate.error || 'Complete selected source profile in App Settings');
+          err.code = 'SOURCE_PROFILE_INCOMPLETE';
+          notifyPagePanel(tabId, { state: 'error', message: err.message });
+          throw err;
+        }
+      }
+
+      let profile = P ? await P.getProfile() : await B.getProfile();
+      if (!(profile && (profile.email || profile.fullName || profile.firstName))) {
+        const err = new Error('Profile is empty. Open App Settings and fill identity first.');
+        notifyPagePanel(tabId, { state: 'error', message: err.message });
+        throw err;
+      }
+      if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.getEffectiveProfile) {
+        try {
+          profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);
+        } catch (_mergeErr) {}
+      }
+      // Stamp adaptive KB snapshot for on-page panel / FILL_ONCE path too.
+      if (global.FillApplyKnowledgeStore && global.FillApplyKnowledgeStore.attachToProfile) {
+        try {
+          profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
+        } catch (_kbErr) {
+          /* fill without adaptive snapshot */
+        }
+      }
+
+      const config = await S.getRunConfig();
+      let documents = await B.getDocuments();
+      try {
+        if (global.FillApplyFiles && typeof global.FillApplyFiles.resolveDocumentLinks === 'function') {
+          const resolved = await global.FillApplyFiles.resolveDocumentLinks(documents, profile);
+          documents = resolved.documents || documents;
+          if (resolved.needsManual && resolved.errors && resolved.errors.length) {
+            await pauseForHuman(job, tabId, 'documents', {
+              message: resolved.errors[0] || 'Open Drive link or upload file manually',
+              skipQueue: true,
+              mode: 'single'
+            });
+            return {
+              pausedForHuman: true,
+              state: 'paused',
+              message: resolved.errors[0],
+              runMode: mode,
+              result: { ok: true, needsHuman: true, pauseReason: 'documents' }
+            };
+          }
+        }
+      } catch (_docLinkErr) {}
+
+      await focusTab(tabId);
+
+      const challenge = await detectChallengeInTab(tabId);
+      if (challenge && challenge.challenged) {
+        const msg =
+          challenge.kind === 'cloudflare'
+            ? 'Paused — verify Cloudflare/CAPTCHA'
+            : 'Paused — verify Cloudflare/CAPTCHA';
+        await pauseForHuman(job, tabId, 'challenge', {
+          message: msg,
+          challenge: challenge,
+          skipQueue: true,
+          mode: 'single'
+        });
+        return {
+          pausedForHuman: true,
+          state: 'paused',
+          message: msg,
+          runMode: mode,
+          result: { ok: true, needsHuman: true, pauseReason: 'challenge', challenge: challenge }
+        };
+      }
+
+      await S.appendSessionLog({
+        type: 'single_start',
+        runMode: mode,
+        url: tab.url,
+        message: 'On-page panel — ' + mode + ' on current tab'
+      });
+
+      const packed = await fillTabWithApplyStart(
+        tabId,
+        profile,
+        documents,
+        mode,
+        config,
+        job,
+        {}
+      );
+      let fillResult = packed.result;
+      const resultTabId = packed.tabId != null ? packed.tabId : tabId;
+
+      if (
+        fillResult &&
+        !fillResult.needsHuman &&
+        fillResult.error &&
+        /could not advance step/i.test(String(fillResult.error))
+      ) {
+        fillResult.needsHuman = true;
+        fillResult.pauseReason = fillResult.pauseReason || 'could_not_advance';
+      }
+
+      if (fillResult && fillResult.needsHuman) {
+        const missingFields = Array.isArray(fillResult.missingProfileFields)
+          ? fillResult.missingProfileFields
+          : null;
+        const isMissingProfile =
+          fillResult.pauseReason === 'missing_profile_field' ||
+          looksLikeMissingProfile(fillResult.error, missingFields);
+        const msg = isMissingProfile
+          ? fillResult.error ||
+            'Missing profile field — fill in App Settings or on the page, then retry'
+          : fillResult.pauseReason === 'structure_drift'
+            ? fillResult.error || 'Form changed — review required'
+            : fillResult.error || 'Paused — verify Cloudflare/CAPTCHA';
+        await pauseForHuman(
+          job,
+          resultTabId,
+          isMissingProfile ? 'missing_profile_field' : fillResult.pauseReason || 'challenge',
+          {
+            message: msg,
+            challenge: fillResult.challenge || null,
+            driftLabel: fillResult.driftLabel || null,
+            missingProfileFields: missingFields,
+            skipQueue: true,
+            mode: 'single'
+          }
+        );
+        return {
+          pausedForHuman: true,
+          state: 'paused',
+          message: msg,
+          runMode: mode,
+          result: fillResult
+        };
+      }
+
+      const challengeAfter = await detectChallengeInTab(resultTabId);
+      if (challengeAfter && challengeAfter.challenged) {
+        const msg = 'Paused — verify Cloudflare/CAPTCHA';
+        await pauseForHuman(job, resultTabId, 'challenge', {
+          message: msg,
+          challenge: challengeAfter,
+          skipQueue: true,
+          mode: 'single'
+        });
+        return {
+          pausedForHuman: true,
+          state: 'paused',
+          message: msg,
+          runMode: mode,
+          result: fillResult
+        };
+      }
+
+      await S.appendSessionLog({
+        type: 'fill_once',
+        mode: mode,
+        runMode: mode,
+        filled: fillResult && fillResult.filled,
+        adapterId: fillResult && fillResult.adapterId,
+        submitted: !!(fillResult && fillResult.submitted),
+        advanced: !!(fillResult && fillResult.advanced)
+      });
+
+      if (!fillResult || fillResult.ok === false) {
+        const err = (fillResult && fillResult.error) || 'Fill failed';
+        notifyPagePanel(resultTabId, { state: 'error', message: err, result: fillResult });
+        return {
+          state: 'error',
+          message: err,
+          runMode: mode,
+          result: fillResult || { ok: false, error: err }
+        };
+      }
+
+      const bits = [];
+      if (fillResult.filled != null) {
+        bits.push('filled ' + fillResult.filled + '/' + (fillResult.total != null ? fillResult.total : '?'));
+      }
+      if (fillResult.advanced) bits.push('ready');
+      if (fillResult.submitted) bits.push('submitted');
+      if (fillResult.adapterId) bits.push(fillResult.adapterId);
+      const doneMsg = bits.length ? bits.join(' · ') : 'Done';
+      notifyPagePanel(resultTabId, { state: 'done', message: doneMsg, result: fillResult });
+      return {
+        state: 'done',
+        message: doneMsg,
+        runMode: mode,
+        result: fillResult
+      };
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      notifyPagePanel(tabId, { state: 'error', message: msg });
+      await S.appendSessionLog({ type: 'error', error: msg, runMode: mode, source: 'page_panel' });
+      throw e;
+    } finally {
+      currentTabRunActive = false;
+    }
+  }
+
   async function getStatusSnapshot() {
     const S = global.FillApplyStorage;
     const B = global.FillApplyBackend;
@@ -990,7 +1808,7 @@
       await S.appendSessionLog({ type: 'start' });
 
       while (await S.isRunning()) {
-        const config = await S.getRunConfig();
+        let config = await S.getRunConfig();
         const runMode = resolveRunMode(config);
         let job = null;
         try {
@@ -1153,6 +1971,17 @@
               /* keep base */
             }
           }
+          // Stamp a shallow copy with the adaptive KB snapshot. Do not persist
+          // __adaptiveKnowledge back onto the saved profile. Keep this next to
+          // getEffectiveProfile so a later merge with the on-page panel PR
+          // still hydrates knowledge before injectAndFill.
+          if (global.FillApplyKnowledgeStore && global.FillApplyKnowledgeStore.attachToProfile) {
+            try {
+              profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
+            } catch (_kbErr) {
+              /* fill without adaptive snapshot */
+            }
+          }
           documents = await B.getDocuments();
           // Best-effort Drive/direct URL → blob before attach (CORS may still fail → needsHuman)
           try {
@@ -1171,144 +2000,51 @@
             }
           } catch (_docLinkErr) { /* continue with whatever blobs we have */ }
 
-          let preHandoffUrl = '';
+          // ATS account / Google OAuth lifecycle (once) before fill continues.
+          // fillTabWithApplyStart (panel) owns handoff/preHandoffUrl; skipAtsAuth
+          // prevents a second auth pass inside injectAndFillOnce.
           try {
-            const preTab = await chrome.tabs.get(tab.id);
-            preHandoffUrl = (preTab && preTab.url) || '';
-          } catch (_ePre) {}
+            const authAttempt = await attemptAtsGoogleAuthLifecycle(tab.id, profile, job);
+            const authOut = authAttempt && authAttempt.outcome;
+            if (authAttempt && authAttempt.paused && authOut) {
+              const Aref = global.FillApplyAtsAuth;
+              const msg =
+                (Aref && Aref.pauseMessageForResult
+                  ? Aref.pauseMessageForResult(authOut.result, authOut.detail)
+                  : null) ||
+                authOut.detail ||
+                'Paused — authentication required';
+              await pauseForHuman(job, tab.id, 'ats_auth', {
+                message: msg,
+                authResult: authOut.result,
+                challenge: authOut.challenge || { kind: 'ats_auth', detail: authOut.detail },
+                pauseReason: 'ats_auth'
+              });
+              return getStatusSnapshot();
+            }
+          } catch (authErr) {
+            await S.appendSessionLog({
+              type: 'ats_auth',
+              jobId: job && job.id,
+              message: 'ATS auth lifecycle error — continuing to fill',
+              error: String((authErr && authErr.message) || authErr)
+            });
+          }
+          // Prevent re-entry inside injectAndFillOnce for this job tick
+          config = Object.assign({}, config || {}, { skipAtsAuth: true, jobId: job && job.id });
 
           {
-            const packed = await injectAndFill(
+            const packed = await fillTabWithApplyStart(
               tab.id,
               profile,
               documents,
               runMode,
               config,
               job,
-              { returnTabId: true, maxAttempts: 4 }
+              {}
             );
             fillResult = packed.result;
             if (packed.tabId != null) tab.id = packed.tabId;
-          }
-
-          // External Apply handoff OR universal Apply-start (same-host modal / form open):
-          // wait for load/overlay, then re-detect / fill. Host-change required for pure
-          // externalApply; clickedApplyStart / reDetect re-runs even on same host (once).
-          if (
-            fillResult &&
-            fillResult.ok !== false &&
-            (fillResult.deferToPageAdapter ||
-              fillResult.handedOff ||
-              fillResult.externalApply ||
-              fillResult.clickedApplyStart ||
-              fillResult.reDetect) &&
-            !(fillResult.filled > 0) &&
-            !fillResult.submitted &&
-            !fillResult.needsHuman
-          ) {
-            try {
-              await sleep(700 + Math.floor(Math.random() * 500));
-              await waitTabComplete(tab.id, 45000);
-              await sleep(500 + Math.floor(Math.random() * 400));
-              let postUrl = '';
-              try {
-                const postTab = await chrome.tabs.get(tab.id);
-                postUrl = (postTab && postTab.url) || '';
-              } catch (_ePost) {}
-              let hostChanged = false;
-              try {
-                const a = preHandoffUrl ? new URL(preHandoffUrl).hostname : '';
-                const b = postUrl ? new URL(postUrl).hostname : '';
-                hostChanged = !!(a && b && a !== b);
-              } catch (_eHost) {
-                hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
-              }
-              const sameHostOpen =
-                !!(fillResult.clickedApplyStart || fillResult.reDetect);
-              if (hostChanged || sameHostOpen) {
-                const handedPack = await injectAndFill(
-                  tab.id,
-                  profile,
-                  documents,
-                  runMode,
-                  config,
-                  job,
-                  { returnTabId: true, maxAttempts: 4 }
-                );
-                const handed = handedPack && handedPack.result;
-                if (handedPack && handedPack.tabId != null) tab.id = handedPack.tabId;
-                if (handed) {
-                  if (hostChanged) handed.externalApply = true;
-                  if (fillResult.clickedApplyStart) handed.fromApplyStart = true;
-                  handed.fromBoardHandoff = (fillResult && fillResult.adapterId) || true;
-                  if (!handed.message && fillResult && fillResult.message) {
-                    handed.message = fillResult.message;
-                  }
-                  // Slow same-host modals (Teamtailor): one extra wait + fill before giving up
-                  if (
-                    handed.clickedApplyStart &&
-                    fillResult.clickedApplyStart &&
-                    !(handed.filled > 0) &&
-                    !handed.needsHuman
-                  ) {
-                    try {
-                      await sleep(900 + Math.floor(Math.random() * 500));
-                      const handed2Pack = await injectAndFill(
-                        tab.id,
-                        profile,
-                        documents,
-                        runMode,
-                        config,
-                        job,
-                        { returnTabId: true, maxAttempts: 3 }
-                      );
-                      const handed2 = handed2Pack && handed2Pack.result;
-                      if (handed2Pack && handed2Pack.tabId != null) tab.id = handed2Pack.tabId;
-                      if (handed2 && (handed2.filled > 0 || handed2.needsHuman || handed2.submitted)) {
-                        fillResult = handed2;
-                        if (hostChanged) fillResult.externalApply = true;
-                        fillResult.fromApplyStart = true;
-                        fillResult.fromBoardHandoff =
-                          (fillResult && fillResult.adapterId) ||
-                          (fillResult && fillResult.fromBoardHandoff) ||
-                          true;
-                      } else if (handed2 && !(handed2.clickedApplyStart && !(handed2.filled > 0))) {
-                        fillResult = handed2;
-                      } else {
-                        handed.ok = true;
-                        handed.clickedApplyStart = false;
-                        handed.reDetect = false;
-                        handed.message =
-                          (handed.message || fillResult.message || 'Apply clicked') +
-                          ' — form still not open; open Apply manually or check page';
-                        fillResult = handed;
-                      }
-                    } catch (_eExtra) {
-                      handed.ok = true;
-                      handed.clickedApplyStart = false;
-                      handed.reDetect = false;
-                      handed.message =
-                        (handed.message || fillResult.message || 'Apply clicked') +
-                        ' — form still not open; open Apply manually or check page';
-                      fillResult = handed;
-                    }
-                  } else {
-                    fillResult = handed;
-                  }
-                }
-              } else if (fillResult) {
-                fillResult.message =
-                  (fillResult.message || 'External apply handoff') +
-                  ' (same-tab host unchanged — destination may have opened in another tab; continue there or paste ATS URL in queue)';
-              }
-            } catch (handoffErr) {
-              // Keep original handoff result; job may still succeed if destination filled elsewhere.
-              if (fillResult && !fillResult.error) {
-                fillResult.handoffWaitError = String(
-                  (handoffErr && handoffErr.message) || handoffErr || 'handoff wait failed'
-                );
-              }
-            }
           }
 
           // Indeed "could not advance" without needsHuman — promote to pause
@@ -1775,6 +2511,9 @@
     resume: resumeRunner,
     getStatus: getStatusSnapshot,
     injectAndFill: injectAndFill,
+    fillTabWithApplyStart: fillTabWithApplyStart,
+    runOnceOnTab: runOnceOnTab,
+    attemptAtsGoogleAuthLifecycle: attemptAtsGoogleAuthLifecycle,
     INJECT_FILES: INJECT_FILES
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

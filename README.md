@@ -6,9 +6,15 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Adaptive fill:** synonym CTAs (Apply / Apply Now / Start Apply / Apply for this Job / …) and Resume≈CV via `lib/synonyms.js` + **universal Apply-start** (click Apply to open the form when still on a job overview) + generic fallback for unknown hosts.
 
-**Docs:** [Docs index](docs/README.md) · [Fill engine](docs/FILL_ENGINE.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
+**Docs:** [Docs index](docs/README.md) · [Adaptive knowledge](docs/ADAPTIVE_KNOWLEDGE.md) · [Fill engine](docs/FILL_ENGINE.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
+
+**Version 1.17.0 (experimental)** — **integration release** combining the on-page Auto Fill / Ready / Submit panel (#2), adaptive applicant knowledge (#3), and ATS Google OAuth auth lifecycle (#4). One coherent experimental build on `grok/integration-experimental-release` — not yet merged to `main`.
+
+**Version 1.16.0** — **on-page Auto Fill / Auto Ready / Auto Submit panel**. A compact, collapsible Shadow-DOM control sits on the current job/application tab (not the side panel) and runs the existing fill engine against `sender.tab.id`. Corners/edges are scored so the box avoids titles, Apply/Start/Submit CTAs, and form fields. Queue / side-panel flows are unchanged. See [Vision](docs/APP_VISION_AND_FUNCTIONALITY.md).
+
+**Version 1.16.0** — **adaptive applicant knowledge**. A second, applicant-specific knowledge tier grows from explicit answers and corrections (IndexedDB, no rebuild). The fill resolver uses session → confirmed knowledge → profile → built-in, never invents, and reuses equivalent questions (`Have you used SAP?` ≈ `SAP experience`). Review/edit in App Settings → Adaptive knowledge. See [Adaptive knowledge](docs/ADAPTIVE_KNOWLEDGE.md).
 
 **Version 1.15.3** — **source fill checklist + JobPool status**. Honest per-source confidence (not “every board unattended”), confirmation that a new application can fill any field already on the profile, and a live JobPool contract: pull apply URLs from `GET /queue`, POST `/applied/:id` with `status`, and treat **only `submitted`** as Applied. See [Source fill checklist](docs/SOURCE_FILL_CHECKLIST.md).
 
@@ -26,6 +32,7 @@ Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply
 4. **Load unpacked** → select this folder (contains `manifest.json`).
 5. Open **App Settings** (Options page): manage **profiles** (chips: Set active / Rename / Duplicate / Delete / Create-Reset Zahid), edit **Profile settings**, paste **Application queue** target apply URLs, optionally upload resume/cover or Drive/URL links (documents shared across profiles).
 6. Click the **Fill & Apply** toolbar icon — the UI opens in Chrome’s **right sidebar** (not a tiny popup).
+7. On a job/application page, a compact **Fill & Apply** box appears on the page itself with **Auto Fill / Auto Ready / Auto Submit** (current tab only; collapse it if it sits near a field).
 
 ## Multi-profile (v1.9)
 
@@ -107,7 +114,8 @@ lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
   storage.js    run config, buckets, documents, mock URL list, applyHistory, source caps, pausedForHuman
   profile.js    multi-profile store (fillApply.profiles + activeProfileId; migrate legacy; phoneCountry, customAnswers, …)
-  field-map.js  field heuristics
+  field-map.js  field heuristics (Tier 1 built-in KB)
+  knowledge-*   Tier 2 adaptive KB — IndexedDB store, canonical keys, resolver, learn
   format.js     per-control value shaping — phone, postal, date, url, number,
                 text truncation, country/state spellings
   files.js      base64 ↔ File + DataTransfer; Attach/Upload discovery with the
@@ -116,6 +124,7 @@ lib/
   auth-walls.js Sign in / Register / Create a login / Password Re-enter detection (optional for adapters)
   backend.js    getNextJob / markApplied / markFailed / markCancelled + buckets
 content/fill.js fill engine, inspectForm, native + custom dropdowns
+content/page-panel.js on-page floating Auto Fill / Ready / Submit (Shadow DOM)
 demo/           sample application form (manual testing only — never enters the queue)
 ```
 
@@ -130,6 +139,10 @@ Replace the old auto-submit checkbox with a three-way control:
 | **Auto Fill** (`fill`) | Fill text / selects / files only. Do **not** click Continue / Next / Submit. |
 | **Auto Ready** (`ready`) | Fill + navigate multi-step forms (Next / Continue) as far as possible. **Never** click final Submit / Apply. |
 | **Auto Submit** (`submit`) | Full end-to-end, including final Submit / Apply when confidently found. |
+
+The same three modes are the buttons on the **on-page floating panel** (v1.16). They always target the tab the panel is sitting on (`FILL_APPLY_FILL_ONCE` → `FillApplyRunner.runOnceOnTab`). They do not change the saved side-panel runMode and do not consume the Application queue.
+
+**Positioning:** `content/page-panel.js` scores six slots (four corners + mid-left / mid-right) against keep-out boxes for `h1`/`h2` job titles, Apply / Start / Submit CTAs, and form fields. Least overlap wins; ties stay **bottom-right**. The host is `position: fixed` with `pointer-events` only on the panel (Shadow DOM + `all: initial`), so it does not overlay the page or steal scroll.
 
 Legacy `autoSubmit: true` migrates to `runMode: 'submit'`; otherwise `fill`.
 
@@ -153,11 +166,13 @@ The extension has no build step; `package.json` exists only for the test harness
 
 ```bash
 npm install
-npm test                      # jsdom suites: detection, fill engine, value formats, documents, full profile
+npm test                      # jsdom suites: detection, fill engine, value formats, documents, full profile, adaptive knowledge
 node scripts/browser-e2e.js   # real Chrome + unpacked extension (needs a display)
 ```
 
 `scripts/browser-e2e.js` serves a career page whose application form lives in an iframe on a **different** origin, installs the unpacked extension, and drives the real runner injection path from the service worker. It also checks the phone number is split across the country-code control and the number field, that the preloaded resume reaches an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog.
+
+`scripts/smoke-page-panel.js` covers on-page panel gating, Fill/Ready/Submit mode mapping, and keep-out positioning.
 
 ## Queue buckets
 

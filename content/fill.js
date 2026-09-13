@@ -17,6 +17,7 @@
 
   const HIGHLIGHT_ATTR = 'data-fill-apply-unmatched';
   const FILLED_ATTR = 'data-fill-apply-filled';
+  const FILLED_VALUE_ATTR = 'data-fill-apply-value';
 
   /** Voluntary self-identification — reported, never answered. */
   const DIVERSITY_RE =
@@ -593,13 +594,18 @@
   }
 
   /**
-   * Find the profile answer for a control, widest net first.
+   * Find the answer for a control.
    *
-   * Source profiles store most answers under `profile.customAnswers`, so the
-   * `answerForLabel` step is what lets per-source answers actually reach the
-   * page.
+   * When the adaptive resolver is loaded it owns precedence (session →
+   * confirmed user knowledge → profile → built-in). Otherwise the original
+   * field-map / customAnswers / customQA lookup runs unchanged.
    */
   function answerFor(profile, descriptor, map) {
+    const K = global.FillApplyKnowledge;
+    if (K && typeof K.resolve === 'function') {
+      return K.resolve(profile, descriptor, map);
+    }
+
     const label = descriptor.label || '';
     const labLower = label.toLowerCase();
 
@@ -627,6 +633,14 @@
     if (qa) return { key: 'customQA', value: qa, source: 'customQA' };
 
     return { key: key || null, value: '', source: null };
+  }
+
+  function markAutofilled(el, value) {
+    if (!el || !el.setAttribute) return;
+    try {
+      el.setAttribute(FILLED_ATTR, '1');
+      el.setAttribute(FILLED_VALUE_ATTR, String(value == null ? '' : value).slice(0, 500));
+    } catch (_e) { /* ignore */ }
   }
 
   function isDiversityControl(el, label) {
@@ -885,6 +899,7 @@
         })
       );
       if (result.ok) {
+        markAutofilled(trigger, answer.value);
         filled.push({ label: label, key: answer.key, value: answer.value });
       }
     }
@@ -1006,6 +1021,9 @@
   async function run(profile, options) {
     options = options || {};
     profile = profile || {};
+    if (global.FillApplyKnowledge && profile.__adaptiveKnowledge) {
+      global.FillApplyKnowledge.hydrate(profile.__adaptiveKnowledge);
+    }
     const highlightUnmatched = !!options.highlightUnmatched;
     const map = global.FillApplyFieldMap;
     const syn = global.FillApplySynonyms;
@@ -1125,12 +1143,14 @@
         const picked = await pickFromDropdown(el, answer.value, options);
         if (picked.ok) {
           filled += 1;
+          markAutofilled(el, answer.value);
           if (highlightUnmatched) highlight(el, 'filled');
           details.push(filledDetail(descriptor, answer));
         } else {
           // Fall back to plain text — some comboboxes accept free entry.
           if (setNativeValue(el, answer.value, { key: answer.key, profile: profile })) {
             filled += 1;
+            markAutofilled(el, answer.value);
             details.push(filledDetail(descriptor, answer));
           } else {
             unmatched += 1;
@@ -1167,6 +1187,7 @@
       }
 
       filled += 1;
+      markAutofilled(el, answer.value);
       if (highlightUnmatched) highlight(el, 'filled');
       details.push(filledDetail(descriptor, answer));
 
