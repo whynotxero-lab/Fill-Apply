@@ -524,7 +524,8 @@ button.danger { background: #7f1d1d; color: #fecaca; }
   margin-bottom: 3px;
 }
 .mf-field input,
-.mf-field textarea {
+.mf-field textarea,
+.mf-field select[data-field] {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--border-strong, #334155);
@@ -536,6 +537,23 @@ button.danger { background: #7f1d1d; color: #fecaca; }
   font-size: 13px;
 }
 .mf-field textarea { min-height: 56px; resize: vertical; }
+.mf-reqbadge {
+  display: inline-block;
+  margin: 0 0 4px 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.mf-required .mf-reqbadge {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+.mf-optional .mf-reqbadge {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
 .mf-actions { margin-top: 4px; }
 
 
@@ -569,3 +587,49 @@ button.danger { background: #7f1d1d; color: #fecaca; }
   display: inline-block;
 }
 .batch-order-chip[hidden] { display: none !important; }
+
+
+.mf-progress {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #86efac;
+}
+.mf-checklist .mf-field {
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 8px;
+  background: #0b1220;
+  position: relative;
+}
+.mf-checklist .mf-field.mf-done {
+  border-color: #22c55e55;
+  background: #052e16aa;
+}
+.mf-checklist .mf-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 12px;
+  color: #86efac;
+}
+.mf-keyhint {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+  margin: 0 0 4px;
+  font-family: ui-monospace, monospace;
+}
+.mf-type {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.mf-type select {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  background: #0b1220;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+}

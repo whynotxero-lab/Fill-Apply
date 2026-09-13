@@ -47,7 +47,7 @@ Values never come from invented AI guesses. AI/semantic matching may map *wordin
 {
   id,                    // uuid
   canonicalKey,          // willing_to_relocate  ≠  requires_sponsorship
-  fieldType,             // text | boolean | number | select | multi-select | date | url
+  fieldType,             // boolean | string | number | date | select | multiselect  (legacy: text, multi-select, url)
   value,                 // typed (boolean Yes/No stored as display "Yes"/"No" for HTML controls)
   displayValue,          // as the applicant typed/selected
   aliases,               // question wordings that resolved to this key
@@ -191,3 +191,69 @@ Manual (Load unpacked):
 3. Type/select an answer. It is learned (debounced). Re-run **Fill** on the same form or a reworded variant — the value is reused immediately.
 4. App Settings → **Adaptive knowledge** — review, edit, or delete the fact.
 5. Confirm identity fields still come from **Profile settings**, and Apply / Continue / Submit still use existing synonym detection.
+
+
+---
+
+## Complete Missing Information (v1.17.2)
+
+When fill hits unknown required/asked fields, the side panel opens **Complete Missing Information** (checklist):
+
+1. Detect fields → match profile + built-in + adaptive → fill known
+2. Unknown items appear as a checklist (Key hint + Type + Value)
+3. On Save & continue: **immediately** normalize to Key / Aliases / Type / Value, persist adaptive KB, write profile customAnswers, re-run fill in the same session
+4. Future applications reuse the same Key via aliases
+
+Options → Adaptive knowledge reviews the same Key — Aliases — Type — Value model.
+
+
+---
+
+## Control type vs Knowledge type (v1.17.3)
+
+Two concepts stay separate:
+
+| Concept | Examples | Role |
+|---------|----------|------|
+| **Knowledge Type** | boolean / string / number / date / select / multiselect | How the applicant fact is stored |
+| **DOM control type** | text / email / tel / number / date / checkbox / radio / select / textarea / combobox / custom | What the page control actually is |
+
+The filler **reconciles** them. Knowledge Type never overrides the DOM. Before fill: type + options compatibility gate. Incompatible → **DO NOT FILL** (surface in Complete Missing Information). Never free-text into a `<select>`.
+
+Canonical **Key** is identity (not label/name/index alone). Exclusions keep `current_salary` ≠ `expected_salary`, `willing_to_relocate` ≠ `willing_to_travel`, `years_experience` ≠ `management_experience`, `authorized_to_work` ≠ `requires_sponsorship`.
+
+Unknown field discovery includes **optional** as well as required. Missing Info UI renders controls from field metadata (Yes/No, number, real select options) and marks Required vs Optional.
+
+Debug: fill results expose `debugResolutions` / `unknownFields` (question, canonical key, knowledge type, control, value, resolution, confidence, action).
+
+## Semantic evidence model (v1.17.5)
+
+DOM metadata must **not** create or override semantic identity via concatenated `label+name+id` strings.
+
+Evidence fields stay separate: `label`, `question`, `placeholder`, `name`, `id`, `autocomplete`, `ariaLabel`, `controlType`, `options` (+ `groupContext`).
+
+**Priority** (higher wins):
+
+1. visible question / associated `<label>`
+2. accessible name / `aria-label`
+3. fieldset / group context
+4. placeholder
+5. autocomplete
+6. name / id (diagnostics only — **never** defines canonical identity)
+
+**Policy**
+
+1. Higher-priority semantic evidence determines identity when decisive.
+2. Lower-priority name/id **never** overrides that identity.
+3. Lower-priority contradictory metadata (placeholder / autocomplete / name / id) must **not** manufacture ambiguity when a higher-priority question is already decisive.
+4. Meaningful layers (question/label vs aria/group): if they genuinely disagree → `AMBIGUOUS` / `DO_NOT_FILL` (no guess).
+5. DOM name/id alone never defines canonical identity.
+
+Bare ambiguous labels (`Salary`, `Compensation`, `Experience`, …) stay `AMBIGUOUS` even when name/id looks decisive.
+
+Canonical key comes from the resolved **semantic question**, not DOM `id`/`name`. Same knowledge record across ATS/DOM variants.
+
+**Pipeline unity:** Auto Fill, unknown/missing discovery, learning/capture, and reuse after reload all call the same `buildEvidence` → `resolveFromEvidence` path.
+
+Debug diagnostic per fill: `question`, `semanticKey`, `knowledgeType`, `domControlType`, `candidateKeys`, `selectedKey`, `matchedEvidence`, `source`, `confidence`, `action`, `reason`.
+

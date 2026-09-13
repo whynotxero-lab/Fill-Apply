@@ -1,5 +1,6 @@
 /**
  * App Settings — Adaptive knowledge review / edit.
+ * Primary model: Key — Aliases — Type — Value.
  */
 (function () {
   'use strict';
@@ -25,6 +26,27 @@
 
   function store() {
     return globalThis.FillApplyKnowledgeStore;
+  }
+
+  function canonical() {
+    return globalThis.FillApplyKnowledgeCanonical;
+  }
+
+  function userTypes() {
+    var C = canonical();
+    return (C && C.USER_FIELD_TYPES) || [
+      'boolean',
+      'string',
+      'number',
+      'date',
+      'select',
+      'multiselect'
+    ];
+  }
+
+  function toUserType(t) {
+    var C = canonical();
+    return C && C.toUserFieldType ? C.toUserFieldType(t) : String(t || 'string');
   }
 
   function matchesFilter(rec, q) {
@@ -56,7 +78,7 @@
       emptyEl.hidden = shown.length > 0;
       if (!cache.length) {
         emptyEl.textContent =
-          'No learned facts yet. Fill an unknown question on an application, then return here.';
+          'No learned facts yet. Answer unknown questions via Complete Missing Information, then return here.';
       } else if (!shown.length) {
         emptyEl.hidden = false;
         emptyEl.textContent = 'No facts match this filter.';
@@ -75,54 +97,36 @@
     var aliases = (rec.aliases || []).join(', ');
     var used = rec.usageCount || 0;
     var conf = Math.round((rec.confidence || 0) * 100);
+    var userType = toUserType(rec.fieldType);
 
     card.innerHTML =
-      '<header>' +
-      '<span class="k-key"></span>' +
-      '<span class="k-meta"></span>' +
-      '</header>' +
-      '<label>Value <input class="k-value" /></label>' +
-      '<div class="grid">' +
-      '<label>Type <select class="k-type"></select></label>' +
-      '<label>Status <select class="k-status">' +
-      '<option value="confirmed">confirmed</option>' +
-      '<option value="provisional">provisional</option>' +
-      '<option value="rejected">rejected (ignored)</option>' +
-      '</select></label>' +
+      '<div class="k-model" aria-label="Key Aliases Type Value">' +
+      '<label class="k-row"><span class="k-label">Key</span><input class="k-key-input" readonly /></label>' +
+      '<label class="k-row"><span class="k-label">Aliases</span><input class="k-alias-edit" placeholder="Wording variants, comma-separated" /></label>' +
+      '<div class="k-row-grid">' +
+      '<label class="k-row"><span class="k-label">Type</span><select class="k-type"></select></label>' +
+      '<label class="k-row"><span class="k-label">Value</span><input class="k-value" /></label>' +
       '</div>' +
-      '<p class="k-aliases"></p>' +
-      '<label>Aliases (comma-separated) <input class="k-alias-edit" /></label>' +
+      '</div>' +
+      '<p class="k-meta-line"></p>' +
       '<div class="k-actions">' +
       '<button type="button" class="primary k-save">Save</button>' +
       '<button type="button" class="ghost k-delete">Delete</button>' +
       '</div>';
 
-    card.querySelector('.k-key').textContent = rec.canonicalKey;
-    card.querySelector('.k-meta').textContent =
-      (rec.source || 'user') + ' · ' + conf + '% · used ' + used + '×';
+    card.querySelector('.k-key-input').value = rec.canonicalKey || '';
     card.querySelector('.k-value').value = rec.displayValue != null ? rec.displayValue : rec.value || '';
-    card.querySelector('.k-status').value = rec.status || 'confirmed';
-    card.querySelector('.k-aliases').textContent = aliases
-      ? 'Seen as: ' + aliases
-      : 'No aliases yet — equivalent questions will attach here.';
     card.querySelector('.k-alias-edit').value = aliases;
+    card.querySelector('.k-meta-line').textContent =
+      (rec.source || 'user') + ' · ' + conf + '% · used ' + used + '×' +
+      (rec.status && rec.status !== 'confirmed' ? ' · ' + rec.status : '');
 
     var typeSel = card.querySelector('.k-type');
-    var types = (globalThis.FillApplyKnowledgeCanonical &&
-      globalThis.FillApplyKnowledgeCanonical.FIELD_TYPES) || [
-      'text',
-      'boolean',
-      'number',
-      'select',
-      'multi-select',
-      'date',
-      'url'
-    ];
-    types.forEach(function (t) {
+    userTypes().forEach(function (t) {
       var opt = document.createElement('option');
       opt.value = t;
       opt.textContent = t;
-      if (t === rec.fieldType) opt.selected = true;
+      if (t === userType) opt.selected = true;
       typeSel.appendChild(opt);
     });
 
@@ -149,10 +153,10 @@
       displayValue: value,
       value: value,
       fieldType: card.querySelector('.k-type').value,
-      status: card.querySelector('.k-status').value,
       aliases: aliases,
       source: 'user_edit',
       confidence: 1,
+      status: 'confirmed',
       updatedAt: Date.now()
     });
     try {
@@ -199,11 +203,12 @@
   async function addFact() {
     var S = store();
     if (!S) return;
-    var key = prompt('Canonical key (e.g. sap_experience)', '');
+    var key = prompt('Key (canonical id, e.g. sap_experience)', '');
     if (!key) return;
     var value = prompt('Value', '');
     if (value == null || String(value).trim() === '') return;
-    var label = prompt('Question wording / alias (optional)', key.replace(/_/g, ' '));
+    var label = prompt('Alias / question wording (optional)', key.replace(/_/g, ' '));
+    var type = prompt('Type (boolean|string|number|date|select|multiselect)', 'string') || 'string';
     try {
       await S.putKnowledge({
         canonicalKey: String(key)
@@ -212,7 +217,7 @@
           .replace(/\s+/g, '_'),
         value: value,
         displayValue: value,
-        fieldType: 'text',
+        fieldType: type,
         aliases: label ? [label] : [],
         source: 'user_edit',
         confidence: 1,

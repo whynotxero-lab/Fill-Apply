@@ -12,7 +12,7 @@
       <img class="titlebar-logo" src="../icons/icon48.png" width="28" height="28" alt="" />
       <div class="titlebar-main">
         <strong class="titlebar-name">Fill &amp; Apply</strong>
-        <span class="titlebar-ver" id="extVersion">v1.14.1</span>
+        <span class="titlebar-ver" id="extVersion">v1.17.2</span>
       </div>
       <span class="active-chip" id="headerActiveChip" title="Active profile">…</span>
     </header>
@@ -68,10 +68,11 @@
         <summary>Adaptive knowledge <span class="section-sub" id="knowledgeCountHint"></span></summary>
         <div class="sec-body">
           <p class="hint">
-            Applicant-specific answers learned from <strong>explicit</strong> typing, selects, and corrections.
-            Identity (name, email, phone) stays in <strong>Profile settings</strong>.
-            Equivalent questions share one canonical key — <code>willing_to_relocate</code> is never
-            <code>requires_sponsorship</code>, even when both answers are Yes.
+            Model: <strong>Key — Aliases — Type — Value</strong>.
+            One Key per meaning; Aliases are wording variants (never separate records).
+            Types: boolean · string · number · date · select · multiselect.
+            User-confirmed answers override built-in. Identity (name, email, phone) stays in
+            <strong>Profile settings</strong>.
           </p>
           <label class="check span2">
             <input type="checkbox" id="knowledgeLearningEnabled" checked />
@@ -309,6 +310,23 @@
         </div>
       </details>
 
+      <details class="sec" id="sec-app-db" data-sec="applicationDatabase">
+        <summary>Application database</summary>
+        <div class="sec-body">
+          <p class="hint">
+            Captured fields from submitted applications, grouped for review.
+            Sections are compact by default — expand Personal, Contact, Work Auth, Screening,
+            Preferences, Education, Experience, or Other as needed. Older records stay readable.
+          </p>
+          <div id="appDbList" class="app-db-list"></div>
+          <p class="hint" id="appDbEmpty">No application reports yet. Submit an application to capture fields here.</p>
+          <div class="actions">
+            <button type="button" id="btnAppDbRefresh" class="ghost">Refresh</button>
+            <span id="appDbStatus" class="status" role="status"></span>
+          </div>
+        </div>
+      </details>
+
       <details class="sec" id="sec-queue" data-sec="applicationQueue" open>
         <summary>Application queue</summary>
         <div class="sec-body">
@@ -385,6 +403,7 @@
     <script src="../lib/knowledge-learn.js"></script>
     <script src="../lib/format.js"></script>
     <script src="../lib/files.js"></script>
+    <script src="../lib/report.js"></script>
     <script src="knowledge-ui.js"></script>
     <script src="options.js"></script>
   </body>

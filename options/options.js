@@ -8,6 +8,7 @@
     profileSettings: false,
     backend: false,
     caps: false,
+    applicationDatabase: false,
     applicationQueue: true,
     documents: false,
     customQa: false,
@@ -348,19 +349,57 @@
     }
   }
 
+  function profileSortKey(p) {
+    var name = String(p && p.name || '').toLowerCase();
+    var isActive = p && p.id === activeIdCache;
+    var isZahid = FillApplyProfile.isZahidName
+      ? FillApplyProfile.isZahidName(p.name)
+      : name === 'zahid' || name === 'zahid general';
+    var isMock = FillApplyProfile.isMockName
+      ? FillApplyProfile.isMockName(p.name)
+      : name === 'mock';
+    // Active first, then Zahid, then others, Mock last among system demos
+    if (isActive) return 0;
+    if (isZahid) return 1;
+    if (isMock) return 90;
+    return 50;
+  }
+
   function renderProfileChips() {
     if (!profileChipsEl) return;
     profileChipsEl.innerHTML = '';
-    profilesCache.forEach(function (p) {
+    var hierarchy = document.createElement('p');
+    hierarchy.className = 'profile-hierarchy-label';
+    var activeMeta = findMeta(activeIdCache);
+    hierarchy.textContent =
+      'ACTIVE PROFILE ★ ' + ((activeMeta && activeMeta.name) || '—');
+    profileChipsEl.appendChild(hierarchy);
+
+    var sorted = profilesCache.slice().sort(function (a, b) {
+      var ka = profileSortKey(a);
+      var kb = profileSortKey(b);
+      if (ka !== kb) return ka - kb;
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+
+    sorted.forEach(function (p) {
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'profile-chip';
       btn.setAttribute('role', 'listitem');
       var locked = profileIsLocked(p);
+      var name = String(p.name || '').toLowerCase();
+      var isZahid = FillApplyProfile.isZahidName
+        ? FillApplyProfile.isZahidName(p.name)
+        : name === 'zahid' || name === 'zahid general';
+      var isMock = locked || (FillApplyProfile.isMockName && FillApplyProfile.isMockName(p.name));
       if (locked) btn.classList.add('locked');
+      if (isZahid) btn.classList.add('primary-profile');
+      if (isMock && !isZahid) btn.classList.add('secondary-profile');
       var label = p.name || 'Untitled';
       if (p.id === activeIdCache) label = '★ ' + label;
       if (locked) label += ' 🔒';
+      if (isMock && !isZahid) label = label.replace(/🔒/, '').trim() + ' (demo)';
       btn.textContent = label;
       if (p.id === selectedIdCache) btn.classList.add('selected');
       if (p.id === activeIdCache) btn.classList.add('active-mark');
@@ -381,7 +420,7 @@
     var createBtn = document.createElement('button');
     createBtn.type = 'button';
     createBtn.className = 'profile-chip create';
-    createBtn.textContent = '+ Create new profile';
+    createBtn.textContent = '+ Create New Profile';
     createBtn.addEventListener('click', function () {
       createNewProfile();
     });
@@ -958,6 +997,102 @@
       if (changes['fillApply.sessionLog']) refreshRealtimeLog().catch(function () {});
     });
   }
+
+
+  /* ---- Application database (collapsible field groups) ---- */
+  async function refreshApplicationDatabase() {
+    var listEl = document.getElementById('appDbList');
+    var emptyEl = document.getElementById('appDbEmpty');
+    var statusEl = document.getElementById('appDbStatus');
+    if (!listEl) return;
+    try {
+      var data = await send('FILL_APPLY_GET_REPORTS');
+      var reports = (data && data.reports) || [];
+      listEl.innerHTML = '';
+      if (emptyEl) emptyEl.hidden = reports.length > 0;
+      if (!reports.length) {
+        if (statusEl) {
+          statusEl.textContent = '';
+          statusEl.className = 'status';
+        }
+        return;
+      }
+      var Report = globalThis.FillApplyReport;
+      reports
+        .slice()
+        .reverse()
+        .forEach(function (r) {
+          var card = document.createElement('details');
+          card.className = 'app-db-card';
+          var sum = document.createElement('summary');
+          sum.textContent =
+            (r.title || r.company || 'Application') +
+            (r.company && r.title ? ' · ' + r.company : '') +
+            ' · ' +
+            (r.status || 'submitted');
+          card.appendChild(sum);
+          var meta = document.createElement('p');
+          meta.className = 'app-db-meta';
+          meta.textContent =
+            (r.url || '') +
+            (r.timestamp ? ' · ' + new Date(r.timestamp).toLocaleString() : '');
+          card.appendChild(meta);
+          var groups =
+            Report && Report.groupApplicationFields
+              ? Report.groupApplicationFields(r.fields || {})
+              : [{ group: 'Other', fields: Object.keys(r.fields || {}).map(function (k) {
+                  return { label: k, value: r.fields[k] };
+                }) }];
+          groups.forEach(function (g) {
+            var det = document.createElement('details');
+            det.className = 'app-db-group';
+            // Compact by default — do not set open
+            var gsum = document.createElement('summary');
+            gsum.textContent = g.group + ' (' + g.fields.length + ')';
+            det.appendChild(gsum);
+            var table = document.createElement('table');
+            table.className = 'app-db-table';
+            g.fields.forEach(function (f) {
+              var tr = document.createElement('tr');
+              var td1 = document.createElement('td');
+              td1.textContent = f.label;
+              var td2 = document.createElement('td');
+              td2.textContent = f.value;
+              tr.appendChild(td1);
+              tr.appendChild(td2);
+              table.appendChild(tr);
+            });
+            det.appendChild(table);
+            card.appendChild(det);
+          });
+          listEl.appendChild(card);
+        });
+      if (statusEl) {
+        statusEl.textContent = reports.length + ' report(s)';
+        statusEl.className = 'status ok';
+      }
+    } catch (e) {
+      if (statusEl) {
+        statusEl.textContent = e && e.message ? e.message : String(e);
+        statusEl.className = 'status err';
+      }
+    }
+  }
+
+  var btnAppDbRefresh = document.getElementById('btnAppDbRefresh');
+  if (btnAppDbRefresh) {
+    btnAppDbRefresh.addEventListener('click', function () {
+      refreshApplicationDatabase();
+    });
+  }
+  // Lazy load when section opened
+  var secAppDb = document.getElementById('sec-app-db');
+  if (secAppDb) {
+    secAppDb.addEventListener('toggle', function () {
+      if (secAppDb.open) refreshApplicationDatabase();
+    });
+  }
+
 
   const btnLastReport = document.getElementById('btnLastReport');
   const reportStatus = document.getElementById('reportStatus');

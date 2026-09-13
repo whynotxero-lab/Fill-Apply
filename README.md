@@ -10,7 +10,9 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
-**Version 1.17.0 (experimental)** — **integration release** combining the on-page Auto Fill / Ready / Submit panel (#2), adaptive applicant knowledge (#3), and ATS Google OAuth auth lifecycle (#4). One coherent experimental build on `grok/integration-experimental-release` — not yet merged to `main`.
+**Version 1.17.5 (experimental)** — semantic evidence policy made explicit: higher-priority question/label wins; name/id never override or define identity alone; placeholder/autocomplete contradictions do not manufacture ambiguity; question/label vs aria/group disagreement → AMBIGUOUS / DO_NOT_FILL. Same resolver for Auto Fill, discovery, learn, and reload reuse. Mandatory generic-DOM regressions added. Continues PR #7 on `grok/adaptive-knowledge-ux` — **do not merge** until reviewed.
+
+**Version 1.17.4 (experimental)** — **integration release** combining the on-page Auto Fill / Ready / Submit panel (#2), adaptive applicant knowledge (#3), and ATS Google OAuth auth lifecycle (#4). One coherent experimental build on `grok/integration-experimental-release` — not yet merged to `main`.
 
 **Version 1.16.0** — **on-page Auto Fill / Auto Ready / Auto Submit panel**. A compact, collapsible Shadow-DOM control sits on the current job/application tab (not the side panel) and runs the existing fill engine against `sender.tab.id`. Corners/edges are scored so the box avoids titles, Apply/Start/Submit CTAs, and form fields. Queue / side-panel flows are unchanged. See [Vision](docs/APP_VISION_AND_FUNCTIONALITY.md).
 

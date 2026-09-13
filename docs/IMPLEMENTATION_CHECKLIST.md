@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.17.0** (experimental integration of panel + adaptive knowledge + ATS Google auth).
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.17.2** (experimental integration of panel + adaptive knowledge + ATS Google auth).
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -255,3 +255,15 @@ Safe Continue / Sign-in-with-Google before fill. Pauses on CAPTCHA / MFA / ambig
 | No password / token storage | ✅ | By design |
 
 *Last reviewed against repo at v1.17.0 (experimental: panel + adaptive knowledge + ATS Google auth).*
+
+
+---
+
+## Adaptive knowledge UX (v1.17.2)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Key — Aliases — Type — Value Options UI | ✅ | User types: boolean/string/number/date/select/multiselect |
+| Complete Missing Information checklist | ✅ | Side panel; immediate KB persist + same-session refill |
+| Application database collapsible groups | ✅ | Personal/Contact/Work Auth/Screening/Preferences/Education/Experience/Other |
+| Zahid default active + Mock secondary | ✅ | Fresh init; Create/Reset Zahid activates Zahid; selection persists |

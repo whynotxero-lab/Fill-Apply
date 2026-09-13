@@ -479,7 +479,7 @@
 
 
   const PAUSE_STATE_KEY = 'fillApply.pauseState';
-  let missingFieldsContext = null; // { mode, tabId, jobId, fields }
+  let missingFieldsContext = null; // { mode, tabId, jobId, fields, fieldMeta }
 
   function getMissingModalEls() {
     return {
@@ -496,24 +496,201 @@
     if (els.modal) els.modal.hidden = true;
   }
 
+  function mfControls(list) {
+    return list.querySelectorAll('input[data-field], textarea[data-field], select[data-field]');
+  }
+
+  function updateMissingProgress() {
+    var els = getMissingModalEls();
+    var progressEl = document.getElementById('missingFieldsProgress');
+    if (!els.list || !progressEl) return;
+    var inputs = mfControls(els.list);
+    var total = inputs.length;
+    var done = 0;
+    inputs.forEach(function (inp) {
+      var wrap = inp.closest('.mf-field');
+      var filled = !!(inp.value || '').trim();
+      if (filled) done += 1;
+      if (wrap) {
+        wrap.classList.toggle('mf-done', filled);
+        var mark = wrap.querySelector('.mf-check');
+        if (mark) mark.hidden = !filled;
+      }
+    });
+    progressEl.textContent = done + ' of ' + total + ' answered';
+  }
+
+  function describeMissingField(label, metaFromDom) {
+    var C = globalThis.FillApplyKnowledgeCanonical;
+    var info = {
+      label: String(label || ''),
+      key: '',
+      type: 'string',
+      controlType: 'text',
+      options: [],
+      required: false
+    };
+    if (metaFromDom && typeof metaFromDom === 'object') {
+      if (metaFromDom.canonicalKey) info.key = metaFromDom.canonicalKey;
+      if (metaFromDom.knowledgeType) info.type = metaFromDom.knowledgeType;
+      if (metaFromDom.controlType) info.controlType = metaFromDom.controlType;
+      if (Array.isArray(metaFromDom.options)) info.options = metaFromDom.options;
+      if (metaFromDom.required != null) info.required = !!metaFromDom.required;
+    }
+    if (C && C.resolveFromEvidence && C.buildEvidence) {
+      var hit = C.resolveFromEvidence(
+        C.buildEvidence({
+          label: info.label,
+          question: (metaFromDom && metaFromDom.question) || info.label,
+          placeholder: (metaFromDom && metaFromDom.placeholder) || '',
+          name: (metaFromDom && metaFromDom.name) || '',
+          id: (metaFromDom && metaFromDom.id) || '',
+          ariaLabel: (metaFromDom && metaFromDom.ariaLabel) || '',
+          groupContext: (metaFromDom && metaFromDom.groupContext) || '',
+          autocomplete: (metaFromDom && metaFromDom.autocomplete) || '',
+          controlType: info.controlType,
+          options: info.options
+        }),
+        { fieldType: info.controlType }
+      );
+      if (hit && hit.ambiguous) {
+        info.ambiguous = true;
+        info.candidateKeys = hit.candidateKeys || [];
+        // Do not invent a key for ambiguous bare labels — Missing Info still collects
+        // under a derived key only when the applicant explicitly answers.
+      } else if (hit && hit.key && !info.key) {
+        info.key = hit.key;
+      }
+      if (hit && hit.fieldType && info.type === 'string') {
+        info.type = C.toUserFieldType ? C.toUserFieldType(hit.fieldType) : hit.fieldType;
+      }
+      info.matchedEvidence = hit && hit.matchedEvidence;
+    } else if (C && C.matchCanonical) {
+      var hit2 = C.matchCanonical(info.label, { fieldType: info.controlType });
+      if (hit2 && hit2.key && !info.key) info.key = hit2.key;
+      if (hit2 && hit2.fieldType && info.type === 'string') {
+        info.type = C.toUserFieldType ? C.toUserFieldType(hit2.fieldType) : hit2.fieldType;
+      }
+    }
+    if (!info.key && !info.ambiguous && C && C.deriveCanonicalKey) {
+      info.key = C.deriveCanonicalKey(info.label);
+    }
+    // Prefer DOM control semantics for the input widget
+    var ct = String(info.controlType || '').toLowerCase();
+    if (ct === 'checkbox' || ct === 'radio' || (C && C.isYesNoOptions && C.isYesNoOptions(info.options))) {
+      info.type = 'boolean';
+    } else if (ct === 'number') info.type = 'number';
+    else if (ct === 'date') info.type = 'date';
+    else if (ct === 'select' || ct === 'combobox' || ct === 'custom') {
+      info.type = info.options && info.options.length ? 'select' : info.type;
+    } else if (ct === 'multiselect') info.type = 'multiselect';
+    if (C && C.toUserFieldType) info.type = C.toUserFieldType(info.type);
+    return info;
+  }
+
+  function optionText(o) {
+    if (o == null) return '';
+    if (typeof o === 'string') return o;
+    return String(o.text != null ? o.text : o.label != null ? o.label : o.value != null ? o.value : '').trim();
+  }
+
+  function buildMissingControl(meta, id) {
+    var type = String(meta.type || 'string');
+    var ct = String(meta.controlType || '').toLowerCase();
+    var options = meta.options || [];
+    var input;
+
+    if (type === 'boolean' || ct === 'checkbox') {
+      input = document.createElement('select');
+      var blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = 'Select…';
+      input.appendChild(blank);
+      ['Yes', 'No'].forEach(function (v) {
+        var opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        input.appendChild(opt);
+      });
+    } else if ((type === 'select' || type === 'multiselect' || ct === 'select' || ct === 'combobox' || ct === 'radio') && options.length) {
+      input = document.createElement('select');
+      if (type === 'multiselect' || ct === 'multiselect') input.multiple = true;
+      var blank2 = document.createElement('option');
+      blank2.value = '';
+      blank2.textContent = 'Select…';
+      input.appendChild(blank2);
+      options.forEach(function (o) {
+        var t = optionText(o);
+        if (!t || /^(select|choose|please|--)/i.test(t)) return;
+        var opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        input.appendChild(opt);
+      });
+    } else if (type === 'boolean') {
+      input = document.createElement('select');
+      var b0 = document.createElement('option');
+      b0.value = '';
+      b0.textContent = 'Select…';
+      input.appendChild(b0);
+      ['Yes', 'No'].forEach(function (v) {
+        var opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        input.appendChild(opt);
+      });
+    } else {
+      var long = /cover|summary|history|essay|why|describe|letter/i.test(String(meta.label || ''));
+      input = document.createElement(long ? 'textarea' : 'input');
+      if (!long) {
+        if (type === 'number' || ct === 'number') input.type = 'number';
+        else if (type === 'date' || ct === 'date') input.type = 'date';
+        else if (ct === 'email') input.type = 'email';
+        else if (ct === 'tel') input.type = 'tel';
+        else if (ct === 'url') input.type = 'url';
+        else input.type = 'text';
+      }
+      input.placeholder = 'Type value…';
+    }
+    input.id = id;
+    input.dataset.field = String(meta.label || '');
+    if (meta.key) input.dataset.canonicalKey = meta.key;
+    input.dataset.controlType = ct || '';
+    input.autocomplete = 'off';
+    input.addEventListener('input', updateMissingProgress);
+    input.addEventListener('change', updateMissingProgress);
+    return input;
+  }
+
   function showMissingFieldsModal(payload) {
     payload = payload || {};
+    var fieldMetaList = Array.isArray(payload.unknownFields) ? payload.unknownFields : [];
     var fields = Array.isArray(payload.missingProfileFields)
       ? payload.missingProfileFields.filter(Boolean)
       : [];
+    if (!fields.length && fieldMetaList.length) {
+      fields = fieldMetaList.map(function (u) { return u.label; }).filter(Boolean);
+    }
     if (!fields.length && payload.message) fields = [payload.message];
     if (!fields.length) fields = ['(required field)'];
+
+    var metaByLabel = {};
+    fieldMetaList.forEach(function (u) {
+      if (u && u.label) metaByLabel[u.label] = u;
+    });
+
     missingFieldsContext = {
       mode: payload.mode || (getRunnerMode() === 'batch' ? 'batch' : 'single'),
       tabId: payload.tabId != null ? payload.tabId : null,
       jobId: payload.jobId || null,
       fields: fields,
+      fieldMeta: metaByLabel,
       message: payload.message || ''
     };
     var els = getMissingModalEls();
     if (!els.modal || !els.list) {
       setStatus(
-        'Missing profile field(s): ' + fields.join(', ') + ' — open App Settings or reload panel.',
+        'Missing information: ' + fields.join(', ') + ' — open App Settings or reload panel.',
         'warn'
       );
       return;
@@ -521,43 +698,74 @@
     if (els.msg) {
       els.msg.textContent =
         payload.message ||
-        'Enter values for the fields below. They save into your active profile, then fill continues.';
+        'Complete each item below (required and optional unknowns). Controls match the application field. Answers normalize to Key / Aliases / Type / Value, save to adaptive knowledge, apply to this application, then fill continues.';
     }
     els.list.innerHTML = '';
+    var types = (globalThis.FillApplyKnowledgeCanonical &&
+      globalThis.FillApplyKnowledgeCanonical.USER_FIELD_TYPES) || [
+      'boolean',
+      'string',
+      'number',
+      'date',
+      'select',
+      'multiselect'
+    ];
     fields.forEach(function (field, idx) {
+      var meta = describeMissingField(field, metaByLabel[field]);
       var wrap = document.createElement('div');
-      wrap.className = 'mf-field';
+      wrap.className = 'mf-field' + (meta.required ? ' mf-required' : ' mf-optional');
       var id = 'mfInput' + idx;
-      var long = /cover|summary|history|essay|why|describe|letter/i.test(String(field));
+      var check = document.createElement('span');
+      check.className = 'mf-check';
+      check.textContent = '✓';
+      check.hidden = true;
+      wrap.appendChild(check);
       var label = document.createElement('label');
       label.setAttribute('for', id);
       label.textContent = String(field);
-      var input = document.createElement(long ? 'textarea' : 'input');
-      if (!long) input.type = 'text';
-      input.id = id;
-      input.dataset.field = String(field);
-      input.placeholder = 'Type value…';
-      input.autocomplete = 'off';
       wrap.appendChild(label);
-      wrap.appendChild(input);
+      var badge = document.createElement('span');
+      badge.className = 'mf-reqbadge';
+      badge.textContent = meta.required ? 'Required' : 'Optional';
+      wrap.appendChild(badge);
+      if (meta.key) {
+        var hint = document.createElement('span');
+        hint.className = 'mf-keyhint';
+        hint.textContent = 'Key: ' + meta.key + (meta.controlType ? ' · ' + meta.controlType : '');
+        wrap.appendChild(hint);
+      }
+      var typeWrap = document.createElement('label');
+      typeWrap.className = 'mf-type';
+      typeWrap.textContent = 'Type ';
+      var typeSel = document.createElement('select');
+      typeSel.dataset.fieldTypeFor = String(field);
+      types.forEach(function (t) {
+        var opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        if (t === meta.type) opt.selected = true;
+        typeSel.appendChild(opt);
+      });
+      typeWrap.appendChild(typeSel);
+      wrap.appendChild(typeWrap);
+      wrap.appendChild(buildMissingControl(meta, id));
       els.list.appendChild(wrap);
     });
     els.modal.hidden = false;
-    // Focus first input
-    var first = els.list.querySelector('input, textarea');
+    updateMissingProgress();
+    var first = els.list.querySelector('input, textarea, select[data-field]');
     if (first) {
       try { first.focus(); } catch (_e) {}
     }
-    // Scroll modal card into view / highlight pause banner
     if (pauseBannerEl) {
       pauseBannerEl.hidden = false;
       if (pauseMessageEl) {
         pauseMessageEl.textContent =
           payload.message ||
-          ('Paused — missing: ' + fields.join(', '));
+          ('Paused — Complete Missing Information (' + fields.length + ')');
       }
     }
-    setStatus('Paused — enter missing profile fields, then Save & continue.', 'warn');
+    setStatus('Paused — Complete Missing Information, then Save & continue fill.', 'warn');
   }
 
   async function clearPauseStateStorage() {
@@ -588,22 +796,78 @@
     var els = getMissingModalEls();
     if (!els.list || !missingFieldsContext) return;
     var values = {};
-    els.list.querySelectorAll('input, textarea').forEach(function (inp) {
+    var typed = [];
+    mfControls(els.list).forEach(function (inp) {
       var field = inp.dataset.field || '';
       var val = (inp.value || '').trim();
-      if (field && val) values[field] = val;
+      if (!field || !val) return;
+      values[field] = val;
+      var typeSel = els.list.querySelector('select[data-field-type-for="' + CSS.escape(field) + '"]');
+      // CSS.escape may be missing in older environments
+      if (!typeSel) {
+        els.list.querySelectorAll('select[data-field-type-for]').forEach(function (s) {
+          if (s.getAttribute('data-field-type-for') === field) typeSel = s;
+        });
+      }
+      typed.push({
+        label: field,
+        value: val,
+        fieldType: typeSel ? typeSel.value : 'string',
+        canonicalKey: inp.dataset.canonicalKey || '',
+        kind: 'confirm'
+      });
     });
+    var metaMap = (missingFieldsContext && missingFieldsContext.fieldMeta) || {};
     var missing = (missingFieldsContext.fields || []).filter(function (f) {
+      var meta = metaMap[f];
+      var must = !meta || meta.required !== false;
+      // If we have explicit required flag, only require those; otherwise require all (legacy)
+      if (meta && Object.prototype.hasOwnProperty.call(meta, 'required')) {
+        must = !!meta.required;
+      }
+      if (!must) return false;
       return !values[f] || !String(values[f]).trim();
     });
     if (missing.length) {
-      setStatus('Please fill: ' + missing.join(', '), 'err');
+      setStatus('Please fill required: ' + missing.join(', '), 'err');
+      updateMissingProgress();
+      return;
+    }
+    if (!Object.keys(values).length) {
+      setStatus('Enter at least one answer to continue.', 'err');
       return;
     }
     if (els.save) els.save.disabled = true;
     try {
+      var profileId = null;
+      try {
+        if (FillApplyProfile && FillApplyProfile.getActiveProfileId) {
+          profileId = await FillApplyProfile.getActiveProfileId();
+        }
+      } catch (_pid) {}
+
+      // (a) Immediately normalize + persist adaptive KB (Key / Aliases / Type / Value)
+      if (globalThis.FillApplyKnowledgeLearn && FillApplyKnowledgeLearn.learn) {
+        for (var i = 0; i < typed.length; i++) {
+          try {
+            await FillApplyKnowledgeLearn.learn({
+              label: typed[i].label,
+              value: typed[i].value,
+              fieldType: typed[i].fieldType,
+              canonicalKey: typed[i].canonicalKey || undefined,
+              kind: 'confirm',
+              profileId: profileId
+            });
+          } catch (_learnOne) { /* continue remaining */ }
+        }
+      } else if (globalThis.FillApplyKnowledgeLearn && FillApplyKnowledgeLearn.learnMany) {
+        try {
+          await FillApplyKnowledgeLearn.learnMany(values, { kind: 'confirm', profileId: profileId });
+        } catch (_learnErr) { /* profile write still attempted */ }
+      }
+
+      // Also write known identity / customAnswers on the active profile
       if (!FillApplyProfile || !FillApplyProfile.applyMissingFieldAnswers) {
-        // Fallback: merge into profile manually
         var profile = await FillApplyProfile.getProfile();
         Object.keys(values).forEach(function (k) {
           profile.customAnswers = profile.customAnswers || {};
@@ -618,22 +882,22 @@
       } else {
         await FillApplyProfile.applyMissingFieldAnswers(values);
       }
-      if (globalThis.FillApplyKnowledgeLearn && FillApplyKnowledgeLearn.learnMany) {
-        try {
-          await FillApplyKnowledgeLearn.learnMany(values, { kind: 'confirm' });
-        } catch (_learnErr) { /* profile write still succeeded */ }
-      }
-      await liveLog('missing_fields_saved', 'Saved ' + Object.keys(values).length + ' field(s) to active profile');
+
+      await liveLog(
+        'missing_fields_saved',
+        'Complete Missing Information: saved ' + Object.keys(values).length + ' answer(s) to adaptive KB + profile'
+      );
       await clearPauseStateStorage();
       hideMissingFieldsModal();
-      setStatus('Saved to profile — continuing…', 'ok');
+      setStatus('Saved — applying to current form and continuing…', 'ok');
       var mode = missingFieldsContext.mode;
       missingFieldsContext = null;
+      // (b)+(c) apply to current application fields and continue remaining fill same session
       if (mode === 'batch') {
         try {
           const data = await send(MSG.RESUME || 'FILL_APPLY_RESUME');
           applyStatus(data);
-          setStatus('Resumed batch after saving profile fields.', 'ok');
+          setStatus('Resumed batch after Complete Missing Information.', 'ok');
         } catch (e) {
           setStatus('Saved, but Resume failed: ' + e.message, 'err');
         }
@@ -1080,15 +1344,20 @@
         var missing = Array.isArray(result.missingProfileFields)
           ? result.missingProfileFields
           : [];
+        var unknownMeta = Array.isArray(result.unknownFields) ? result.unknownFields : [];
         var msg =
           result.error ||
           'Paused — missing profile field(s): ' +
             (missing.join(', ') || 'see App Settings');
-        await liveLog('missing_fields', msg, { missingProfileFields: missing });
+        await liveLog('missing_fields', msg, {
+          missingProfileFields: missing,
+          unknownFields: unknownMeta
+        });
         var pausePayload = {
           jobId: null,
           tabId: tab.id,
           missingProfileFields: missing,
+          unknownFields: unknownMeta,
           message: msg,
           at: Date.now(),
           mode: 'single',
