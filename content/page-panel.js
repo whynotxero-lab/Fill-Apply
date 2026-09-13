@@ -329,7 +329,7 @@
 
   function cssText() {
     return [
-      ':host{all:initial;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}',
+      ':host{all:initial;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased;}',
       '*{box-sizing:border-box;}',
       '.wrap{pointer-events:auto;width:' +
         PANEL_WIDTH +
