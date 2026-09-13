@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.16.0** on `main`.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.16.0**.
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -27,7 +27,7 @@ Everything below fixes a defect that made forms unreadable or invisible regardle
 | `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
 | Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
 | Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
-| jsdom test suites | ✅ | `npm test` — 11 suites (includes JobPool status, run modes, backend POST, on-page panel) |
+| jsdom test suites | ✅ | `npm test` — 12 suites (includes adaptive knowledge, JobPool status, run modes, backend POST, on-page panel) |
 | Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
 
 ---
@@ -206,6 +206,7 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | docs/SOURCES_AND_FIELDS.md | ✅ | This pack |
 | docs/CHAT_LOG.md | ✅ | This pack (paraphrased transcript) |
 | docs/SOURCE_FILL_CHECKLIST.md | ✅ | v1.15.3 — source confidence + JobPool contract |
+| docs/ADAPTIVE_KNOWLEDGE.md | ✅ | v1.16.0 — two-tier KB, resolver, IndexedDB, learning |
 | docs/IMPLEMENTATION_CHECKLIST.md | ✅ | This file |
 
 ---
@@ -222,4 +223,23 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 
 ---
 
-*Last reviewed against repo at v1.16.0 (on-page Auto Fill / Ready / Submit panel).*
+---
+
+## Adaptive applicant knowledge (v1.16.0)
+
+Applicant-specific Q&A grows without an extension rebuild. See [ADAPTIVE_KNOWLEDGE.md](ADAPTIVE_KNOWLEDGE.md).
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Design plan with integration points | ✅ | `docs/ADAPTIVE_KNOWLEDGE.md` |
+| IndexedDB store + memory + hot overlay | ✅ | `lib/knowledge-store.js` — page never writes host-origin IDB |
+| Canonical / alias matching | ✅ | SAP variants share a key; relocate ≠ sponsorship |
+| Unified resolver precedence | ✅ | session → confirmed knowledge → profile → built-in → empty |
+| Explicit-only learning + correction provenance | ✅ | Noise / EEO / consent ignored |
+| Same-session reflection | ✅ | In-memory + `fillApply.knowledgeHot` |
+| Options review/edit UI | ✅ | App Settings → Adaptive knowledge |
+| Missing-fields popup also learns | ✅ | Confirm writes PROFILE and Tier 2 |
+| Apply / Continue / Submit unchanged | ✅ | Existing synonym detection |
+| Cloud sync | ⏳ | Seam only (`FillApplyKnowledgeSync.register`) |
+
+*Last reviewed against repo at v1.16.0 (on-page panel + adaptive applicant knowledge).*

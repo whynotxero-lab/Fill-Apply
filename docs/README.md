@@ -4,6 +4,7 @@ Index of project docs for the **Fill & Apply** Chrome MV3 extension.
 
 | Document | Description |
 |----------|-------------|
+| [ADAPTIVE_KNOWLEDGE.md](ADAPTIVE_KNOWLEDGE.md) | Two-tier knowledge: built-in KB + applicant adaptive KB, resolver precedence, IndexedDB, learning rules, Options UI |
 | [FILL_ENGINE.md](FILL_ENGINE.md) | How the engine finds forms, reads fields and writes answers — deep DOM, form scoring, async dropdowns, cross-frame injection, per-control value formatting, document attach, full applicant profile, diagnostics |
 | [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) | Per-source ATS/board behavior, caps, human gates, operator checklists (~48KB) |
 | [APP_VISION_AND_FUNCTIONALITY.md](APP_VISION_AND_FUNCTIONALITY.md) | Product vision, architecture, UI sections, modes, version milestones |

@@ -2,12 +2,15 @@
  * MV3 service worker — owns the runner state machine and message API.
  * Also configures chrome.sidePanel so the toolbar action opens the right sidebar.
  */
-/* global importScripts, FillApplyTypes, FillApplyStorage, FillApplyProfile, FillApplyBackend, FillApplyReport, FillApplyRunner */
+/* global importScripts, FillApplyTypes, FillApplyStorage, FillApplyProfile, FillApplyBackend, FillApplyReport, FillApplyRunner, FillApplyKnowledgeStore, FillApplyKnowledgeLearn */
 
 importScripts(
   '../lib/types.js',
   '../lib/storage.js',
   '../lib/profile.js',
+  '../lib/knowledge-canonical.js',
+  '../lib/knowledge-store.js',
+  '../lib/knowledge-learn.js',
   '../lib/source-profiles.js',
   '../lib/backend.js',
   '../lib/report.js',
@@ -235,6 +238,89 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       (async function () {
         const last = FillApplyReport ? await FillApplyReport.getLastReport() : null;
         return { report: last };
+      })()
+    );
+  }
+
+  if (
+    message.type === 'FILL_APPLY_KNOWLEDGE_LEARN' ||
+    message.type === MSG.KNOWLEDGE_LEARN
+  ) {
+    return reply(
+      (async function () {
+        if (!FillApplyKnowledgeStore) return { skipped: true };
+        if (message.record) {
+          await FillApplyKnowledgeStore.putKnowledge(message.record);
+          return { stored: true, id: message.record.id };
+        }
+        if (message.input && FillApplyKnowledgeLearn) {
+          return FillApplyKnowledgeLearn.learn(message.input);
+        }
+        return { skipped: true };
+      })()
+    );
+  }
+
+  if (
+    message.type === 'FILL_APPLY_KNOWLEDGE_SNAPSHOT' ||
+    message.type === MSG.KNOWLEDGE_SNAPSHOT
+  ) {
+    return reply(
+      FillApplyKnowledgeStore
+        ? FillApplyKnowledgeStore.exportSnapshot(message.profileId)
+        : { records: [] }
+    );
+  }
+
+  if (message.type === 'FILL_APPLY_KNOWLEDGE_LIST' || message.type === MSG.KNOWLEDGE_LIST) {
+    return reply(
+      FillApplyKnowledgeStore
+        ? FillApplyKnowledgeStore.listKnowledge(message.profileId).then(function (records) {
+            return { records: records };
+          })
+        : { records: [] }
+    );
+  }
+
+  if (message.type === 'FILL_APPLY_KNOWLEDGE_UPSERT' || message.type === MSG.KNOWLEDGE_UPSERT) {
+    return reply(
+      FillApplyKnowledgeStore
+        ? FillApplyKnowledgeStore.putKnowledge(message.record || {}).then(function (record) {
+            return { record: record };
+          })
+        : { record: null }
+    );
+  }
+
+  if (message.type === 'FILL_APPLY_KNOWLEDGE_DELETE' || message.type === MSG.KNOWLEDGE_DELETE) {
+    return reply(
+      FillApplyKnowledgeStore
+        ? FillApplyKnowledgeStore.deleteKnowledge(message.id).then(function () {
+            return { deleted: message.id };
+          })
+        : { deleted: null }
+    );
+  }
+
+  if (message.type === 'FILL_APPLY_KNOWLEDGE_EVENTS' || message.type === MSG.KNOWLEDGE_EVENTS) {
+    return reply(
+      FillApplyKnowledgeStore
+        ? FillApplyKnowledgeStore.listEvents(message.limit).then(function (events) {
+            return { events: events };
+          })
+        : { events: [] }
+    );
+  }
+
+  if (
+    message.type === 'FILL_APPLY_KNOWLEDGE_SETTINGS' ||
+    message.type === MSG.KNOWLEDGE_SETTINGS
+  ) {
+    return reply(
+      (async function () {
+        if (!FillApplyKnowledgeStore) return { learningEnabled: true };
+        if (message.settings) return FillApplyKnowledgeStore.saveSettings(message.settings);
+        return FillApplyKnowledgeStore.getSettings();
       })()
     );
   }

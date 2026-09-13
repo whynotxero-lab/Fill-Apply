@@ -18,11 +18,16 @@
     'lib/synonyms.js',
     'lib/pace.js',
     'lib/field-map.js',
+    'lib/knowledge-canonical.js',
+    'lib/knowledge-store.js',
+    'lib/knowledge-resolver.js',
+    'lib/knowledge-learn.js',
     'lib/files.js',
     'lib/auth-walls.js',
     'lib/challenges.js',
     'lib/easy-apply-steps.js',
     'content/focus-hud.js',
+    'content/knowledge-observe.js',
     'content/fill.js',
     'adapters/registry.js',
     'adapters/fallback.js',
@@ -1138,6 +1143,14 @@
           profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);
         } catch (_mergeErr) {}
       }
+      // Stamp adaptive KB snapshot for on-page panel / FILL_ONCE path too.
+      if (global.FillApplyKnowledgeStore && global.FillApplyKnowledgeStore.attachToProfile) {
+        try {
+          profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
+        } catch (_kbErr) {
+          /* fill without adaptive snapshot */
+        }
+      }
 
       const config = await S.getRunConfig();
       let documents = await B.getDocuments();
@@ -1570,6 +1583,17 @@
               profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);
             } catch (_mergeErr) {
               /* keep base */
+            }
+          }
+          // Stamp a shallow copy with the adaptive KB snapshot. Do not persist
+          // __adaptiveKnowledge back onto the saved profile. Keep this next to
+          // getEffectiveProfile so a later merge with the on-page panel PR
+          // still hydrates knowledge before injectAndFill.
+          if (global.FillApplyKnowledgeStore && global.FillApplyKnowledgeStore.attachToProfile) {
+            try {
+              profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
+            } catch (_kbErr) {
+              /* fill without adaptive snapshot */
             }
           }
           documents = await B.getDocuments();

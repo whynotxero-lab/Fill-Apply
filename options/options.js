@@ -10,7 +10,8 @@
     caps: false,
     applicationQueue: true,
     documents: false,
-    customQa: false
+    customQa: false,
+    knowledge: true
   };
 
   const form = document.getElementById('profileForm');
