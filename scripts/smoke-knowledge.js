@@ -994,6 +994,185 @@ function pageWith(html) {
     suite.ok(amb.ambiguous, 'Missing Info pipeline: bare Salary ambiguous');
   })();
 
+  await (async function evidencePriorityPolicyRegression_v1175() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    const K = page.window.FillApplyKnowledge;
+    const Learn = page.window.FillApplyKnowledgeLearn;
+    const S = page.window.FillApplyKnowledgeStore;
+    const map = page.window.FillApplyFieldMap;
+    S.resetMemory();
+    K.sessionClear();
+
+    function hit(desc) {
+      return C.resolveFromEvidence(C.buildEvidence(desc));
+    }
+
+    // 1) Label Current + placeholder Expected + name/id expected → current / FILL
+    const curPh = hit({
+      label: 'Current Salary',
+      placeholder: 'Expected compensation',
+      name: 'expected_salary',
+      id: 'expected_salary',
+      type: 'number'
+    });
+    suite.equal(curPh.key, 'current_salary', 'policy: Current + placeholder Expected + name expected → current_salary');
+    suite.equal(curPh.action, 'FILL', 'policy: Current+placeholder+name → FILL');
+    suite.ok(!curPh.ambiguous, 'policy: Current+placeholder+name not ambiguous');
+
+    // 2) Label Expected + placeholder Current + name/id current → expected / FILL
+    const expPh = hit({
+      label: 'Expected Salary',
+      placeholder: 'Current compensation',
+      name: 'current_salary',
+      id: 'current_salary',
+      type: 'number'
+    });
+    suite.equal(expPh.key, 'expected_salary', 'policy: Expected + placeholder Current + name current → expected_salary');
+    suite.equal(expPh.action, 'FILL', 'policy: Expected+placeholder+name → FILL');
+
+    // 3) Label Current + aria Expected → AMBIGUOUS / DO_NOT_FILL
+    const ariaConflict = hit({ label: 'Current Salary', ariaLabel: 'Expected Salary' });
+    suite.ok(ariaConflict.ambiguous, 'policy: label vs aria disagree → AMBIGUOUS');
+    suite.equal(ariaConflict.action, 'DO_NOT_FILL', 'policy: label vs aria → DO_NOT_FILL');
+    suite.ok(!ariaConflict.key, 'policy: label vs aria has no guessed key');
+
+    // groupContext likewise meaningful
+    const groupConflict = hit({ label: 'Current Salary', groupContext: 'Expected Salary' });
+    suite.ok(groupConflict.ambiguous, 'policy: label vs group disagree → AMBIGUOUS');
+    suite.equal(groupConflict.action, 'DO_NOT_FILL', 'policy: label vs group → DO_NOT_FILL');
+
+    // 4) Label Current + only contradictory name/id → current / FILL
+    const nameOnlyConflict = hit({
+      label: 'Current Salary',
+      name: 'expected_salary',
+      id: 'expected_salary'
+    });
+    suite.equal(nameOnlyConflict.key, 'current_salary', 'policy: Current + contradictory name/id → current_salary');
+    suite.equal(nameOnlyConflict.action, 'FILL', 'policy: contradictory name/id does not block FILL');
+    suite.ok(!nameOnlyConflict.ambiguous, 'policy: contradictory name/id does not manufacture ambiguity');
+
+    // 5) Bare Salary + name expected_salary → AMBIGUOUS / DO_NOT_FILL
+    const bareSal = hit({ label: 'Salary', name: 'expected_salary' });
+    suite.ok(bareSal.ambiguous, 'policy: bare Salary + name expected → AMBIGUOUS');
+    suite.equal(bareSal.action, 'DO_NOT_FILL', 'policy: bare Salary + name → DO_NOT_FILL');
+    suite.ok(!bareSal.key, 'policy: name cannot rescue bare Salary');
+
+    // 6) Bare Experience + name years_experience → AMBIGUOUS / DO_NOT_FILL
+    const bareExp = hit({ label: 'Experience', name: 'years_experience' });
+    suite.ok(bareExp.ambiguous, 'policy: bare Experience + name years_experience → AMBIGUOUS');
+    suite.equal(bareExp.action, 'DO_NOT_FILL', 'policy: bare Experience + name → DO_NOT_FILL');
+
+    // 7–8) relocate/travel vs contradictory name
+    suite.equal(
+      hit({ label: 'Are you willing to relocate?', name: 'travel', id: 'travel_pref' }).key,
+      'willing_to_relocate',
+      'policy: relocation label + travel name → willing_to_relocate'
+    );
+    suite.equal(
+      hit({ label: 'Willing to travel', name: 'relocation', id: 'relocation' }).key,
+      'willing_to_travel',
+      'policy: travel label + relocation name → willing_to_travel'
+    );
+
+    // 9) Identical semantic question, different DOM name/id/placeholder → same canonical key
+    const a = hit({
+      label: 'Current Salary',
+      name: 'salary_current_v1',
+      id: 'fld_a',
+      placeholder: 'Enter amount'
+    });
+    const b = hit({
+      label: 'Current Salary',
+      name: 'compensation_now',
+      id: 'xyz_99',
+      placeholder: 'Monthly pay'
+    });
+    suite.equal(a.key, 'current_salary', 'policy: fixture A → current_salary');
+    suite.equal(b.key, a.key, 'policy: identical semantic question → same canonical across DOM fixtures');
+
+    // 10) Unknown question + contradictory DOM metadata → preserve semantic; never DOM identity
+    const unknown = hit({
+      label: 'Favourite programming language',
+      name: 'expected_salary',
+      id: 'expected_salary',
+      placeholder: 'Expected compensation'
+    });
+    suite.equal(
+      unknown.key,
+      'favourite_programming_language',
+      'policy: unknown question preserves semantic derive key'
+    );
+    suite.ok(unknown.derived, 'policy: unknown question is derived from semantic text');
+    suite.ok(unknown.key !== 'expected_salary', 'policy: never use DOM id/name as identity');
+
+    // 5b) DOM name/id alone never defines canonical identity
+    const domAlone = hit({ name: 'expected_salary', id: 'expected_salary' });
+    suite.ok(!domAlone.key, 'policy: DOM name/id alone does not define identity');
+    suite.equal(domAlone.action, 'DO_NOT_FILL', 'policy: DOM-alone → DO_NOT_FILL');
+    suite.ok(!domAlone.ambiguous || true, 'policy: DOM-alone unresolved (not a guessed key)');
+
+    // Pipeline unity: Auto Fill resolve, discovery identify, learn/capture, reuse
+    await Learn.learn({
+      label: 'Current Salary',
+      name: 'expected_salary',
+      id: 'expected_salary',
+      placeholder: 'Expected compensation',
+      value: '111000',
+      fieldType: 'number',
+      kind: 'confirm'
+    });
+    const snap = await S.exportSnapshot();
+    suite.equal(snap.records[0].canonicalKey, 'current_salary', 'learn pipeline: canonical from label not DOM');
+
+    // fresh page = reuse after reload
+    const reader = pageWith();
+    reader.window.FillApplyKnowledgeStore.resetMemory();
+    reader.window.FillApplyKnowledge.sessionClear();
+    reader.window.FillApplyKnowledgeStore.importSnapshot(snap);
+    const Kr = reader.window.FillApplyKnowledge;
+    const Cr = reader.window.FillApplyKnowledgeCanonical;
+    const profile = { __adaptiveKnowledge: snap, currentSalary: '111000' };
+
+    const fillHit = Kr.resolve(
+      profile,
+      {
+        label: 'Current Salary',
+        placeholder: 'Expected compensation',
+        name: 'expected_salary',
+        id: 'other_id',
+        type: 'number'
+      },
+      reader.window.FillApplyFieldMap
+    );
+    suite.equal(fillHit.value, '111000', 'Auto Fill pipeline: fills current despite contradictory DOM');
+    suite.equal(fillHit.action, 'FILL', 'Auto Fill pipeline: FILL');
+    suite.equal(fillHit.canonicalKey || fillHit.semanticKey, 'current_salary', 'Auto Fill pipeline: semantic key');
+
+    const ariaResolve = Kr.resolve(
+      profile,
+      { label: 'Current Salary', ariaLabel: 'Expected Salary', type: 'number' },
+      reader.window.FillApplyFieldMap
+    );
+    suite.ok(ariaResolve.ambiguous || ariaResolve.action === 'DO_NOT_FILL', 'resolve pipeline: aria conflict DO_NOT_FILL');
+    suite.equal(ariaResolve.value || '', '', 'resolve pipeline: aria conflict does not fill');
+
+    const discover = Cr.resolveFromEvidence(
+      Cr.buildEvidence({
+        label: 'Expected Salary',
+        name: 'current_salary',
+        id: 'salary_123',
+        type: 'number'
+      })
+    );
+    suite.equal(discover.key, 'expected_salary', 'unknown/missing discovery: same evidence resolver');
+
+    const bareDiscover = Cr.resolveFromEvidence(
+      Cr.buildEvidence({ label: 'Salary', name: 'expected_salary', type: 'number' })
+    );
+    suite.ok(bareDiscover.ambiguous, 'discovery pipeline: bare Salary + name still AMBIGUOUS');
+  })();
+
   await (async function reportFieldGroups() {
     const page = createPage('<div></div>', ['lib/report.js']);
     const R = page.window.FillApplyReport;

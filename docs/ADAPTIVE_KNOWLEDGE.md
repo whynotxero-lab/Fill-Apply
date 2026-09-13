@@ -226,24 +226,34 @@ Unknown field discovery includes **optional** as well as required. Missing Info 
 
 Debug: fill results expose `debugResolutions` / `unknownFields` (question, canonical key, knowledge type, control, value, resolution, confidence, action).
 
-## Semantic evidence model (v1.17.4)
+## Semantic evidence model (v1.17.5)
 
 DOM metadata must **not** create or override semantic identity via concatenated `label+name+id` strings.
 
 Evidence fields stay separate: `label`, `question`, `placeholder`, `name`, `id`, `autocomplete`, `ariaLabel`, `controlType`, `options` (+ `groupContext`).
 
-**Priority** (higher wins; lower cannot override):
+**Priority** (higher wins):
 
 1. visible question / associated `<label>`
 2. accessible name / `aria-label`
 3. fieldset / group context
 4. placeholder
 5. autocomplete
-6. name / id (catalog/learned match only — never permanent identity from opaque ids)
+6. name / id (diagnostics only — **never** defines canonical identity)
 
-Strong conflict / bare ambiguous labels (`Salary`, `Compensation`, `Experience`, …) → `AMBIGUOUS` / `DO_NOT_FILL` (no guess).
+**Policy**
+
+1. Higher-priority semantic evidence determines identity when decisive.
+2. Lower-priority name/id **never** overrides that identity.
+3. Lower-priority contradictory metadata (placeholder / autocomplete / name / id) must **not** manufacture ambiguity when a higher-priority question is already decisive.
+4. Meaningful layers (question/label vs aria/group): if they genuinely disagree → `AMBIGUOUS` / `DO_NOT_FILL` (no guess).
+5. DOM name/id alone never defines canonical identity.
+
+Bare ambiguous labels (`Salary`, `Compensation`, `Experience`, …) stay `AMBIGUOUS` even when name/id looks decisive.
 
 Canonical key comes from the resolved **semantic question**, not DOM `id`/`name`. Same knowledge record across ATS/DOM variants.
+
+**Pipeline unity:** Auto Fill, unknown/missing discovery, learning/capture, and reuse after reload all call the same `buildEvidence` → `resolveFromEvidence` path.
 
 Debug diagnostic per fill: `question`, `semanticKey`, `knowledgeType`, `domControlType`, `candidateKeys`, `selectedKey`, `matchedEvidence`, `source`, `confidence`, `action`, `reason`.
 
