@@ -1,17 +1,22 @@
 /**
- * NaukriGulf / Naukrigulf board adapter — Easy Apply on-page modal flow.
+ * NaukriGulf / Naukrigulf board adapter — Apply OR Easy Apply start, then fill.
  *
  * PREREQUISITE: User must have a 100% complete NaukriGulf profile on the platform.
  * Incomplete profiles redirect to profile completion instead of the job/apply page.
  * See docs/APPLICATION_GUIDE.md → "NaukriGulf — profile completeness" and
  * "NaukriGulf Easy Apply".
  *
- * Flow:
- * 1. Job page with Easy Apply → click Easy Apply
- * 2. On-page popup/modal with screening Yes/No questions
- * 3. Answer from profile.customAnswers / heuristics (UAE location, employed, industry)
- * 4. fill/ready: leave modal open (do NOT click Submit & Apply)
- * 5. submit: click Submit & Apply
+ * Flows:
+ * A) Easy Apply — on-page popup/modal with screening Yes/No questions.
+ *    1. Click Easy Apply (or use already-open modal)
+ *    2. Answer from profile.customAnswers / heuristics (UAE location, employed, industry)
+ *    3. fill/ready: leave modal open (do NOT click Submit & Apply)
+ *    4. submit: click Submit & Apply
+ * B) Standard Apply — valid start CTA (no Easy Apply modal required).
+ *    Click Apply / Apply Now; if destination is external ATS / new tab / host change,
+ *    return WWR-style handoff (`externalApply` / `deferToPageAdapter` / `handedOff`)
+ *    so the runner re-injects and continues fill. If an on-page form opens, fill via
+ *    fallback. Prefer Easy Apply when both CTAs exist.
  *
  * Diversity surveys are N/A on this board. Structure drift (unknown required
  * Yes/No with no mapping) pauses in submit mode only.
@@ -158,6 +163,177 @@
   }
 
   /**
+   * Standard Apply / Apply Now (not Easy Apply, Submit & Apply, or board chrome).
+   */
+  function findApplyButton(doc) {
+    doc = doc || document;
+    var Syn = global.FillApplySynonyms;
+    var nodes = doc.querySelectorAll(
+      'button, a, input[type="button"], input[type="submit"], [role="button"], span[onclick], div[role="button"]'
+    );
+    var best = null;
+    var bestScore = 0;
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (!visible(el)) continue;
+      var t = buttonText(el);
+      if (!t) continue;
+      if (/easy\s*apply/i.test(t)) continue;
+      if (
+        /easyapply|easy-apply|ng-easy-apply/i.test(
+          el.className + ' ' + el.id + ' ' + (el.getAttribute('data-ga-label') || '')
+        )
+      ) {
+        continue;
+      }
+      if (/submit\s*&\s*apply|submit and apply/i.test(t)) continue;
+      if (
+        /sign.?up|log.?in|subscribe|newsletter|share|save job|bookmark|upgrade|premium|post a job|hire|filter|register/i.test(
+          t
+        )
+      ) {
+        continue;
+      }
+
+      var score = 0;
+      if (Syn && Syn.isApplyStartCta && Syn.isApplyStartCta(t)) {
+        score = Syn.scoreApplyStartText ? Syn.scoreApplyStartText(t) : 60;
+      } else if (/^apply now$/i.test(t.trim())) {
+        score = 100;
+      } else if (/apply for this job/i.test(t)) {
+        score = 95;
+      } else if (/^apply$/i.test(t.trim()) && t.length < 12) {
+        score = 85;
+      } else if (/\bapply now\b/i.test(t)) {
+        score = 80;
+      } else if (/\bapply\b/i.test(t) && t.length < 40) {
+        score = 50;
+      }
+      if (score <= 0) continue;
+
+      var href = resolveHref(el);
+      if (href) {
+        try {
+          var hu = new URL(href, typeof location !== 'undefined' ? location.href : undefined);
+          if (hu.hostname && !isNgHost(hu.hostname)) score += 10;
+        } catch (_eHref) {}
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = el;
+      }
+    }
+    return best;
+  }
+
+  function isNgHost(hostname) {
+    return HOST_RE.test(String(hostname || ''));
+  }
+
+  function currentHostname() {
+    try {
+      return String((typeof location !== 'undefined' && location.hostname) || '');
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function resolveHref(el) {
+    if (!el) return '';
+    try {
+      var raw =
+        el.href ||
+        el.getAttribute('href') ||
+        el.getAttribute('data-href') ||
+        el.getAttribute('data-url') ||
+        el.getAttribute('data-apply-url') ||
+        '';
+      if (!raw || raw === '#' || /^javascript:/i.test(raw)) return '';
+      return new URL(raw, typeof location !== 'undefined' ? location.href : undefined).href;
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function handoffResult(extra) {
+    return Object.assign(
+      {
+        ok: true,
+        adapterId: 'naukrigulf',
+        externalApply: true,
+        handedOff: true,
+        deferToPageAdapter: true,
+        clickedApplyStart: true,
+        filled: 0,
+        unmatched: 0,
+        total: 0,
+        submitted: false,
+        message:
+          'Opened NaukriGulf Apply — runner will re-detect destination ATS / form if navigation or a new tab opened'
+      },
+      extra || {}
+    );
+  }
+
+  function tryDestinationFill(ctx) {
+    var registry = global.FillApplyRegistry;
+    if (!registry || typeof registry.detect !== 'function') return null;
+    var href = '';
+    try {
+      href = String((typeof location !== 'undefined' && location.href) || '');
+    } catch (_e) {}
+    var next = registry.detect(href, typeof document !== 'undefined' ? document : null);
+    if (!next || next.id === 'naukrigulf' || next.id === 'fallback') {
+      var fb = global.FillApplyFallbackAdapter;
+      if (fb && typeof fb.fill === 'function') {
+        var fr = fb.fill(
+          Object.assign({}, ctx, {
+            adapterId: 'fallback',
+            url: href
+          })
+        );
+        if (fr && typeof fr === 'object') {
+          fr.externalApply = true;
+          fr.handedOff = true;
+          fr.fromAdapter = 'naukrigulf';
+        }
+        return fr;
+      }
+      return null;
+    }
+    if (typeof next.fill !== 'function') return null;
+    return next.fill(
+      Object.assign({}, ctx, {
+        adapterId: next.id,
+        submitSelector: next.submitSelector,
+        fileInputHints: next.fileInputHints,
+        fieldMaps: next.fieldMaps,
+        url: href
+      })
+    );
+  }
+
+  function pageHasApplicationForm(doc) {
+    doc = doc || document;
+    var Syn = global.FillApplySynonyms;
+    if (Syn && Syn.isApplicationFormOpen) {
+      try {
+        if (Syn.isApplicationFormOpen(doc)) return true;
+      } catch (_e) {}
+    }
+    try {
+      return !!(
+        doc &&
+        doc.querySelector(
+          'form input[type="email"], form input[name*="email" i], form textarea, form input[type="file"], form input[type="text"]'
+        )
+      );
+    } catch (_e2) {
+      return false;
+    }
+  }
+
+    /**
    * Locate the Easy Apply modal/dialog root.
    */
   function findEasyApplyModal(doc) {
@@ -548,20 +724,125 @@
       var totalFilled = 0;
       var submitted = false;
       var advanced = false;
+      var clickedApplyStart = false;
+      var startKind = null;
       var modal = findEasyApplyModal(doc);
 
-      // Open Easy Apply if modal not already present
+      // Open Easy Apply (preferred) or standard Apply if modal not already present
       if (!modal) {
-        var applyBtn = findEasyApplyButton(doc);
-        if (applyBtn) {
+        var easyBtn = findEasyApplyButton(doc);
+        var applyBtn = findApplyButton(doc);
+        if (easyBtn) {
           try {
-            applyBtn.click();
+            easyBtn.click();
             advanced = true;
+            startKind = 'easy_apply';
             await sleep(humanDelay(500));
           } catch (_e2) {
             /* ignore */
           }
           modal = await waitForModal(doc, 5500);
+        } else if (applyBtn) {
+          var startHost = currentHostname();
+          var applyHref = resolveHref(applyBtn);
+          var externalTarget = false;
+          if (applyHref) {
+            try {
+              var au = new URL(applyHref);
+              if (au.hostname && !isNgHost(au.hostname)) externalTarget = true;
+            } catch (_eExt) {}
+          }
+          try {
+            applyBtn.click();
+            advanced = true;
+            clickedApplyStart = true;
+            startKind = 'apply';
+          } catch (_eApplyClick) {
+            try {
+              if (applyHref) location.href = applyHref;
+              advanced = true;
+              clickedApplyStart = true;
+              startKind = 'apply';
+            } catch (_eNav) {}
+          }
+
+          // Known off-site Apply URL → hand off immediately (runner re-detects)
+          if (externalTarget) {
+            return handoffResult({
+              externalUrl: applyHref,
+              advanced: true,
+              startKind: 'apply',
+              message:
+                'Opened NaukriGulf Apply (external URL) — runner will re-detect destination ATS'
+            });
+          }
+
+          await sleep(humanDelay(500));
+          // Some Apply CTAs still open the Easy Apply-style modal
+          modal = await waitForModal(doc, 3500);
+
+          if (!modal) {
+            if (detectProfileRedirect(doc, typeof location !== 'undefined' ? location.href : href)) {
+              return profileRedirectResult();
+            }
+
+            var hostNow = currentHostname();
+            if (hostNow && startHost && hostNow !== startHost && !isNgHost(hostNow)) {
+              var dest = tryDestinationFill(ctx);
+              if (dest && typeof dest.then === 'function') dest = await dest;
+              if (dest && typeof dest === 'object') {
+                dest.externalApply = true;
+                dest.handedOff = true;
+                dest.clickedApplyStart = true;
+                dest.fromAdapter = 'naukrigulf';
+                dest.startKind = 'apply';
+                if (!dest.message) {
+                  dest.message =
+                    'NaukriGulf Apply handed off — continue with destination ATS adapter';
+                }
+                return dest;
+              }
+              return handoffResult({
+                advanced: true,
+                startKind: 'apply',
+                message:
+                  'Opened NaukriGulf Apply — runner will re-detect destination ATS'
+              });
+            }
+
+            if (pageHasApplicationForm(doc)) {
+              var fb = global.FillApplyFallbackAdapter;
+              if (fb && typeof fb.fill === 'function') {
+                var formResult = fb.fill(
+                  Object.assign({}, ctx, {
+                    adapterId: 'naukrigulf',
+                    submitSelector: adapter.submitSelector,
+                    fileInputHints: adapter.fileInputHints,
+                    fieldMaps: adapter.fieldMaps
+                  })
+                );
+                if (formResult && typeof formResult.then === 'function') {
+                  formResult = await formResult;
+                }
+                if (formResult && typeof formResult === 'object') {
+                  formResult.clickedApplyStart = true;
+                  formResult.advanced = true;
+                  formResult.startKind = 'apply';
+                  formResult.fromAdapter = formResult.fromAdapter || 'naukrigulf';
+                  if (!formResult.adapterId) formResult.adapterId = 'naukrigulf';
+                }
+                return formResult;
+              }
+            }
+
+            // Apply clicked — form may be in another tab or still loading
+            return handoffResult({
+              advanced: true,
+              startKind: 'apply',
+              message:
+                'NaukriGulf Apply clicked — if an external ATS, new tab, or form opened, runner will re-detect; otherwise open Apply manually then Resume'
+            });
+          }
         } else {
           // Maybe modal already open after navigation
           modal = await waitForModal(doc, 1500);
@@ -579,11 +860,13 @@
           needsHuman: true,
           pauseReason: 'structure_drift',
           error:
-            'NaukriGulf Easy Apply modal did not appear — open Easy Apply manually or confirm the job supports Easy Apply, then Resume.',
+            'NaukriGulf Apply / Easy Apply did not start — click Apply or Easy Apply manually (profile must be 100% complete), then Resume.',
           filled: 0,
           unmatched: 0,
           total: 0,
           advanced: advanced,
+          clickedApplyStart: clickedApplyStart,
+          startKind: startKind,
           submitted: false,
           runMode: runMode
         };
@@ -668,6 +951,8 @@
         unmatched: (result.unmatchedLabels && result.unmatchedLabels.length) || 0,
         total: totalFilled + ((result.unmatchedLabels && result.unmatchedLabels.length) || 0),
         advanced: advanced,
+        clickedApplyStart: clickedApplyStart,
+        startKind: startKind || 'easy_apply',
         submitted: submitted,
         answered: result.answered,
         unmatchedLabels: result.unmatchedLabels,
@@ -687,6 +972,8 @@
     detect: detect,
     detectProfileRedirect: detectProfileRedirect,
     findEasyApplyModal: findEasyApplyModal,
+    findEasyApplyButton: findEasyApplyButton,
+    findApplyButton: findApplyButton,
     fieldMaps: [],
     submitSelector:
       'button[type="submit"], input[type="submit"], button[aria-label*="Submit" i]',

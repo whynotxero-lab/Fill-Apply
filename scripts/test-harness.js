@@ -56,13 +56,15 @@ function patchLayout(window) {
  *
  * @param {string} html body markup
  * @param {string[]} files extension-relative script paths
+ * @param {{ url?: string }} [opts]
  */
-function createPage(html, files) {
+function createPage(html, files, opts) {
+  opts = opts || {};
   const { JSDOM } = requireJsdom();
   const dom = new JSDOM('<!doctype html><html><body>' + html + '</body></html>', {
     runScripts: 'outside-only',
     pretendToBeVisual: true,
-    url: 'https://jobs.example.com/careers/engineer'
+    url: opts.url || 'https://jobs.example.com/careers/engineer'
   });
   const window = dom.window;
   patchLayout(window);

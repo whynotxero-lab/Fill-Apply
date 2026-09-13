@@ -10,6 +10,7 @@ const path = require('path');
 const SUITES = [
   'smoke-apply-start-synonyms.js',
   'smoke-glassdoor-inflow.js',
+  'smoke-naukrigulf-apply.js',
   'smoke-form-detection.js',
   'smoke-fill-engine.js',
   'smoke-value-format.js',
