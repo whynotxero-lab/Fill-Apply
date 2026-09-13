@@ -62,7 +62,7 @@ Values never come from invented AI guesses. AI/semantic matching may map *wordin
 }
 ```
 
-IndexedDB is the source of truth. A future Sync API plugs in at `FillApplyKnowledgeStore.applyMutation()` / `FillApplyKnowledgeSync.register()` — the fill engine keeps consuming `exportSnapshot()`, not a cloud client.
+IndexedDB is the source of truth. Records are keyed by **profileId + canonicalKey**, so two applicant profiles can store different answers for the same question. A future Sync API plugs in at `FillApplyKnowledgeStore.applyMutation()` / `FillApplyKnowledgeSync.register()` — the fill engine keeps consuming `exportSnapshot()`, not a cloud client.
 
 ---
 

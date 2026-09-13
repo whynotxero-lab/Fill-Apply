@@ -253,6 +253,105 @@ function pageWith(html) {
     suite.equal(page.document.getElementById('rel').value, 'No', 'relocate select filled from adaptive knowledge');
   })();
 
+  await (async function persistReloadAndEquivalentWording() {
+    const writer = pageWith();
+    const S1 = writer.window.FillApplyKnowledgeStore;
+    const Learn = writer.window.FillApplyKnowledgeLearn;
+    S1.resetMemory();
+    writer.window.FillApplyKnowledge.sessionClear();
+    const learned = await Learn.learn({
+      label: 'Do you have SAP experience?',
+      value: 'Yes',
+      fieldType: 'boolean',
+      kind: 'confirm'
+    });
+    suite.ok(learned.accepted, 'create: explicit confirm is persisted in the store');
+    const snap = await S1.exportSnapshot();
+    suite.equal(snap.records.length, 1, 'persist: exportSnapshot holds the created row');
+
+    const reader = pageWith();
+    const S2 = reader.window.FillApplyKnowledgeStore;
+    const K2 = reader.window.FillApplyKnowledge;
+    S2.resetMemory();
+    K2.sessionClear();
+    S2.importSnapshot(snap);
+    const afterReload = K2.resolve(
+      { __adaptiveKnowledge: snap },
+      { label: 'Have you used SAP?', type: 'select' },
+      reader.window.FillApplyFieldMap
+    );
+    suite.equal(afterReload.value, 'Yes', 'reload: a new page context resolves the persisted fact');
+    suite.equal(afterReload.source, 'userKnowledge', 'reload source is confirmed user knowledge');
+    suite.equal(
+      reader.window.FillApplyKnowledgeCanonical.matchCanonical('Experience with SAP').key,
+      'sap_experience',
+      'equivalent wording still maps to the same canonical key after reload'
+    );
+  })();
+
+  await (async function profileSeparation() {
+    const page = pageWith();
+    const S = page.window.FillApplyKnowledgeStore;
+    const K = page.window.FillApplyKnowledge;
+    S.resetMemory();
+    K.sessionClear();
+    await S.putKnowledge({
+      canonicalKey: 'sap_experience',
+      value: 'Yes',
+      fieldType: 'boolean',
+      status: 'confirmed',
+      confidence: 1,
+      profileId: 'profile-a',
+      aliases: ['Do you have SAP experience?']
+    });
+    await S.putKnowledge({
+      canonicalKey: 'sap_experience',
+      value: 'No',
+      fieldType: 'boolean',
+      status: 'confirmed',
+      confidence: 1,
+      profileId: 'profile-b',
+      aliases: ['Do you have SAP experience?']
+    });
+    const a = await S.getByCanonical('sap_experience', 'profile-a');
+    const b = await S.getByCanonical('sap_experience', 'profile-b');
+    suite.equal(a && a.displayValue, 'Yes', 'profile A keeps its own SAP answer');
+    suite.equal(b && b.displayValue, 'No', 'profile B keeps a different SAP answer');
+
+    const snapA = await S.exportSnapshot('profile-a');
+    const fromA = K.resolve(
+      { __adaptiveKnowledge: snapA },
+      { label: 'Have you used SAP?', type: 'select' },
+      page.window.FillApplyFieldMap
+    );
+    suite.equal(fromA.value, 'Yes', 'resolver for profile A does not use profile B knowledge');
+  })();
+
+  await (async function attachDoesNotMutateProfile() {
+    const page = pageWith();
+    const S = page.window.FillApplyKnowledgeStore;
+    S.resetMemory();
+    await S.putKnowledge({
+      canonicalKey: 'sap_experience',
+      value: 'Yes',
+      fieldType: 'boolean',
+      status: 'confirmed',
+      confidence: 1,
+      aliases: ['SAP']
+    });
+    const original = { id: 'p1', email: 'zahid@example.com', firstName: 'Zahid' };
+    const stamped = await S.attachToProfile(original);
+    suite.ok(stamped.__adaptiveKnowledge, 'attachToProfile stamps a snapshot for the fill pass');
+    suite.ok(!original.__adaptiveKnowledge, 'the saved profile object is not mutated');
+    suite.equal(original.email, 'zahid@example.com', 'identity fields stay on the profile, not in the KB stamp');
+    suite.ok(
+      stamped.__adaptiveKnowledge.records.some(function (r) {
+        return r.canonicalKey === 'sap_experience';
+      }),
+      'adaptive knowledge is separate from profile identity'
+    );
+  })();
+
   await (async function builtinNotOverrideConfirmed() {
     const page = createPage(
       `

@@ -220,7 +220,7 @@ node scripts/browser-e2e.js   # real Chrome, needs a display
 | `smoke-jobpool-status.js` | JobPool `status` mapping — only `submitted` means Applied |
 | `smoke-run-modes.js` | Fallback fill / ready / submit: Continue and Submit only in the matching mode |
 | `smoke-backend-jobpool.js` | Local `jobPoolStatus`, live POST `/applied/:id`, cancelled fallback |
-| `smoke-knowledge.js` | Adaptive store, SAP/relocate identity, resolver precedence, explicit learn, fill from snapshot |
+| `smoke-knowledge.js` | Adaptive store create/persist/reload, SAP/relocate identity, resolver precedence, explicit learn, correction, profile separation, fill from snapshot, never-invented |
 
 `scripts/browser-e2e.js` is the honest end-to-end check. It serves a career page on one origin whose application form lives in an iframe on a **different** origin — a shape no same-document traversal can reach — installs the unpacked extension, and drives the real runner injection path from the extension's own service worker. It asserts that the cross-origin form is filled, that the async portalled listbox option is selected, that the winning result came from the sub-frame, that the phone number is split across the country-code control and the number field, that the preloaded resume lands on an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog while doing it.
 

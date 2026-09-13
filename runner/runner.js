@@ -1158,6 +1158,10 @@
               /* keep base */
             }
           }
+          // Stamp a shallow copy with the adaptive KB snapshot. Do not persist
+          // __adaptiveKnowledge back onto the saved profile. Keep this next to
+          // getEffectiveProfile so a later merge with the on-page panel PR
+          // still hydrates knowledge before injectAndFill.
           if (global.FillApplyKnowledgeStore && global.FillApplyKnowledgeStore.attachToProfile) {
             try {
               profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
