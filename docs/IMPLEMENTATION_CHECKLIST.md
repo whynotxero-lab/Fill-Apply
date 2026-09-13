@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-Honest status of what was actually shipped in **Fill & Apply** as of **v1.16.0**.
+Honest status of what was actually shipped in **Fill & Apply** as of **v1.17.0** (experimental integration of panel + adaptive knowledge + ATS Google auth).
 
 Legend: ✅ done · 🚧 in progress · ⏳ planned / deferred
 
@@ -27,7 +27,7 @@ Everything below fixes a defect that made forms unreadable or invisible regardle
 | `customAnswers` reaching reworded page labels | ✅ | Source-profile answers were being collected and then discarded |
 | Generic engine as fallback behind a drifted adapter | ✅ | Adapter fills nothing → generic engine tries |
 | Per-run diagnostics (`details`, `skipped`, `missingRequired`, `formSignals`, `frames`) | ✅ | |
-| jsdom test suites | ✅ | `npm test` — 12 suites (includes adaptive knowledge, JobPool status, run modes, backend POST, on-page panel) |
+| jsdom test suites | ✅ | `npm test` — 13 suites (includes adaptive knowledge, ATS auth, JobPool status, run modes, backend POST, on-page panel) |
 | Real-Chrome end-to-end test | ✅ | `scripts/browser-e2e.js` — cross-origin iframe form |
 
 ---
@@ -242,4 +242,16 @@ Applicant-specific Q&A grows without an extension rebuild. See [ADAPTIVE_KNOWLED
 | Apply / Continue / Submit unchanged | ✅ | Existing synonym detection |
 | Cloud sync | ⏳ | Seam only (`FillApplyKnowledgeSync.register`) |
 
-*Last reviewed against repo at v1.16.0 (on-page panel + adaptive applicant knowledge).*
+## ATS Google OAuth auth (v1.16.1 → integrated in 1.17.0)
+
+Safe Continue / Sign-in-with-Google before fill. Pauses on CAPTCHA / MFA / ambiguous accounts. Never stores passwords or OAuth tokens.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Detect auth walls + Google Continue | ✅ | `lib/ats-auth.js` + `lib/auth-walls.js` |
+| High-confidence applicant account select | ✅ | Chaudhry/Chaudary Zahid Ali only when unambiguous |
+| Existing-account → Google login resume | ✅ | Non-secret ATS state in `fillApply.atsAccounts` |
+| Pause CAPTCHA / MFA / ambiguous | ✅ | Never bypass |
+| No password / token storage | ✅ | By design |
+
+*Last reviewed against repo at v1.17.0 (experimental: panel + adaptive knowledge + ATS Google auth).*

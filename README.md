@@ -10,6 +10,8 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
+**Version 1.17.0 (experimental)** — **integration release** combining the on-page Auto Fill / Ready / Submit panel (#2), adaptive applicant knowledge (#3), and ATS Google OAuth auth lifecycle (#4). One coherent experimental build on `grok/integration-experimental-release` — not yet merged to `main`.
+
 **Version 1.16.0** — **on-page Auto Fill / Auto Ready / Auto Submit panel**. A compact, collapsible Shadow-DOM control sits on the current job/application tab (not the side panel) and runs the existing fill engine against `sender.tab.id`. Corners/edges are scored so the box avoids titles, Apply/Start/Submit CTAs, and form fields. Queue / side-panel flows are unchanged. See [Vision](docs/APP_VISION_AND_FUNCTIONALITY.md).
 
 **Version 1.16.0** — **adaptive applicant knowledge**. A second, applicant-specific knowledge tier grows from explicit answers and corrections (IndexedDB, no rebuild). The fill resolver uses session → confirmed knowledge → profile → built-in, never invents, and reuses equivalent questions (`Have you used SAP?` ≈ `SAP experience`). Review/edit in App Settings → Adaptive knowledge. See [Adaptive knowledge](docs/ADAPTIVE_KNOWLEDGE.md).
