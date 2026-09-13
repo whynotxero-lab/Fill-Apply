@@ -1206,15 +1206,22 @@
     const C = global.FillApplyKnowledgeCanonical;
 
     function pushUnknown(descriptor, el, reason) {
-      const label = descriptor.label || descriptor.name || descriptor.id || '';
+      const label = descriptor.label || descriptor.question || descriptor.ariaLabel || descriptor.name || descriptor.id || '';
       if (!label) return;
       const controlType = controlTypeOf(el, descriptor);
       const opts = optionsForControl(el, descriptor);
-      const identified = C && C.matchCanonical
-        ? C.matchCanonical([label, descriptor.name, descriptor.placeholder].filter(Boolean).join(' '), {
-            fieldType: controlType
-          })
-        : null;
+      const identified =
+        C && C.resolveFromEvidence && C.buildEvidence
+          ? C.resolveFromEvidence(
+              C.buildEvidence(
+                Object.assign({}, descriptor, { controlType: controlType, options: opts }),
+                el
+              ),
+              { fieldType: controlType }
+            )
+          : C && C.matchCanonical
+            ? C.matchCanonical(descriptor.question || descriptor.label || '', { fieldType: controlType })
+            : null;
       const knowledgeType =
         (identified && identified.fieldType) ||
         (C && C.inferFieldType ? C.inferFieldType(el, descriptor) : 'string');
@@ -1227,7 +1234,10 @@
         knowledgeType: knowledgeType,
         options: opts,
         canonicalKey: (identified && identified.key) || null,
-        reason: reason || 'unknown'
+        semanticKey: (identified && (identified.semanticKey || identified.key)) || null,
+        matchedEvidence: identified && identified.matchedEvidence,
+        candidateKeys: (identified && identified.candidateKeys) || [],
+        reason: (identified && identified.ambiguous ? identified.reason : null) || reason || 'unknown'
       };
       unknownFields.push(row);
       if (descriptor.required) {
@@ -1307,12 +1317,18 @@
         pushUnknown(descriptor, el, gate.reason || 'unknown');
         if (highlightUnmatched) highlight(el, 'unmatched');
         details.push(
-          Object.assign(unmatchedDetail(descriptor, gate.reason || 'no_profile_value'), {
+          Object.assign(unmatchedDetail(descriptor, gate.reason || answer.reason || 'no_profile_value'), {
             controlType: gate.controlType || controlTypeOf(el, descriptor),
             knowledgeType: gate.knowledgeType || answer.fieldType || null,
             action: 'DO_NOT_FILL',
-            canonicalKey: answer.canonicalKey || answer.key || null,
-            confidence: answer.confidence != null ? answer.confidence : null
+            canonicalKey: answer.canonicalKey || answer.semanticKey || answer.key || null,
+            semanticKey: answer.semanticKey || answer.canonicalKey || null,
+            selectedKey: answer.semanticKey || answer.canonicalKey || answer.key || null,
+            matchedEvidence: answer.matchedEvidence || null,
+            candidateKeys: answer.candidateKeys || [],
+            source: answer.source || null,
+            confidence: answer.confidence != null ? answer.confidence : null,
+            reason: gate.reason || answer.reason || 'no_profile_value'
           })
         );
         continue;
@@ -1350,9 +1366,15 @@
           controlType: gate.controlType,
           knowledgeType: gate.knowledgeType || answer.fieldType || null,
           action: 'FILLED',
-          canonicalKey: answer.canonicalKey || answer.key || null,
+          canonicalKey: answer.canonicalKey || answer.semanticKey || answer.key || null,
+          semanticKey: answer.semanticKey || answer.canonicalKey || null,
+          selectedKey: answer.semanticKey || answer.canonicalKey || answer.key || null,
+          matchedEvidence: answer.matchedEvidence || null,
+          candidateKeys: answer.candidateKeys || [],
+          source: answer.source || null,
           confidence: answer.confidence != null ? answer.confidence : null,
-          resolution: answer.source || null
+          resolution: answer.source || null,
+          reason: answer.reason || gate.reason || null
         })
       );
 
@@ -1417,10 +1439,16 @@
       debugResolutions: details.map(function (d) {
         return C && C.inspectResolution
           ? C.inspectResolution({
-              question: d.label,
-              canonicalKey: d.canonicalKey || d.key,
+              question: d.label || d.question,
+              semanticKey: d.semanticKey || d.canonicalKey || d.key,
+              canonicalKey: d.canonicalKey || d.semanticKey || d.key,
               knowledgeType: d.knowledgeType || d.fieldType,
+              domControlType: d.controlType || d.type,
               controlType: d.controlType || d.type,
+              candidateKeys: d.candidateKeys || [],
+              selectedKey: d.selectedKey || d.semanticKey || d.canonicalKey || d.key,
+              matchedEvidence: d.matchedEvidence || null,
+              source: d.source || d.resolution,
               value: d.value,
               resolution: d.resolution || d.source,
               confidence: d.confidence,
@@ -1438,6 +1466,9 @@
       name: el.getAttribute('name') || '',
       id: el.id || '',
       label: getLabelText(el),
+      question: getLabelText(el),
+      ariaLabel: (el.getAttribute('aria-label') || '').trim(),
+      groupContext: '',
       placeholder: el.getAttribute('placeholder') || '',
       type: String(el.type || el.tagName || '').toLowerCase(),
       required: isRequiredField(el)
@@ -1453,7 +1484,16 @@
       type: descriptor.type,
       required: !!descriptor.required,
       source: answer.source,
-      value: String(answer.value).slice(0, 500)
+      value: String(answer.value).slice(0, 500),
+      canonicalKey: answer.canonicalKey || answer.semanticKey || null,
+      semanticKey: answer.semanticKey || answer.canonicalKey || null,
+      knowledgeType: answer.fieldType || null,
+      matchedEvidence: answer.matchedEvidence || null,
+      candidateKeys: answer.candidateKeys || [],
+      selectedKey: answer.semanticKey || answer.canonicalKey || answer.key || null,
+      confidence: answer.confidence,
+      action: answer.action || 'FILLED',
+      reason: answer.reason || null
     };
   }
 
@@ -1465,7 +1505,8 @@
       label: descriptor.label || descriptor.name || descriptor.id || '',
       type: descriptor.type,
       required: !!descriptor.required,
-      reason: reason || 'no_profile_value'
+      reason: reason || 'no_profile_value',
+      action: 'DO_NOT_FILL'
     };
   }
 

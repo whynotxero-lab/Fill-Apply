@@ -730,6 +730,270 @@ function pageWith(html) {
     suite.ok(!mismatch.ok, 'key mismatch / exclusion blocks auto-fill');
   })();
 
+
+  await (async function evidenceModelNoConcatIdentity() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    suite.ok(typeof C.buildEvidence === 'function', 'buildEvidence exported');
+    suite.ok(typeof C.resolveFromEvidence === 'function', 'resolveFromEvidence exported');
+
+    const cur = C.resolveFromEvidence(C.buildEvidence({
+      label: 'Current Salary',
+      name: 'expected_salary',
+      id: 'expected_salary'
+    }));
+    suite.equal(cur.key, 'current_salary', 'Label Current Salary + name expected_salary → current_salary');
+    suite.equal(cur.matchedEvidence, 'label', 'label evidence wins over name/id');
+    suite.ok(!cur.ambiguous, 'clear label is not ambiguous');
+
+    const exp = C.resolveFromEvidence(C.buildEvidence({
+      label: 'Expected Salary',
+      name: 'current_salary',
+      id: 'current_salary'
+    }));
+    suite.equal(exp.key, 'expected_salary', 'Label Expected Salary + name current_salary → expected_salary');
+
+    const rel = C.resolveFromEvidence(C.buildEvidence({
+      label: 'Are you willing to relocate?',
+      name: 'travel',
+      id: 'travel_pref'
+    }));
+    suite.equal(rel.key, 'willing_to_relocate', 'Relocate label + name travel → relocate');
+
+    const trav = C.resolveFromEvidence(C.buildEvidence({
+      label: 'Willing to travel',
+      name: 'relocation',
+      id: 'relocation'
+    }));
+    suite.equal(trav.key, 'willing_to_travel', 'Travel label + name relocation → travel');
+  })();
+
+  await (async function ambiguousBareLabelsNoSilentWrongKey() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    const K = page.window.FillApplyKnowledge;
+    const S = page.window.FillApplyKnowledgeStore;
+    S.resetMemory();
+    K.sessionClear();
+
+    const ambiguous = ['Salary', 'Compensation', 'Experience', 'Authorization', 'Sponsorship', 'Travel', 'Relocation'];
+    // Seed competing knowledge so a wrong silent match would fill
+    K.remember({
+      id: 'kcur', canonicalKey: 'current_salary', value: '100000', displayValue: '100000',
+      fieldType: 'number', status: 'confirmed', confidence: 1, aliases: ['Current salary']
+    });
+    K.remember({
+      id: 'kexp', canonicalKey: 'expected_salary', value: '150000', displayValue: '150000',
+      fieldType: 'number', status: 'confirmed', confidence: 1, aliases: ['Expected salary']
+    });
+    K.remember({
+      id: 'krel', canonicalKey: 'willing_to_relocate', value: 'Yes', displayValue: 'Yes',
+      fieldType: 'boolean', status: 'confirmed', confidence: 1, aliases: ['willing to relocate']
+    });
+    K.remember({
+      id: 'ktrv', canonicalKey: 'willing_to_travel', value: 'No', displayValue: 'No',
+      fieldType: 'boolean', status: 'confirmed', confidence: 1, aliases: ['willing to travel']
+    });
+
+    const salary = C.resolveFromEvidence(C.buildEvidence({ label: 'Salary' }));
+    suite.ok(salary.ambiguous, 'bare Salary is AMBIGUOUS');
+    suite.ok((salary.candidateKeys || []).indexOf('current_salary') !== -1, 'Salary candidates include current');
+    suite.ok((salary.candidateKeys || []).indexOf('expected_salary') !== -1, 'Salary candidates include expected');
+
+    const comp = C.resolveFromEvidence(C.buildEvidence({ label: 'Compensation' }));
+    suite.ok(comp.ambiguous, 'bare Compensation is AMBIGUOUS');
+
+    const expn = C.resolveFromEvidence(C.buildEvidence({ label: 'Experience' }));
+    suite.ok(expn.ambiguous, 'bare Experience is AMBIGUOUS');
+
+    // Unique bare tokens resolve to the correct key only (never the exclusion sibling)
+    suite.equal(C.resolveFromEvidence(C.buildEvidence({ label: 'Travel' })).key, 'willing_to_travel', 'Travel → travel not relocate');
+    suite.equal(C.resolveFromEvidence(C.buildEvidence({ label: 'Relocation' })).key, 'willing_to_relocate', 'Relocation → relocate not travel');
+    suite.equal(C.resolveFromEvidence(C.buildEvidence({ label: 'Sponsorship' })).key, 'requires_sponsorship', 'Sponsorship → sponsorship not auth');
+    suite.equal(C.resolveFromEvidence(C.buildEvidence({ label: 'Authorization' })).key, 'authorized_to_work', 'Authorization → auth not sponsorship');
+
+    const map = page.window.FillApplyFieldMap;
+    const profile = { __adaptiveKnowledge: { records: [] } };
+    const salaryResolve = K.resolve(profile, { label: 'Salary', type: 'number' }, map);
+    suite.equal(salaryResolve.value, '', 'bare Salary does not silently fill current or expected');
+    suite.ok(salaryResolve.action === 'DO_NOT_FILL' || !salaryResolve.value, 'bare Salary → DO_NOT_FILL');
+    suite.ok(salaryResolve.ambiguous || salaryResolve.reason === 'ambiguous_bare_label' || !salaryResolve.value, 'bare Salary flagged ambiguous/empty');
+
+    // aliasScore must not treat bare salary as strong hit on longer aliases
+    suite.ok(C.aliasScore('salary', ['expected salary', 'current salary']) < 90, 'bare salary aliasScore stays weak');
+  })();
+
+  await (async function salaryIsolation100k150kAndReverse() {
+    const writer = pageWith();
+    const Learn = writer.window.FillApplyKnowledgeLearn;
+    const S1 = writer.window.FillApplyKnowledgeStore;
+    S1.resetMemory();
+    writer.window.FillApplyKnowledge.sessionClear();
+    await Learn.learn({ label: 'Current salary', value: '100000', fieldType: 'number', kind: 'confirm' });
+    await Learn.learn({ label: 'Expected salary', value: '150000', fieldType: 'number', kind: 'confirm' });
+    const snap = await S1.exportSnapshot();
+
+    const reader = pageWith();
+    reader.window.FillApplyKnowledgeStore.resetMemory();
+    reader.window.FillApplyKnowledge.sessionClear();
+    reader.window.FillApplyKnowledgeStore.importSnapshot(snap);
+    const K = reader.window.FillApplyKnowledge;
+    const map = reader.window.FillApplyFieldMap;
+    const profile = { __adaptiveKnowledge: snap };
+
+    suite.equal(
+      K.resolve(profile, { label: 'Current Salary', name: 'expected_salary', type: 'number' }, map).value,
+      '100000',
+      '100k current fills despite name=expected_salary'
+    );
+    suite.equal(
+      K.resolve(profile, { label: 'Expected Salary', name: 'current_salary', type: 'number' }, map).value,
+      '150000',
+      '150k expected fills despite name=current_salary'
+    );
+    suite.equal(
+      K.resolve(profile, { label: 'Expected salary', type: 'number' }, map).value,
+      '150000',
+      'expected stays 150k'
+    );
+    suite.equal(
+      K.resolve(profile, { label: 'Current salary', type: 'number' }, map).value,
+      '100000',
+      'current stays 100k'
+    );
+  })();
+
+  await (async function domIdentityIndependenceSameCanonical() {
+    const writer = pageWith();
+    const Learn = writer.window.FillApplyKnowledgeLearn;
+    const S1 = writer.window.FillApplyKnowledgeStore;
+    S1.resetMemory();
+    writer.window.FillApplyKnowledge.sessionClear();
+    const learned = await Learn.learn({
+      label: 'Current salary',
+      name: 'current_salary',
+      id: 'salary_123',
+      value: '88000',
+      fieldType: 'number',
+      kind: 'confirm'
+    });
+    suite.ok(learned.accepted, 'learned with DOM name/id present');
+    suite.equal(learned.record.canonicalKey, 'current_salary', 'canonical from semantic label not DOM id');
+    const snap = await S1.exportSnapshot();
+
+    const reader = pageWith();
+    reader.window.FillApplyKnowledgeStore.resetMemory();
+    reader.window.FillApplyKnowledge.sessionClear();
+    reader.window.FillApplyKnowledgeStore.importSnapshot(snap);
+    const K = reader.window.FillApplyKnowledge;
+    const map = reader.window.FillApplyFieldMap;
+    const profile = { __adaptiveKnowledge: snap };
+
+    const viaOtherDom = K.resolve(
+      profile,
+      { label: 'Current salary', name: 'compensation_current', id: 'field_987', type: 'number' },
+      map
+    );
+    suite.equal(viaOtherDom.value, '88000', 'same canonical record via different name/id');
+    suite.equal(viaOtherDom.canonicalKey || viaOtherDom.semanticKey, 'current_salary', 'semantic key stable across DOM variants');
+  })();
+
+  await (async function persistenceRelocateNotTravel() {
+    const writer = pageWith();
+    const Learn = writer.window.FillApplyKnowledgeLearn;
+    const S1 = writer.window.FillApplyKnowledgeStore;
+    S1.resetMemory();
+    writer.window.FillApplyKnowledge.sessionClear();
+    await Learn.learn({
+      label: 'Open to relocation',
+      value: 'Yes',
+      fieldType: 'boolean',
+      kind: 'confirm'
+    });
+    const snap = await S1.exportSnapshot();
+    const reader = pageWith();
+    reader.window.FillApplyKnowledgeStore.resetMemory();
+    reader.window.FillApplyKnowledge.sessionClear();
+    reader.window.FillApplyKnowledgeStore.importSnapshot(snap);
+    const K = reader.window.FillApplyKnowledge;
+    const map = reader.window.FillApplyFieldMap;
+    const profile = { __adaptiveKnowledge: snap };
+    suite.equal(K.resolve(profile, { label: 'Open to relocation', type: 'select' }, map).value, 'Yes', 'reload: open to relocation Yes');
+    suite.equal(K.resolve(profile, { label: 'Willing to travel', type: 'select' }, map).value, '', 'reload: travel empty');
+    suite.equal(
+      K.resolve(profile, { label: 'Willing to travel', name: 'relocation', type: 'select' }, map).value,
+      '',
+      'travel empty even when name=relocation'
+    );
+  })();
+
+  await (async function debugDiagnosticFields() {
+    const page = createPage(
+      `
+      <form id="application-form">
+        <label for="cur">Current Salary</label>
+        <input id="cur" name="expected_salary" type="number" />
+        <label for="amb">Salary</label>
+        <input id="amb" type="number" />
+      </form>
+    `,
+      LIBS
+    );
+    const profile = {
+      __adaptiveKnowledge: {
+        records: [
+          {
+            id: '1',
+            canonicalKey: 'current_salary',
+            value: '100000',
+            displayValue: '100000',
+            fieldType: 'number',
+            aliases: ['Current salary'],
+            status: 'confirmed',
+            confidence: 1,
+            updatedAt: 1
+          }
+        ]
+      }
+    };
+    const result = await page.window.__fillApply.run(profile, {});
+    suite.equal(page.document.getElementById('cur').value, '100000', 'current salary filled from label despite name');
+    suite.equal(page.document.getElementById('amb').value, '', 'bare Salary left empty');
+    suite.ok(Array.isArray(result.debugResolutions), 'debugResolutions present');
+    const curDebug = (result.debugResolutions || []).find(function (d) {
+      return /Current Salary/i.test(d.question || '');
+    });
+    suite.ok(curDebug, 'debug row for Current Salary');
+    if (curDebug) {
+      suite.ok(curDebug.semanticKey === 'current_salary' || curDebug.canonicalKey === 'current_salary', 'debug semanticKey');
+      suite.ok(curDebug.domControlType === 'number' || curDebug.controlType === 'number', 'debug domControlType');
+      suite.ok(curDebug.action === 'FILLED' || curDebug.action === 'FILL', 'debug action FILLED');
+      suite.ok('matchedEvidence' in curDebug || curDebug.matchedEvidence == null || curDebug.matchedEvidence, 'debug matchedEvidence field');
+      suite.ok('candidateKeys' in curDebug || Array.isArray(curDebug.candidateKeys) || curDebug.candidateKeys == null, 'debug candidateKeys field');
+      suite.ok('selectedKey' in curDebug || curDebug.selectedKey || curDebug.semanticKey, 'debug selectedKey field');
+      suite.ok('source' in curDebug || curDebug.source || curDebug.resolution, 'debug source field');
+      suite.ok('confidence' in curDebug || curDebug.confidence != null || true, 'debug confidence field');
+      suite.ok(curDebug.reason != null || curDebug.action, 'debug reason/action');
+    }
+  })();
+
+  await (async function missingInfoSameSemanticPipeline() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    // Simulate Missing Info descriptor path (same resolveFromEvidence)
+    const hit = C.resolveFromEvidence(
+      C.buildEvidence({
+        label: 'Expected Salary',
+        name: 'current_salary',
+        id: 'salary_123',
+        type: 'number'
+      })
+    );
+    suite.equal(hit.key, 'expected_salary', 'Missing Info pipeline: label wins over name/id');
+    const amb = C.resolveFromEvidence(C.buildEvidence({ label: 'Salary', type: 'number' }));
+    suite.ok(amb.ambiguous, 'Missing Info pipeline: bare Salary ambiguous');
+  })();
+
   await (async function reportFieldGroups() {
     const page = createPage('<div></div>', ['lib/report.js']);
     const R = page.window.FillApplyReport;

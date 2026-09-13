@@ -225,3 +225,25 @@ Canonical **Key** is identity (not label/name/index alone). Exclusions keep `cur
 Unknown field discovery includes **optional** as well as required. Missing Info UI renders controls from field metadata (Yes/No, number, real select options) and marks Required vs Optional.
 
 Debug: fill results expose `debugResolutions` / `unknownFields` (question, canonical key, knowledge type, control, value, resolution, confidence, action).
+
+## Semantic evidence model (v1.17.4)
+
+DOM metadata must **not** create or override semantic identity via concatenated `label+name+id` strings.
+
+Evidence fields stay separate: `label`, `question`, `placeholder`, `name`, `id`, `autocomplete`, `ariaLabel`, `controlType`, `options` (+ `groupContext`).
+
+**Priority** (higher wins; lower cannot override):
+
+1. visible question / associated `<label>`
+2. accessible name / `aria-label`
+3. fieldset / group context
+4. placeholder
+5. autocomplete
+6. name / id (catalog/learned match only — never permanent identity from opaque ids)
+
+Strong conflict / bare ambiguous labels (`Salary`, `Compensation`, `Experience`, …) → `AMBIGUOUS` / `DO_NOT_FILL` (no guess).
+
+Canonical key comes from the resolved **semantic question**, not DOM `id`/`name`. Same knowledge record across ATS/DOM variants.
+
+Debug diagnostic per fill: `question`, `semanticKey`, `knowledgeType`, `domControlType`, `candidateKeys`, `selectedKey`, `matchedEvidence`, `source`, `confidence`, `action`, `reason`.
+

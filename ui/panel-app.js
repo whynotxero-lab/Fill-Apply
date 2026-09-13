@@ -537,14 +537,42 @@
       if (Array.isArray(metaFromDom.options)) info.options = metaFromDom.options;
       if (metaFromDom.required != null) info.required = !!metaFromDom.required;
     }
-    if (C && C.matchCanonical) {
-      var hit = C.matchCanonical(info.label, { fieldType: info.controlType });
-      if (hit && hit.key && !info.key) info.key = hit.key;
+    if (C && C.resolveFromEvidence && C.buildEvidence) {
+      var hit = C.resolveFromEvidence(
+        C.buildEvidence({
+          label: info.label,
+          question: (metaFromDom && metaFromDom.question) || info.label,
+          placeholder: (metaFromDom && metaFromDom.placeholder) || '',
+          name: (metaFromDom && metaFromDom.name) || '',
+          id: (metaFromDom && metaFromDom.id) || '',
+          ariaLabel: (metaFromDom && metaFromDom.ariaLabel) || '',
+          groupContext: (metaFromDom && metaFromDom.groupContext) || '',
+          autocomplete: (metaFromDom && metaFromDom.autocomplete) || '',
+          controlType: info.controlType,
+          options: info.options
+        }),
+        { fieldType: info.controlType }
+      );
+      if (hit && hit.ambiguous) {
+        info.ambiguous = true;
+        info.candidateKeys = hit.candidateKeys || [];
+        // Do not invent a key for ambiguous bare labels — Missing Info still collects
+        // under a derived key only when the applicant explicitly answers.
+      } else if (hit && hit.key && !info.key) {
+        info.key = hit.key;
+      }
       if (hit && hit.fieldType && info.type === 'string') {
         info.type = C.toUserFieldType ? C.toUserFieldType(hit.fieldType) : hit.fieldType;
       }
+      info.matchedEvidence = hit && hit.matchedEvidence;
+    } else if (C && C.matchCanonical) {
+      var hit2 = C.matchCanonical(info.label, { fieldType: info.controlType });
+      if (hit2 && hit2.key && !info.key) info.key = hit2.key;
+      if (hit2 && hit2.fieldType && info.type === 'string') {
+        info.type = C.toUserFieldType ? C.toUserFieldType(hit2.fieldType) : hit2.fieldType;
+      }
     }
-    if (!info.key && C && C.deriveCanonicalKey) {
+    if (!info.key && !info.ambiguous && C && C.deriveCanonicalKey) {
       info.key = C.deriveCanonicalKey(info.label);
     }
     // Prefer DOM control semantics for the input widget
