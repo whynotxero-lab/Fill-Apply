@@ -18,11 +18,16 @@
     'lib/synonyms.js',
     'lib/pace.js',
     'lib/field-map.js',
+    'lib/knowledge-canonical.js',
+    'lib/knowledge-store.js',
+    'lib/knowledge-resolver.js',
+    'lib/knowledge-learn.js',
     'lib/files.js',
     'lib/auth-walls.js',
     'lib/challenges.js',
     'lib/easy-apply-steps.js',
     'content/focus-hud.js',
+    'content/knowledge-observe.js',
     'content/fill.js',
     'adapters/registry.js',
     'adapters/fallback.js',
@@ -1151,6 +1156,13 @@
               profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);
             } catch (_mergeErr) {
               /* keep base */
+            }
+          }
+          if (global.FillApplyKnowledgeStore && global.FillApplyKnowledgeStore.attachToProfile) {
+            try {
+              profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
+            } catch (_kbErr) {
+              /* fill without adaptive snapshot */
             }
           }
           documents = await B.getDocuments();

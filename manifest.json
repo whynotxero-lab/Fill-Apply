@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.15.3",
-  "description": "Queue-driven job-application filler: source fill checklist, JobPool status POST (only submitted = applied), full applicant profile, per-control formatting, preloaded resume attach.",
+  "version": "1.16.0",
+  "description": "Queue-driven job-application filler: adaptive applicant knowledge (IndexedDB), source fill checklist, JobPool status POST (only submitted = applied), full applicant profile.",
   "permissions": [
     "storage",
     "activeTab",

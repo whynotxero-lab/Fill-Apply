@@ -13,6 +13,10 @@ const LIBS = [
   'lib/format.js',
   'lib/synonyms.js',
   'lib/field-map.js',
+  'lib/knowledge-canonical.js',
+  'lib/knowledge-store.js',
+  'lib/knowledge-resolver.js',
+  'lib/knowledge-learn.js',
   'lib/files.js',
   'content/fill.js'
 ];

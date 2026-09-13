@@ -71,14 +71,18 @@ A score of 3 or more means the form is open. Search boxes, newsletter signups, a
 
 ### Answer resolution
 
-Tried in order, first hit wins:
+`content/fill.js` `answerFor()` delegates to `FillApplyKnowledge.resolve` when the adaptive tier is loaded. First hit with a real value wins; nothing is invented.
 
-1. `bestKeyForField(descriptor)` → `profile[key]`
-2. Work-authorization and sponsorship label heuristics
-3. `answerForLabel(profile, label)` → field-map keys, then `customAnswers`, then `customQA`
-4. `matchCustomQA(profile.customQA, label, placeholder)`
+1. Explicit current-session input (just typed/selected on this page)
+2. Confirmed applicant knowledge (Tier 2 IndexedDB snapshot + hot overlay)
+3. User profile stable facts (`profile[key]` via field-map / identity)
+4. Built-in knowledge: `bestKeyForField`, work-auth/sponsorship heuristics, `answerForLabel` → field-map / `customAnswers` / `customQA`
+5. AI inference seam — always empty today
+6. Unknown — leave empty; required blanks feed `missingRequired`
 
-Steps 3 and 4 compare *content words* in both directions rather than requiring a substring, and `customAnswers` keys are split on camelCase first (`noticePeriod` → `notice period`). A field-map hit whose top-level value is blank no longer ends the search — that short-circuit was why source answers stored under `customAnswers` never reached the page.
+Confirmed applicant values are never overridden by generic built-in answers. Equivalent questions share a canonical key (`Have you used SAP?` ≈ `SAP experience`); `willing_to_relocate` ≠ `requires_sponsorship` even when both answers are Yes. See [ADAPTIVE_KNOWLEDGE.md](ADAPTIVE_KNOWLEDGE.md).
+
+Steps 3–4 compare *content words* in both directions rather than requiring a substring, and `customAnswers` keys are split on camelCase first (`noticePeriod` → `notice period`). A field-map hit whose top-level value is blank no longer ends the search — that short-circuit was why source answers stored under `customAnswers` never reached the page.
 
 ### The fill pass
 
@@ -202,7 +206,7 @@ Every run reports what the engine actually saw, which is what makes a failure ex
 
 ```bash
 npm install
-npm test                      # 10 suites, jsdom
+npm test                      # 11 suites, jsdom
 node scripts/browser-e2e.js   # real Chrome, needs a display
 ```
 
@@ -216,6 +220,7 @@ node scripts/browser-e2e.js   # real Chrome, needs a display
 | `smoke-jobpool-status.js` | JobPool `status` mapping — only `submitted` means Applied |
 | `smoke-run-modes.js` | Fallback fill / ready / submit: Continue and Submit only in the matching mode |
 | `smoke-backend-jobpool.js` | Local `jobPoolStatus`, live POST `/applied/:id`, cancelled fallback |
+| `smoke-knowledge.js` | Adaptive store, SAP/relocate identity, resolver precedence, explicit learn, fill from snapshot |
 
 `scripts/browser-e2e.js` is the honest end-to-end check. It serves a career page on one origin whose application form lives in an iframe on a **different** origin — a shape no same-document traversal can reach — installs the unpacked extension, and drives the real runner injection path from the extension's own service worker. It asserts that the cross-origin form is filled, that the async portalled listbox option is selected, that the winning result came from the sub-frame, that the phone number is split across the country-code control and the number field, that the preloaded resume lands on an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog while doing it.
 

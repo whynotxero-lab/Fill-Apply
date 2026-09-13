@@ -6,9 +6,11 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 **Adaptive fill:** synonym CTAs (Apply / Apply Now / Start Apply / Apply for this Job / …) and Resume≈CV via `lib/synonyms.js` + **universal Apply-start** (click Apply to open the form when still on a job overview) + generic fallback for unknown hosts.
 
-**Docs:** [Docs index](docs/README.md) · [Fill engine](docs/FILL_ENGINE.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
+**Docs:** [Docs index](docs/README.md) · [Adaptive knowledge](docs/ADAPTIVE_KNOWLEDGE.md) · [Fill engine](docs/FILL_ENGINE.md) · [Job Application Guide](docs/APPLICATION_GUIDE.md) · [Vision & functionality](docs/APP_VISION_AND_FUNCTIONALITY.md) · [Sources & fields](docs/SOURCES_AND_FIELDS.md) · [Chat log](docs/CHAT_LOG.md) · [Implementation checklist](docs/IMPLEMENTATION_CHECKLIST.md)
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
+
+**Version 1.16.0** — **adaptive applicant knowledge**. A second, applicant-specific knowledge tier grows from explicit answers and corrections (IndexedDB, no rebuild). The fill resolver uses session → confirmed knowledge → profile → built-in, never invents, and reuses equivalent questions (`Have you used SAP?` ≈ `SAP experience`). Review/edit in App Settings → Adaptive knowledge. See [Adaptive knowledge](docs/ADAPTIVE_KNOWLEDGE.md).
 
 **Version 1.15.3** — **source fill checklist + JobPool status**. Honest per-source confidence (not “every board unattended”), confirmation that a new application can fill any field already on the profile, and a live JobPool contract: pull apply URLs from `GET /queue`, POST `/applied/:id` with `status`, and treat **only `submitted`** as Applied. See [Source fill checklist](docs/SOURCE_FILL_CHECKLIST.md).
 
@@ -107,7 +109,8 @@ lib/
   types.js      shapes + storage keys + message constants + runMode + pause flags
   storage.js    run config, buckets, documents, mock URL list, applyHistory, source caps, pausedForHuman
   profile.js    multi-profile store (fillApply.profiles + activeProfileId; migrate legacy; phoneCountry, customAnswers, …)
-  field-map.js  field heuristics
+  field-map.js  field heuristics (Tier 1 built-in KB)
+  knowledge-*   Tier 2 adaptive KB — IndexedDB store, canonical keys, resolver, learn
   format.js     per-control value shaping — phone, postal, date, url, number,
                 text truncation, country/state spellings
   files.js      base64 ↔ File + DataTransfer; Attach/Upload discovery with the
@@ -153,7 +156,7 @@ The extension has no build step; `package.json` exists only for the test harness
 
 ```bash
 npm install
-npm test                      # jsdom suites: detection, fill engine, value formats, documents, full profile
+npm test                      # jsdom suites: detection, fill engine, value formats, documents, full profile, adaptive knowledge
 node scripts/browser-e2e.js   # real Chrome + unpacked extension (needs a display)
 ```
 

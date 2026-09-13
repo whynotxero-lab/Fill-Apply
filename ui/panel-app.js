@@ -64,11 +64,16 @@
     'lib/synonyms.js',
     'lib/pace.js',
     'lib/field-map.js',
+    'lib/knowledge-canonical.js',
+    'lib/knowledge-store.js',
+    'lib/knowledge-resolver.js',
+    'lib/knowledge-learn.js',
     'lib/files.js',
     'lib/auth-walls.js',
     'lib/challenges.js',
     'lib/easy-apply-steps.js',
     'content/focus-hud.js',
+    'content/knowledge-observe.js',
     'content/fill.js',
     'adapters/registry.js',
     'adapters/fallback.js',
@@ -613,6 +618,11 @@
       } else {
         await FillApplyProfile.applyMissingFieldAnswers(values);
       }
+      if (globalThis.FillApplyKnowledgeLearn && FillApplyKnowledgeLearn.learnMany) {
+        try {
+          await FillApplyKnowledgeLearn.learnMany(values, { kind: 'confirm' });
+        } catch (_learnErr) { /* profile write still succeeded */ }
+      }
       await liveLog('missing_fields_saved', 'Saved ' + Object.keys(values).length + ' field(s) to active profile');
       await clearPauseStateStorage();
       hideMissingFieldsModal();
@@ -760,6 +770,13 @@
       }
       if (globalThis.FillApplySourceProfiles && FillApplySourceProfiles.getEffectiveProfile) {
         profile = await FillApplySourceProfiles.getEffectiveProfile(profile);
+      }
+      if (globalThis.FillApplyKnowledgeStore && FillApplyKnowledgeStore.attachToProfile) {
+        try {
+          profile = await FillApplyKnowledgeStore.attachToProfile(profile);
+        } catch (_kbErr) {
+          /* fill without adaptive snapshot */
+        }
       }
       // Warn if selected source ≠ page host (still allow)
       try {
