@@ -285,9 +285,8 @@
       // Buckets and levels: "15" belongs in "10+ years", "Master's / MBA" in
       // "Master's Degree". Neither is reachable by comparing strings.
       if (selectByOptionMatch(el, finalValue, sanitized.kind)) return true;
-      if (D && D.setValue) D.setValue(el, finalValue);
-      else el.value = finalValue;
-      return String(el.value || '') !== '';
+      // Never free-text into a <select> — incompatible options → DO NOT FILL
+      return false;
     }
 
     if (D && D.setValue) {
@@ -578,6 +577,96 @@
     });
 
     return summary;
+  }
+
+  function controlTypeOf(el, descriptor) {
+    const C = global.FillApplyKnowledgeCanonical;
+    if (C && typeof C.detectControlType === 'function') {
+      return C.detectControlType(el, descriptor || {});
+    }
+    const type = String((descriptor && descriptor.type) || (el && el.type) || '').toLowerCase();
+    if (el && el.tagName === 'SELECT') return el.multiple ? 'multiselect' : 'select';
+    if (type === 'checkbox' || type === 'radio') return type;
+    if (isComboboxInput(el)) return 'combobox';
+    return type || 'text';
+  }
+
+  function optionsForControl(el, descriptor) {
+    if (descriptor && Array.isArray(descriptor.options) && descriptor.options.length) {
+      return descriptor.options;
+    }
+    if (!el || el.tagName !== 'SELECT' || !el.options) return [];
+    const out = [];
+    for (let i = 0; i < el.options.length; i++) {
+      out.push({
+        value: el.options[i].value,
+        text: (el.options[i].textContent || '').replace(/\s+/g, ' ').trim()
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Gate: knowledge value+type must be compatible with DOM control+options.
+   * Knowledge Type never overrides DOM. Incompatible → do not fill.
+   */
+  function gateFill(el, descriptor, answer) {
+    const C = global.FillApplyKnowledgeCanonical;
+    if (!answer || answer.value == null || String(answer.value).trim() === '') {
+      return { ok: false, action: 'DO_NOT_FILL', reason: 'empty' };
+    }
+    if (answer.action === 'DO_NOT_FILL') {
+      return { ok: false, action: 'DO_NOT_FILL', reason: answer.reason || 'blocked' };
+    }
+    const controlType = controlTypeOf(el, descriptor);
+    const options = optionsForControl(el, descriptor);
+    const knowledgeType = (answer && answer.fieldType) || (C && C.inferFieldType ? C.inferFieldType(el, descriptor) : 'string');
+    if (C && typeof C.prepareFillValue === 'function') {
+      const prepared = C.prepareFillValue(answer.value, knowledgeType, controlType, options);
+      if (!prepared.ok) {
+        return {
+          ok: false,
+          action: 'DO_NOT_FILL',
+          reason: prepared.reason,
+          controlType: controlType,
+          knowledgeType: knowledgeType
+        };
+      }
+      return {
+        ok: true,
+        action: 'FILL',
+        value: prepared.value,
+        reason: prepared.reason,
+        controlType: controlType,
+        knowledgeType: knowledgeType
+      };
+    }
+    // Fallback without canonical helpers.
+    // Closed Yes/No: require a boolean-like value. Other selects defer to
+    // setNativeValue (variants / ISO codes / buckets) — which still never
+    // free-texts when nothing matches.
+    if ((controlType === 'select' || controlType === 'multiselect' || controlType === 'radio') && options.length) {
+      var labels = options.map(function (o) {
+        return String((o && (o.text || o.label || o.value)) || '').trim();
+      }).filter(Boolean);
+      var real = labels.filter(function (t) {
+        return !/^(select|choose|please|--|–|—)/i.test(t);
+      });
+      var hasYes = real.some(function (t) { return /^(yes|y|true|1)$/i.test(t); });
+      var hasNo = real.some(function (t) { return /^(no|n|false|0)$/i.test(t) && !/not sure|unknown/i.test(t); });
+      if (hasYes && hasNo && real.length <= 4) {
+        if (!/^(yes|no|true|false|y|n|1|0)$/i.test(String(answer.value).trim())) {
+          return {
+            ok: false,
+            action: 'DO_NOT_FILL',
+            reason: 'no_matching_option',
+            controlType: controlType,
+            knowledgeType: knowledgeType
+          };
+        }
+      }
+    }
+    return { ok: true, action: 'FILL', value: answer.value, controlType: controlType, knowledgeType: knowledgeType };
   }
 
   function resolveValue(profile, key) {
@@ -875,14 +964,17 @@
         type: 'select'
       };
       const answer = answerFor(profile, descriptor, map);
-      if (!answer.value) continue;
+      const gate = gateFill(trigger, descriptor, answer);
+      if (!answer.value || !gate.ok) continue;
+
+      const fillValue = gate.value != null ? gate.value : answer.value;
 
       // Already showing the answer — leave it alone.
       const current = normalizeText(textOf(trigger));
-      const want = normalizeText(answer.value);
+      const want = normalizeText(fillValue);
       const isPlaceholder = /select|choose|—|--|please/.test(current);
       if (current === want || (!isPlaceholder && current && current.indexOf(want) !== -1)) {
-        filled.push({ label: label, key: answer.key, value: answer.value, already: true });
+        filled.push({ label: label, key: answer.key, value: fillValue, already: true });
         continue;
       }
 
@@ -893,14 +985,14 @@
       const fmt = global.FillApplyFormat;
       const result = await pickFromDropdown(
         trigger,
-        answer.value,
+        fillValue,
         Object.assign({}, options, {
           kind: fmt ? fmt.fieldKind(descriptor, answer.key) : null
         })
       );
       if (result.ok) {
-        markAutofilled(trigger, answer.value);
-        filled.push({ label: label, key: answer.key, value: answer.value });
+        markAutofilled(trigger, fillValue);
+        filled.push({ label: label, key: answer.key, value: fillValue, action: 'FILLED' });
       }
     }
 
@@ -1110,6 +1202,38 @@
     const details = [];
     const skipped = [];
     const missingRequired = [];
+    const unknownFields = [];
+    const C = global.FillApplyKnowledgeCanonical;
+
+    function pushUnknown(descriptor, el, reason) {
+      const label = descriptor.label || descriptor.name || descriptor.id || '';
+      if (!label) return;
+      const controlType = controlTypeOf(el, descriptor);
+      const opts = optionsForControl(el, descriptor);
+      const identified = C && C.matchCanonical
+        ? C.matchCanonical([label, descriptor.name, descriptor.placeholder].filter(Boolean).join(' '), {
+            fieldType: controlType
+          })
+        : null;
+      const knowledgeType =
+        (identified && identified.fieldType) ||
+        (C && C.inferFieldType ? C.inferFieldType(el, descriptor) : 'string');
+      const row = {
+        label: label,
+        name: descriptor.name || '',
+        id: descriptor.id || '',
+        required: !!descriptor.required,
+        controlType: controlType,
+        knowledgeType: knowledgeType,
+        options: opts,
+        canonicalKey: (identified && identified.key) || null,
+        reason: reason || 'unknown'
+      };
+      unknownFields.push(row);
+      if (descriptor.required) {
+        missingRequired.push(label);
+      }
+    }
 
     for (let i = 0; i < fields.length; i++) {
       const el = fields[i];
@@ -1133,40 +1257,64 @@
 
       if (isComboboxInput(el)) {
         const answer = answerFor(profile, descriptor, map);
-        if (!answer.value) {
+        const gate = gateFill(el, Object.assign({}, descriptor, { type: 'combobox', combobox: true }), answer);
+        if (!answer.value || !gate.ok) {
           unmatched += 1;
-          if (descriptor.required) missingRequired.push(label || descriptor.name || 'required field');
-          details.push(unmatchedDetail(descriptor));
+          pushUnknown(descriptor, el, gate.reason || 'unknown');
+          details.push(
+            Object.assign(unmatchedDetail(descriptor, gate.reason || 'no_profile_value'), {
+              controlType: gate.controlType || 'combobox',
+              action: 'DO_NOT_FILL',
+              canonicalKey: answer.canonicalKey || null
+            })
+          );
           if (highlightUnmatched) highlight(el, 'unmatched');
           continue;
         }
-        const picked = await pickFromDropdown(el, answer.value, options);
+        const fillValue = gate.value != null ? gate.value : answer.value;
+        const picked = await pickFromDropdown(el, fillValue, options);
         if (picked.ok) {
           filled += 1;
-          markAutofilled(el, answer.value);
+          markAutofilled(el, fillValue);
           if (highlightUnmatched) highlight(el, 'filled');
-          details.push(filledDetail(descriptor, answer));
+          details.push(
+            Object.assign(filledDetail(descriptor, Object.assign({}, answer, { value: fillValue })), {
+              controlType: 'combobox',
+              action: 'FILLED',
+              canonicalKey: answer.canonicalKey || answer.key
+            })
+          );
         } else {
-          // Fall back to plain text — some comboboxes accept free entry.
-          if (setNativeValue(el, answer.value, { key: answer.key, profile: profile })) {
-            filled += 1;
-            markAutofilled(el, answer.value);
-            details.push(filledDetail(descriptor, answer));
-          } else {
-            unmatched += 1;
-            details.push(unmatchedDetail(descriptor, 'combobox_no_option'));
-          }
+          // Combobox with no matching option — do NOT free-text force
+          unmatched += 1;
+          pushUnknown(descriptor, el, 'combobox_no_option');
+          details.push(
+            Object.assign(unmatchedDetail(descriptor, 'combobox_no_option'), {
+              controlType: 'combobox',
+              action: 'DO_NOT_FILL',
+              canonicalKey: answer.canonicalKey || null
+            })
+          );
         }
         continue;
       }
 
       const answer = answerFor(profile, descriptor, map);
+      const gate = gateFill(el, descriptor, answer);
 
-      if (!answer.value) {
+      if (!answer.value || !gate.ok) {
         unmatched += 1;
-        if (descriptor.required) missingRequired.push(label || descriptor.name || descriptor.id || 'required field');
+        pushUnknown(descriptor, el, gate.reason || 'unknown');
         if (highlightUnmatched) highlight(el, 'unmatched');
-        details.push(unmatchedDetail(descriptor));
+        details.push(
+          Object.assign(unmatchedDetail(descriptor, gate.reason || 'no_profile_value'), {
+            controlType: gate.controlType || controlTypeOf(el, descriptor),
+            knowledgeType: gate.knowledgeType || answer.fieldType || null,
+            action: 'DO_NOT_FILL',
+            canonicalKey: answer.canonicalKey || answer.key || null,
+            confidence: answer.confidence != null ? answer.confidence : null
+          })
+        );
         continue;
       }
 
@@ -1174,22 +1322,39 @@
         global.FillApplyFocusHud.mark(el, { scroll: true });
       }
 
-      const setOk = setNativeValue(el, answer.value, {
+      const fillValue = gate.value != null ? gate.value : answer.value;
+      const setOk = setNativeValue(el, fillValue, {
         key: answer.key,
         profile: profile,
         hasPhoneCountryField: hasPhoneCountryField
       });
       if (setOk === false) {
         unmatched += 1;
-        details.push(unmatchedDetail(descriptor, 'value_rejected'));
+        pushUnknown(descriptor, el, 'value_rejected');
+        details.push(
+          Object.assign(unmatchedDetail(descriptor, 'value_rejected'), {
+            controlType: gate.controlType,
+            action: 'DO_NOT_FILL',
+            canonicalKey: answer.canonicalKey || answer.key || null
+          })
+        );
         if (highlightUnmatched) highlight(el, 'unmatched');
         continue;
       }
 
       filled += 1;
-      markAutofilled(el, answer.value);
+      markAutofilled(el, fillValue);
       if (highlightUnmatched) highlight(el, 'filled');
-      details.push(filledDetail(descriptor, answer));
+      details.push(
+        Object.assign(filledDetail(descriptor, Object.assign({}, answer, { value: fillValue })), {
+          controlType: gate.controlType,
+          knowledgeType: gate.knowledgeType || answer.fieldType || null,
+          action: 'FILLED',
+          canonicalKey: answer.canonicalKey || answer.key || null,
+          confidence: answer.confidence != null ? answer.confidence : null,
+          resolution: answer.source || null
+        })
+      );
 
       if (options.pauseBetweenFieldsMs) await sleep(options.pauseBetweenFieldsMs);
     }
@@ -1219,6 +1384,16 @@
       applicationFields.push({ label: c.label || c.key || 'dropdown', key: c.key || null, value: c.value });
     });
 
+    // Labels for Missing Info UI: ALL unknowns (required + optional), not required-only
+    const unknownLabels = [];
+    const seenU = {};
+    unknownFields.forEach(function (u) {
+      const lab = u && u.label;
+      if (!lab || seenU[lab]) return;
+      seenU[lab] = true;
+      unknownLabels.push(lab);
+    });
+
     return {
       ok: true,
       filled: filled,
@@ -1227,6 +1402,9 @@
       details: details,
       skipped: skipped,
       missingRequired: dedupe(missingRequired),
+      unknownFields: unknownFields,
+      // Prefer rich unknown discovery for Complete Missing Information
+      missingProfileFields: unknownLabels.length ? unknownLabels : undefined,
       customDropdownsFilled: customFilled,
       applicationFields: applicationFields,
       applicationReport: { fields: applicationFields, steps: [] },
@@ -1235,7 +1413,22 @@
       coverAttached: !!(filesAttached && filesAttached.coverAttached),
       formSignals: formSignals,
       clickedApplyStart: !!applyStart,
-      inspection: summarizeInspection(inspection)
+      inspection: summarizeInspection(inspection),
+      debugResolutions: details.map(function (d) {
+        return C && C.inspectResolution
+          ? C.inspectResolution({
+              question: d.label,
+              canonicalKey: d.canonicalKey || d.key,
+              knowledgeType: d.knowledgeType || d.fieldType,
+              controlType: d.controlType || d.type,
+              value: d.value,
+              resolution: d.resolution || d.source,
+              confidence: d.confidence,
+              action: d.action || (d.ok ? 'FILLED' : 'DO_NOT_FILL'),
+              reason: d.reason
+            })
+          : d;
+      })
     };
   }
 

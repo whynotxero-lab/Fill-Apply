@@ -205,3 +205,23 @@ When fill hits unknown required/asked fields, the side panel opens **Complete Mi
 4. Future applications reuse the same Key via aliases
 
 Options → Adaptive knowledge reviews the same Key — Aliases — Type — Value model.
+
+
+---
+
+## Control type vs Knowledge type (v1.17.3)
+
+Two concepts stay separate:
+
+| Concept | Examples | Role |
+|---------|----------|------|
+| **Knowledge Type** | boolean / string / number / date / select / multiselect | How the applicant fact is stored |
+| **DOM control type** | text / email / tel / number / date / checkbox / radio / select / textarea / combobox / custom | What the page control actually is |
+
+The filler **reconciles** them. Knowledge Type never overrides the DOM. Before fill: type + options compatibility gate. Incompatible → **DO NOT FILL** (surface in Complete Missing Information). Never free-text into a `<select>`.
+
+Canonical **Key** is identity (not label/name/index alone). Exclusions keep `current_salary` ≠ `expected_salary`, `willing_to_relocate` ≠ `willing_to_travel`, `years_experience` ≠ `management_experience`, `authorized_to_work` ≠ `requires_sponsorship`.
+
+Unknown field discovery includes **optional** as well as required. Missing Info UI renders controls from field metadata (Yes/No, number, real select options) and marks Required vs Optional.
+
+Debug: fill results expose `debugResolutions` / `unknownFields` (question, canonical key, knowledge type, control, value, resolution, confidence, action).

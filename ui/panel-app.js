@@ -479,7 +479,7 @@
 
 
   const PAUSE_STATE_KEY = 'fillApply.pauseState';
-  let missingFieldsContext = null; // { mode, tabId, jobId, fields }
+  let missingFieldsContext = null; // { mode, tabId, jobId, fields, fieldMeta }
 
   function getMissingModalEls() {
     return {
@@ -496,11 +496,15 @@
     if (els.modal) els.modal.hidden = true;
   }
 
+  function mfControls(list) {
+    return list.querySelectorAll('input[data-field], textarea[data-field], select[data-field]');
+  }
+
   function updateMissingProgress() {
     var els = getMissingModalEls();
     var progressEl = document.getElementById('missingFieldsProgress');
     if (!els.list || !progressEl) return;
-    var inputs = els.list.querySelectorAll('input[data-field], textarea[data-field]');
+    var inputs = mfControls(els.list);
     var total = inputs.length;
     var done = 0;
     inputs.forEach(function (inp) {
@@ -516,34 +520,143 @@
     progressEl.textContent = done + ' of ' + total + ' answered';
   }
 
-  function describeMissingField(label) {
+  function describeMissingField(label, metaFromDom) {
     var C = globalThis.FillApplyKnowledgeCanonical;
-    var info = { label: String(label || ''), key: '', type: 'string' };
+    var info = {
+      label: String(label || ''),
+      key: '',
+      type: 'string',
+      controlType: 'text',
+      options: [],
+      required: false
+    };
+    if (metaFromDom && typeof metaFromDom === 'object') {
+      if (metaFromDom.canonicalKey) info.key = metaFromDom.canonicalKey;
+      if (metaFromDom.knowledgeType) info.type = metaFromDom.knowledgeType;
+      if (metaFromDom.controlType) info.controlType = metaFromDom.controlType;
+      if (Array.isArray(metaFromDom.options)) info.options = metaFromDom.options;
+      if (metaFromDom.required != null) info.required = !!metaFromDom.required;
+    }
     if (C && C.matchCanonical) {
-      var hit = C.matchCanonical(info.label, {});
-      if (hit && hit.key) info.key = hit.key;
-      if (hit && hit.fieldType) {
+      var hit = C.matchCanonical(info.label, { fieldType: info.controlType });
+      if (hit && hit.key && !info.key) info.key = hit.key;
+      if (hit && hit.fieldType && info.type === 'string') {
         info.type = C.toUserFieldType ? C.toUserFieldType(hit.fieldType) : hit.fieldType;
       }
     }
     if (!info.key && C && C.deriveCanonicalKey) {
       info.key = C.deriveCanonicalKey(info.label);
     }
+    // Prefer DOM control semantics for the input widget
+    var ct = String(info.controlType || '').toLowerCase();
+    if (ct === 'checkbox' || ct === 'radio' || (C && C.isYesNoOptions && C.isYesNoOptions(info.options))) {
+      info.type = 'boolean';
+    } else if (ct === 'number') info.type = 'number';
+    else if (ct === 'date') info.type = 'date';
+    else if (ct === 'select' || ct === 'combobox' || ct === 'custom') {
+      info.type = info.options && info.options.length ? 'select' : info.type;
+    } else if (ct === 'multiselect') info.type = 'multiselect';
+    if (C && C.toUserFieldType) info.type = C.toUserFieldType(info.type);
     return info;
+  }
+
+  function optionText(o) {
+    if (o == null) return '';
+    if (typeof o === 'string') return o;
+    return String(o.text != null ? o.text : o.label != null ? o.label : o.value != null ? o.value : '').trim();
+  }
+
+  function buildMissingControl(meta, id) {
+    var type = String(meta.type || 'string');
+    var ct = String(meta.controlType || '').toLowerCase();
+    var options = meta.options || [];
+    var input;
+
+    if (type === 'boolean' || ct === 'checkbox') {
+      input = document.createElement('select');
+      var blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = 'Select…';
+      input.appendChild(blank);
+      ['Yes', 'No'].forEach(function (v) {
+        var opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        input.appendChild(opt);
+      });
+    } else if ((type === 'select' || type === 'multiselect' || ct === 'select' || ct === 'combobox' || ct === 'radio') && options.length) {
+      input = document.createElement('select');
+      if (type === 'multiselect' || ct === 'multiselect') input.multiple = true;
+      var blank2 = document.createElement('option');
+      blank2.value = '';
+      blank2.textContent = 'Select…';
+      input.appendChild(blank2);
+      options.forEach(function (o) {
+        var t = optionText(o);
+        if (!t || /^(select|choose|please|--)/i.test(t)) return;
+        var opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        input.appendChild(opt);
+      });
+    } else if (type === 'boolean') {
+      input = document.createElement('select');
+      var b0 = document.createElement('option');
+      b0.value = '';
+      b0.textContent = 'Select…';
+      input.appendChild(b0);
+      ['Yes', 'No'].forEach(function (v) {
+        var opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        input.appendChild(opt);
+      });
+    } else {
+      var long = /cover|summary|history|essay|why|describe|letter/i.test(String(meta.label || ''));
+      input = document.createElement(long ? 'textarea' : 'input');
+      if (!long) {
+        if (type === 'number' || ct === 'number') input.type = 'number';
+        else if (type === 'date' || ct === 'date') input.type = 'date';
+        else if (ct === 'email') input.type = 'email';
+        else if (ct === 'tel') input.type = 'tel';
+        else if (ct === 'url') input.type = 'url';
+        else input.type = 'text';
+      }
+      input.placeholder = 'Type value…';
+    }
+    input.id = id;
+    input.dataset.field = String(meta.label || '');
+    if (meta.key) input.dataset.canonicalKey = meta.key;
+    input.dataset.controlType = ct || '';
+    input.autocomplete = 'off';
+    input.addEventListener('input', updateMissingProgress);
+    input.addEventListener('change', updateMissingProgress);
+    return input;
   }
 
   function showMissingFieldsModal(payload) {
     payload = payload || {};
+    var fieldMetaList = Array.isArray(payload.unknownFields) ? payload.unknownFields : [];
     var fields = Array.isArray(payload.missingProfileFields)
       ? payload.missingProfileFields.filter(Boolean)
       : [];
+    if (!fields.length && fieldMetaList.length) {
+      fields = fieldMetaList.map(function (u) { return u.label; }).filter(Boolean);
+    }
     if (!fields.length && payload.message) fields = [payload.message];
     if (!fields.length) fields = ['(required field)'];
+
+    var metaByLabel = {};
+    fieldMetaList.forEach(function (u) {
+      if (u && u.label) metaByLabel[u.label] = u;
+    });
+
     missingFieldsContext = {
       mode: payload.mode || (getRunnerMode() === 'batch' ? 'batch' : 'single'),
       tabId: payload.tabId != null ? payload.tabId : null,
       jobId: payload.jobId || null,
       fields: fields,
+      fieldMeta: metaByLabel,
       message: payload.message || ''
     };
     var els = getMissingModalEls();
@@ -557,7 +670,7 @@
     if (els.msg) {
       els.msg.textContent =
         payload.message ||
-        'Complete each item below. Answers normalize to Key / Aliases / Type / Value, save to adaptive knowledge, apply to this application, then fill continues.';
+        'Complete each item below (required and optional unknowns). Controls match the application field. Answers normalize to Key / Aliases / Type / Value, save to adaptive knowledge, apply to this application, then fill continues.';
     }
     els.list.innerHTML = '';
     var types = (globalThis.FillApplyKnowledgeCanonical &&
@@ -570,11 +683,10 @@
       'multiselect'
     ];
     fields.forEach(function (field, idx) {
-      var meta = describeMissingField(field);
+      var meta = describeMissingField(field, metaByLabel[field]);
       var wrap = document.createElement('div');
-      wrap.className = 'mf-field';
+      wrap.className = 'mf-field' + (meta.required ? ' mf-required' : ' mf-optional');
       var id = 'mfInput' + idx;
-      var long = /cover|summary|history|essay|why|describe|letter/i.test(String(field));
       var check = document.createElement('span');
       check.className = 'mf-check';
       check.textContent = '✓';
@@ -584,10 +696,14 @@
       label.setAttribute('for', id);
       label.textContent = String(field);
       wrap.appendChild(label);
+      var badge = document.createElement('span');
+      badge.className = 'mf-reqbadge';
+      badge.textContent = meta.required ? 'Required' : 'Optional';
+      wrap.appendChild(badge);
       if (meta.key) {
         var hint = document.createElement('span');
         hint.className = 'mf-keyhint';
-        hint.textContent = 'Key: ' + meta.key;
+        hint.textContent = 'Key: ' + meta.key + (meta.controlType ? ' · ' + meta.controlType : '');
         wrap.appendChild(hint);
       }
       var typeWrap = document.createElement('label');
@@ -604,25 +720,12 @@
       });
       typeWrap.appendChild(typeSel);
       wrap.appendChild(typeWrap);
-      var input = document.createElement(long ? 'textarea' : 'input');
-      if (!long) {
-        if (meta.type === 'number') input.type = 'number';
-        else if (meta.type === 'date') input.type = 'date';
-        else input.type = 'text';
-      }
-      input.id = id;
-      input.dataset.field = String(field);
-      if (meta.key) input.dataset.canonicalKey = meta.key;
-      input.placeholder = meta.type === 'boolean' ? 'Yes or No' : 'Type value…';
-      input.autocomplete = 'off';
-      input.addEventListener('input', updateMissingProgress);
-      input.addEventListener('change', updateMissingProgress);
-      wrap.appendChild(input);
+      wrap.appendChild(buildMissingControl(meta, id));
       els.list.appendChild(wrap);
     });
     els.modal.hidden = false;
     updateMissingProgress();
-    var first = els.list.querySelector('input, textarea');
+    var first = els.list.querySelector('input, textarea, select[data-field]');
     if (first) {
       try { first.focus(); } catch (_e) {}
     }
@@ -666,7 +769,7 @@
     if (!els.list || !missingFieldsContext) return;
     var values = {};
     var typed = [];
-    els.list.querySelectorAll('input[data-field], textarea[data-field]').forEach(function (inp) {
+    mfControls(els.list).forEach(function (inp) {
       var field = inp.dataset.field || '';
       var val = (inp.value || '').trim();
       if (!field || !val) return;
@@ -686,12 +789,24 @@
         kind: 'confirm'
       });
     });
+    var metaMap = (missingFieldsContext && missingFieldsContext.fieldMeta) || {};
     var missing = (missingFieldsContext.fields || []).filter(function (f) {
+      var meta = metaMap[f];
+      var must = !meta || meta.required !== false;
+      // If we have explicit required flag, only require those; otherwise require all (legacy)
+      if (meta && Object.prototype.hasOwnProperty.call(meta, 'required')) {
+        must = !!meta.required;
+      }
+      if (!must) return false;
       return !values[f] || !String(values[f]).trim();
     });
     if (missing.length) {
-      setStatus('Please fill: ' + missing.join(', '), 'err');
+      setStatus('Please fill required: ' + missing.join(', '), 'err');
       updateMissingProgress();
+      return;
+    }
+    if (!Object.keys(values).length) {
+      setStatus('Enter at least one answer to continue.', 'err');
       return;
     }
     if (els.save) els.save.disabled = true;
@@ -1201,15 +1316,20 @@
         var missing = Array.isArray(result.missingProfileFields)
           ? result.missingProfileFields
           : [];
+        var unknownMeta = Array.isArray(result.unknownFields) ? result.unknownFields : [];
         var msg =
           result.error ||
           'Paused — missing profile field(s): ' +
             (missing.join(', ') || 'see App Settings');
-        await liveLog('missing_fields', msg, { missingProfileFields: missing });
+        await liveLog('missing_fields', msg, {
+          missingProfileFields: missing,
+          unknownFields: unknownMeta
+        });
         var pausePayload = {
           jobId: null,
           tabId: tab.id,
           missingProfileFields: missing,
+          unknownFields: unknownMeta,
           message: msg,
           at: Date.now(),
           mode: 'single',

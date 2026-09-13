@@ -1041,12 +1041,17 @@
       (pauseInfo && pauseInfo.missingProfileFields) ||
       (extra && extra.missingProfileFields) ||
       null;
+    var unknownFields =
+      (pauseInfo && pauseInfo.unknownFields) ||
+      (extra && extra.unknownFields) ||
+      null;
     if (looksLikeMissingProfile(pauseInfo.message, missingFields)) {
       notifyMissingProfileField(job, missingFields || [pauseInfo.message]);
       await setMissingFieldsPauseState({
         jobId: job && job.id,
         tabId: tabId,
         missingProfileFields: missingFields || [],
+        unknownFields: unknownFields || [],
         message: pauseInfo.message,
         at: Date.now(),
         mode: (extra && extra.mode) || 'batch',
@@ -1635,6 +1640,7 @@
             challenge: fillResult.challenge || null,
             driftLabel: fillResult.driftLabel || null,
             missingProfileFields: missingFields,
+            unknownFields: fillResult.unknownFields || null,
             skipQueue: true,
             mode: 'single'
           }
@@ -2082,7 +2088,8 @@
                 message: msg,
                 challenge: fillResult.challenge || null,
                 driftLabel: fillResult.driftLabel || null,
-                missingProfileFields: missingFields
+                missingProfileFields: missingFields,
+                unknownFields: fillResult.unknownFields || null
               }
             );
             return getStatusSnapshot();
@@ -2266,7 +2273,8 @@
                 await pauseForHuman(job, tab && tab.id, fillResult.pauseReason || 'challenge', {
                   message: fillResult.error || 'Paused — verify Cloudflare/CAPTCHA',
                   challenge: fillResult.challenge || null,
-                  missingProfileFields: fillResult.missingProfileFields || null
+                  missingProfileFields: fillResult.missingProfileFields || null,
+                  unknownFields: fillResult.unknownFields || null
                 });
                 return getStatusSnapshot();
               }

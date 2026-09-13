@@ -145,8 +145,14 @@
       }
     }
 
-    // Required mapped fields with blank profile answers → high-alert pause (never invent)
+    // Discover ALL unknown fields (required + optional). Prefer fill engine metadata.
     var missingProfileFields = [];
+    var unknownFieldMeta = Array.isArray(fillResult.unknownFields) ? fillResult.unknownFields.slice() : [];
+    if (Array.isArray(fillResult.missingProfileFields) && fillResult.missingProfileFields.length) {
+      missingProfileFields = fillResult.missingProfileFields.slice();
+    } else if (Array.isArray(fillResult.missingRequired) && fillResult.missingRequired.length) {
+      missingProfileFields = fillResult.missingRequired.slice();
+    }
     var P = global.FillApplyFieldMap || global.FillApplyProfile;
     var details = fillResult.details || [];
     for (var di = 0; di < details.length; di++) {
@@ -154,17 +160,11 @@
       if (!d || d.ok) continue;
       var lab = d.label || d.name || d.key || '';
       if (!lab) continue;
-      // Only pause on fields that look required / known profile keys
+      // Capture every unmatched/unknown control — not only required / mapped keys
+      if (missingProfileFields.indexOf(lab) === -1) missingProfileFields.push(lab);
       var keyHint = d.key;
       if (keyHint && P && typeof P.isBlank === 'function' && P.isBlank(profile[keyHint])) {
-        missingProfileFields.push(keyHint);
-        continue;
-      }
-      if (P && typeof P.answerForLabel === 'function') {
-        var looked = P.answerForLabel(profile, lab);
-        if (looked && looked.missing && looked.key) {
-          missingProfileFields.push(looked.key);
-        }
+        if (missingProfileFields.indexOf(keyHint) === -1) missingProfileFields.push(keyHint);
       }
     }
     // Deduplicate
@@ -183,6 +183,7 @@
         needsHuman: true,
         pauseReason: 'missing_profile_field',
         missingProfileFields: missingProfileFields,
+        unknownFields: unknownFieldMeta.length ? unknownFieldMeta : fillResult.unknownFields || [],
         filled: fillResult.filled || 0,
         unmatched: fillResult.unmatched || 0,
         total: fillResult.total || 0,
@@ -219,12 +220,14 @@
       formSignals: fillResult.formSignals || null,
       skipped: fillResult.skipped || [],
       missingRequired: fillResult.missingRequired || [],
+      unknownFields: unknownFieldMeta.length ? unknownFieldMeta : fillResult.unknownFields || [],
       customDropdownsFilled: fillResult.customDropdownsFilled || [],
       runMode: runMode,
       advanced: advanced,
       submitted: submitted,
       error: fillResult.error || null,
-      missingProfileFields: missingProfileFields.length ? missingProfileFields : undefined
+      missingProfileFields: missingProfileFields.length ? missingProfileFields : undefined,
+      debugResolutions: fillResult.debugResolutions || null
     };
   }
 

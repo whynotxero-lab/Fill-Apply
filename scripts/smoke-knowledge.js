@@ -493,6 +493,243 @@ function pageWith(html) {
     suite.equal(later.value, 'Yes', 'future apps reuse the same Key');
   })();
 
+  await (async function controlTypesAndTypeSafety() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    suite.equal(C.detectControlType({ tagName: 'SELECT', type: 'select-one', options: [] }, { type: 'select' }), 'select', 'detect select');
+    suite.equal(C.detectControlType({ tagName: 'INPUT', type: 'number' }, { type: 'number' }), 'number', 'detect number');
+    suite.equal(C.detectControlType({ tagName: 'INPUT', type: 'checkbox' }, { type: 'checkbox' }), 'checkbox', 'detect checkbox');
+    suite.equal(C.detectControlType({ tagName: 'INPUT', type: 'email' }, { type: 'email' }), 'email', 'detect email');
+    suite.equal(C.coerceNumber('30 days'), '30', 'deterministic 30 days → 30');
+    suite.equal(C.coerceNumber('about thirty'), '', 'no guessing non-numeric text');
+    const yesNo = [{ text: 'Yes', value: 'Yes' }, { text: 'No', value: 'No' }];
+    const okBool = C.prepareFillValue('Yes', 'boolean', 'select', yesNo);
+    suite.ok(okBool.ok && okBool.value === 'Yes', 'boolean maps onto Yes/No select');
+    const badText = C.prepareFillValue('Zahid Khan', 'string', 'select', yesNo);
+    suite.ok(!badText.ok && badText.action === 'DO_NOT_FILL', 'free text into Yes/No select is DO NOT FILL');
+    const badBoolNum = C.prepareFillValue('Yes', 'boolean', 'number', []);
+    suite.ok(!badBoolNum.ok, 'boolean into number is incompatible');
+    const numOk = C.prepareFillValue('30 days', 'string', 'number', []);
+    suite.ok(numOk.ok && numOk.value === '30', 'notice-like string coerces for number control');
+  })();
+
+  await (async function semanticIdentityCollisions() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    suite.equal(C.matchCanonical('What is your current salary?').key, 'current_salary', 'current salary key');
+    suite.equal(C.matchCanonical('Expected salary / OTE').key, 'expected_salary', 'expected salary key');
+    suite.ok(C.matchCanonical('What is your current salary?').key !== C.matchCanonical('Expected salary').key, 'current ≠ expected salary');
+    suite.equal(C.matchCanonical('Years of experience').key, 'years_experience', 'years experience key');
+    suite.equal(C.matchCanonical('Management experience').key, 'management_experience', 'management experience key');
+    suite.ok(
+      C.matchCanonical('Years of experience').key !== C.matchCanonical('Management experience').key,
+      'years ≠ management experience'
+    );
+    suite.equal(C.matchCanonical('Are you willing to relocate?').key, 'willing_to_relocate', 'relocate key');
+    suite.equal(C.matchCanonical('Are you willing to travel?').key, 'willing_to_travel', 'travel key');
+    suite.ok(C.isExcludedPair('willing_to_relocate', 'willing_to_travel'), 'relocate/travel exclusion pair');
+    suite.ok(C.isExcludedPair('current_salary', 'expected_salary'), 'salary exclusion pair');
+    suite.ok(C.isExcludedPair('authorized_to_work', 'requires_sponsorship'), 'auth/sponsor exclusion pair');
+    suite.equal(C.matchCanonical('Work authorization / authorized to work').key, 'authorized_to_work', 'work auth key');
+    suite.equal(C.matchCanonical('Do you require sponsorship?').key, 'requires_sponsorship', 'sponsorship key');
+  })();
+
+  await (async function relocateTravelIsolationAfterReload() {
+    const writer = pageWith();
+    const Learn = writer.window.FillApplyKnowledgeLearn;
+    const S1 = writer.window.FillApplyKnowledgeStore;
+    S1.resetMemory();
+    writer.window.FillApplyKnowledge.sessionClear();
+    const learned = await Learn.learn({
+      label: 'Are you willing to relocate?',
+      value: 'Yes',
+      fieldType: 'boolean',
+      kind: 'confirm'
+    });
+    suite.ok(learned.accepted, 'relocate Yes learned');
+    suite.equal(learned.record.canonicalKey, 'willing_to_relocate', 'stored under willing_to_relocate');
+    const snap = await S1.exportSnapshot();
+
+    const reader = pageWith();
+    reader.window.FillApplyKnowledgeStore.resetMemory();
+    reader.window.FillApplyKnowledge.sessionClear();
+    reader.window.FillApplyKnowledgeStore.importSnapshot(snap);
+    const K = reader.window.FillApplyKnowledge;
+    const map = reader.window.FillApplyFieldMap;
+    const profile = { __adaptiveKnowledge: snap };
+
+    const openRelo = K.resolve(profile, { label: 'Open to relocation', type: 'select' }, map);
+    suite.equal(openRelo.value, 'Yes', 'after reload: open to relocation fills Yes');
+    suite.ok(openRelo.source === 'userKnowledge' || openRelo.source === 'session', 'relocate reuse from knowledge');
+
+    const travel = K.resolve(profile, { label: 'Willing to travel', type: 'select' }, map);
+    suite.equal(travel.value, '', 'willing to travel does NOT get relocate value');
+    suite.ok(!travel.source, 'travel has no source from relocate knowledge');
+    suite.ok(
+      travel.canonicalKey === 'willing_to_travel' || travel.key === 'willing_to_travel' || !travel.value,
+      'travel identifies separately'
+    );
+  })();
+
+  await (async function salaryIsolationAfterReload() {
+    const writer = pageWith();
+    const Learn = writer.window.FillApplyKnowledgeLearn;
+    const S1 = writer.window.FillApplyKnowledgeStore;
+    S1.resetMemory();
+    writer.window.FillApplyKnowledge.sessionClear();
+    await Learn.learn({
+      label: 'Current salary',
+      value: '25000',
+      fieldType: 'number',
+      kind: 'confirm'
+    });
+    const snap = await S1.exportSnapshot();
+    const reader = pageWith();
+    reader.window.FillApplyKnowledgeStore.resetMemory();
+    reader.window.FillApplyKnowledge.sessionClear();
+    reader.window.FillApplyKnowledgeStore.importSnapshot(snap);
+    const K = reader.window.FillApplyKnowledge;
+    const map = reader.window.FillApplyFieldMap;
+    const profile = { __adaptiveKnowledge: snap };
+    const cur = K.resolve(profile, { label: 'What is your current monthly salary?', type: 'number' }, map);
+    suite.equal(cur.value, '25000', 'current salary reuses after reload');
+    const exp = K.resolve(profile, { label: 'Expected salary', type: 'number' }, map);
+    suite.equal(exp.value, '', 'expected salary does NOT reuse current salary');
+  })();
+
+  await (async function fillEngineControlTypeSafety() {
+    const page = createPage(
+      `
+      <div id="application-form">
+        <div class="field">
+          <label for="yn">Are you willing to relocate?</label>
+          <select id="yn"><option value="">Select…</option><option>Yes</option><option>No</option></select>
+        </div>
+        <div class="field">
+          <label for="yrs">Years of experience</label>
+          <input id="yrs" type="number" />
+        </div>
+        <div class="field">
+          <label for="bad">Do you require sponsorship?</label>
+          <select id="bad"><option value="">Select…</option><option>Yes</option><option>No</option></select>
+        </div>
+        <div class="field">
+          <label for="opt">Favourite colour of stapler</label>
+          <input id="opt" type="text" />
+        </div>
+        <div class="field">
+          <label for="req">Security clearance level</label>
+          <input id="req" type="text" required />
+        </div>
+      </div>
+    `,
+      LIBS
+    );
+    const profile = {
+      __adaptiveKnowledge: {
+        records: [
+          {
+            id: 'r1',
+            canonicalKey: 'willing_to_relocate',
+            value: 'Yes',
+            displayValue: 'Yes',
+            fieldType: 'boolean',
+            aliases: ['willing to relocate'],
+            status: 'confirmed',
+            confidence: 1,
+            updatedAt: 1
+          },
+          {
+            id: 'r2',
+            canonicalKey: 'years_experience',
+            value: 'Yes',
+            displayValue: 'Yes',
+            fieldType: 'boolean',
+            aliases: ['years of experience'],
+            status: 'confirmed',
+            confidence: 1,
+            updatedAt: 1
+          }
+        ]
+      }
+    };
+    const result = await page.window.__fillApply.run(profile, {});
+    suite.equal(page.document.getElementById('yn').value, 'Yes', 'relocate Yes/No select filled correctly');
+    suite.equal(page.document.getElementById('yrs').value, '', 'boolean knowledge does not fill number field');
+    suite.equal(page.document.getElementById('bad').value, '', 'sponsorship left empty (no knowledge)');
+    suite.ok(Array.isArray(result.unknownFields), 'unknownFields array present');
+    const labels = (result.unknownFields || []).map(function (u) { return u.label; });
+    suite.ok(labels.some(function (l) { return /stapler/i.test(l); }), 'optional unknown discovered');
+    suite.ok(labels.some(function (l) { return /Security clearance/i.test(l); }), 'required unknown discovered');
+    suite.ok(labels.some(function (l) { return /sponsorship/i.test(l); }), 'unmatched select discovered');
+    const stapler = (result.unknownFields || []).find(function (u) { return /stapler/i.test(u.label); });
+    suite.ok(stapler && stapler.required === false, 'optional marked not required');
+    const clearance = (result.unknownFields || []).find(function (u) { return /Security clearance/i.test(u.label); });
+    suite.ok(clearance && clearance.required === true, 'required flagged on unknown');
+    suite.ok(Array.isArray(result.debugResolutions), 'debugResolutions inspection path present');
+    const relDebug = (result.debugResolutions || []).find(function (d) { return /relocate/i.test(d.question || ''); });
+    suite.ok(relDebug && (relDebug.action === 'FILLED' || relDebug.canonicalKey === 'willing_to_relocate'), 'debug shows relocate fill');
+  })();
+
+  await (async function atsAgnosticDomFixtures() {
+    // Generic DOM only — no Greenhouse/Workday/Ashby branches
+    const page = createPage(
+      `
+      <form id="application-form">
+        <label for="a">Have you used SAP?</label>
+        <select id="a"><option value="">Select…</option><option value="Y">Yes</option><option value="N">No</option></select>
+        <label for="b">Open to relocation</label>
+        <select id="b"><option value="">Select…</option><option>Yes</option><option>No</option></select>
+        <label for="c">Willing to travel</label>
+        <select id="c"><option value="">Select…</option><option>Yes</option><option>No</option></select>
+        <label for="d">Current salary</label>
+        <input id="d" type="number" />
+        <label for="e">Expected salary</label>
+        <input id="e" type="number" />
+      </form>
+    `,
+      LIBS
+    );
+    const Learn = page.window.FillApplyKnowledgeLearn;
+    const S = page.window.FillApplyKnowledgeStore;
+    const K = page.window.FillApplyKnowledge;
+    S.resetMemory();
+    K.sessionClear();
+    await Learn.learn({ label: 'Do you have SAP experience?', value: 'Yes', fieldType: 'boolean', kind: 'confirm' });
+    await Learn.learn({ label: 'Are you willing to relocate?', value: 'Yes', fieldType: 'boolean', kind: 'confirm' });
+    await Learn.learn({ label: 'Current salary', value: '40000', fieldType: 'number', kind: 'confirm' });
+    const snap = await S.exportSnapshot();
+    // Simulate reload: new page context
+    const page2 = createPage(page.document.body.innerHTML, LIBS);
+    page2.window.FillApplyKnowledgeStore.resetMemory();
+    page2.window.FillApplyKnowledge.sessionClear();
+    page2.window.FillApplyKnowledgeStore.importSnapshot(snap);
+    const result = await page2.window.__fillApply.run({ __adaptiveKnowledge: snap }, {});
+    suite.equal(page2.document.getElementById('a').value, 'Y', 'SAP alias fills select by option match');
+    suite.equal(page2.document.getElementById('b').value, 'Yes', 'open to relocation fills after reload');
+    suite.equal(page2.document.getElementById('c').value, '', 'travel not filled from relocate');
+    suite.equal(page2.document.getElementById('d').value, '40000', 'current salary number filled');
+    suite.equal(page2.document.getElementById('e').value, '', 'expected salary stays empty');
+    suite.ok(result.ok, 'generic DOM fixture fill ok (ATS-agnostic)');
+  })();
+
+  await (async function validateMalformedRecords() {
+    const page = pageWith();
+    const C = page.window.FillApplyKnowledgeCanonical;
+    const bad = C.validateRecord({ canonicalKey: '', value: 'Yes', fieldType: 'boolean' });
+    suite.ok(!bad.ok, 'missing key rejected');
+    const mismatch = C.validateRecord(
+      {
+        canonicalKey: 'willing_to_relocate',
+        value: 'Yes',
+        fieldType: 'boolean',
+        status: 'confirmed'
+      },
+      { label: 'Willing to travel', type: 'select', options: [{ text: 'Yes' }, { text: 'No' }], _identifiedKey: 'willing_to_travel' }
+    );
+    suite.ok(!mismatch.ok, 'key mismatch / exclusion blocks auto-fill');
+  })();
+
   await (async function reportFieldGroups() {
     const page = createPage('<div></div>', ['lib/report.js']);
     const R = page.window.FillApplyReport;
