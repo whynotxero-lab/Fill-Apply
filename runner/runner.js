@@ -58,6 +58,7 @@
   const INJECT_TARGET = { allFrames: true };
 
   let loopActive = false;
+  let currentTabRunActive = false;
   let delayTimer = null;
   let currentJobId = null;
   let pausedTabId = null;
@@ -444,6 +445,21 @@
     }
   }
 
+  function notifyPagePanel(tabId, payload) {
+    if (tabId == null) return;
+    const body = Object.assign(
+      { type: 'FILL_APPLY_PAGE_PANEL_STATUS' },
+      payload || {}
+    );
+    try {
+      chrome.tabs.sendMessage(tabId, body, function () {
+        void chrome.runtime.lastError;
+      });
+    } catch (_e) {
+      /* tab may not have the page panel */
+    }
+  }
+
   function notifyActionNeeded(job, detail) {
     if (!chrome.notifications || !chrome.notifications.create) return;
     const host = jobHost(job);
@@ -599,8 +615,10 @@
     );
     await S.setPausedForHuman(pauseInfo);
 
+    var skipQueue = !!(extra && extra.skipQueue);
+
     // Flag job in queued bucket; leave it queued for Resume
-    if (job && job.id && B.getQueued && B.setQueued) {
+    if (!skipQueue && job && job.id && B.getQueued && B.setQueued) {
       try {
         const queued = await B.getQueued();
         const next = queued.map(function (j) {
@@ -633,7 +651,7 @@
       } catch (_e) {
         /* best-effort */
       }
-    } else if (job && S.getBucket && S.setBucket) {
+    } else if (!skipQueue && job && job.id && S.getBucket && S.setBucket) {
       try {
         let queued = await S.getBucket('queued');
         if (!queued.some(function (j) { return j.id === job.id; })) {
@@ -679,12 +697,16 @@
         missingProfileFields: missingFields || [],
         message: pauseInfo.message,
         at: Date.now(),
-        mode: 'batch',
+        mode: (extra && extra.mode) || 'batch',
         reason: 'missing_profile_field'
       });
     } else {
       notifyActionNeeded(job, pauseInfo.message);
     }
+    notifyPagePanel(tabId, {
+      state: 'paused',
+      message: pauseInfo.message || 'Paused — action needed'
+    });
     currentJobId = null;
     return getStatusSnapshot();
   }
@@ -892,6 +914,403 @@
       }
     }
     throw lastErr || new Error('injectAndFill failed after frame retries');
+  }
+
+  /**
+   * injectAndFill plus Apply-start / external-handoff re-detect retries.
+   * Shared by the queue loop and the on-page Auto Fill / Ready / Submit panel.
+   */
+  async function fillTabWithApplyStart(tabId, profile, documents, runMode, config, job, opts) {
+    opts = opts || {};
+    function progress(state, message) {
+      notifyPagePanel(tabId, { state: state || 'running', message: message || '' });
+      if (typeof opts.onProgress === 'function') {
+        try {
+          opts.onProgress(state, message);
+        } catch (_e) {}
+      }
+    }
+
+    let currentTabId = tabId;
+    let preHandoffUrl = '';
+    try {
+      const preTab = await chrome.tabs.get(currentTabId);
+      preHandoffUrl = (preTab && preTab.url) || '';
+    } catch (_ePre) {}
+
+    progress('running', 'Detecting adapter / filling…');
+    let packed = await injectAndFill(
+      currentTabId,
+      profile,
+      documents,
+      runMode,
+      config,
+      job,
+      { returnTabId: true, maxAttempts: 4 }
+    );
+    let fillResult = packed.result;
+    if (packed.tabId != null) currentTabId = packed.tabId;
+
+    if (
+      fillResult &&
+      fillResult.ok !== false &&
+      (fillResult.deferToPageAdapter ||
+        fillResult.handedOff ||
+        fillResult.externalApply ||
+        fillResult.clickedApplyStart ||
+        fillResult.reDetect) &&
+      !(fillResult.filled > 0) &&
+      !fillResult.submitted &&
+      !fillResult.needsHuman
+    ) {
+      try {
+        progress('running', 'Clicked Apply — waiting for form…');
+        await sleep(700 + Math.floor(Math.random() * 500));
+        await waitTabComplete(currentTabId, 45000);
+        await sleep(500 + Math.floor(Math.random() * 400));
+        let postUrl = '';
+        try {
+          const postTab = await chrome.tabs.get(currentTabId);
+          postUrl = (postTab && postTab.url) || '';
+        } catch (_ePost) {}
+        let hostChanged = false;
+        try {
+          const a = preHandoffUrl ? new URL(preHandoffUrl).hostname : '';
+          const b = postUrl ? new URL(postUrl).hostname : '';
+          hostChanged = !!(a && b && a !== b);
+        } catch (_eHost) {
+          hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
+        }
+        const sameHostOpen = !!(fillResult.clickedApplyStart || fillResult.reDetect);
+        if (hostChanged || sameHostOpen) {
+          progress('running', 'Re-detect / fill after Apply-start…');
+          const handedPack = await injectAndFill(
+            currentTabId,
+            profile,
+            documents,
+            runMode,
+            config,
+            job,
+            { returnTabId: true, maxAttempts: 4 }
+          );
+          const handed = handedPack && handedPack.result;
+          if (handedPack && handedPack.tabId != null) currentTabId = handedPack.tabId;
+          if (handed) {
+            if (hostChanged) handed.externalApply = true;
+            if (fillResult.clickedApplyStart) handed.fromApplyStart = true;
+            handed.fromBoardHandoff = (fillResult && fillResult.adapterId) || true;
+            if (!handed.message && fillResult && fillResult.message) {
+              handed.message = fillResult.message;
+            }
+            if (
+              handed.clickedApplyStart &&
+              fillResult.clickedApplyStart &&
+              !(handed.filled > 0) &&
+              !handed.needsHuman
+            ) {
+              try {
+                await sleep(900 + Math.floor(Math.random() * 500));
+                const handed2Pack = await injectAndFill(
+                  currentTabId,
+                  profile,
+                  documents,
+                  runMode,
+                  config,
+                  job,
+                  { returnTabId: true, maxAttempts: 3 }
+                );
+                const handed2 = handed2Pack && handed2Pack.result;
+                if (handed2Pack && handed2Pack.tabId != null) currentTabId = handed2Pack.tabId;
+                if (handed2 && (handed2.filled > 0 || handed2.needsHuman || handed2.submitted)) {
+                  fillResult = handed2;
+                  if (hostChanged) fillResult.externalApply = true;
+                  fillResult.fromApplyStart = true;
+                  fillResult.fromBoardHandoff =
+                    (fillResult && fillResult.adapterId) ||
+                    (fillResult && fillResult.fromBoardHandoff) ||
+                    true;
+                } else if (handed2 && !(handed2.clickedApplyStart && !(handed2.filled > 0))) {
+                  fillResult = handed2;
+                } else {
+                  handed.ok = true;
+                  handed.clickedApplyStart = false;
+                  handed.reDetect = false;
+                  handed.message =
+                    (handed.message || fillResult.message || 'Apply clicked') +
+                    ' — form still not open; open Apply manually or check page';
+                  fillResult = handed;
+                }
+              } catch (_eExtra) {
+                handed.ok = true;
+                handed.clickedApplyStart = false;
+                handed.reDetect = false;
+                handed.message =
+                  (handed.message || fillResult.message || 'Apply clicked') +
+                  ' — form still not open; open Apply manually or check page';
+                fillResult = handed;
+              }
+            } else {
+              fillResult = handed;
+            }
+          }
+        } else if (fillResult) {
+          fillResult.message =
+            (fillResult.message || 'External apply handoff') +
+            ' (same-tab host unchanged — destination may have opened in another tab; continue there or paste ATS URL in queue)';
+        }
+      } catch (handoffErr) {
+        if (fillResult && !fillResult.error) {
+          fillResult.handoffWaitError = String(
+            (handoffErr && handoffErr.message) || handoffErr || 'handoff wait failed'
+          );
+        }
+      }
+    }
+
+    return { result: fillResult, tabId: currentTabId };
+  }
+
+  function isRestrictedTabUrl(url) {
+    if (!url) return true;
+    if (/^chrome-extension:\/\//i.test(url)) return true;
+    return /^(chrome|edge|about|devtools|view-source):/i.test(url);
+  }
+
+  /**
+   * Single current-tab run for the on-page panel (and FILL_APPLY_FILL_ONCE).
+   * Reuses injectAndFill + Apply-start retries. Does not consume the queue
+   * or persist the requested runMode onto the saved side-panel config.
+   */
+  async function runOnceOnTab(tabId, runMode) {
+    const S = global.FillApplyStorage;
+    const P = global.FillApplyProfile;
+    const B = global.FillApplyBackend;
+
+    if (tabId == null) {
+      throw new Error('No tab id — open a job application page');
+    }
+    if (loopActive || (await S.isRunning())) {
+      throw new Error('Queue runner is busy. Stop the batch first.');
+    }
+    if (currentTabRunActive) {
+      throw new Error('A current-tab run is already in progress.');
+    }
+
+    let mode = runMode;
+    if (global.FillApplyTypes && global.FillApplyTypes.RUN_MODES) {
+      if (global.FillApplyTypes.RUN_MODES.indexOf(mode) === -1) mode = 'fill';
+    } else if (['fill', 'ready', 'submit'].indexOf(mode) === -1) {
+      mode = 'fill';
+    }
+
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab || isRestrictedTabUrl(tab.url)) {
+      throw new Error('Cannot fill this page. Open a real http(s) apply form.');
+    }
+
+    const job = {
+      title: tab.title || 'Current page',
+      url: tab.url
+    };
+
+    currentTabRunActive = true;
+    notifyPagePanel(tabId, { state: 'running', message: 'Starting ' + mode + '…' });
+
+    try {
+      if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.assertSelectedSourceComplete) {
+        const gate = await global.FillApplySourceProfiles.assertSelectedSourceComplete();
+        if (!gate.ok) {
+          const err = new Error(gate.error || 'Complete selected source profile in App Settings');
+          err.code = 'SOURCE_PROFILE_INCOMPLETE';
+          notifyPagePanel(tabId, { state: 'error', message: err.message });
+          throw err;
+        }
+      }
+
+      let profile = P ? await P.getProfile() : await B.getProfile();
+      if (!(profile && (profile.email || profile.fullName || profile.firstName))) {
+        const err = new Error('Profile is empty. Open App Settings and fill identity first.');
+        notifyPagePanel(tabId, { state: 'error', message: err.message });
+        throw err;
+      }
+      if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.getEffectiveProfile) {
+        try {
+          profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);
+        } catch (_mergeErr) {}
+      }
+
+      const config = await S.getRunConfig();
+      let documents = await B.getDocuments();
+      try {
+        if (global.FillApplyFiles && typeof global.FillApplyFiles.resolveDocumentLinks === 'function') {
+          const resolved = await global.FillApplyFiles.resolveDocumentLinks(documents, profile);
+          documents = resolved.documents || documents;
+          if (resolved.needsManual && resolved.errors && resolved.errors.length) {
+            await pauseForHuman(job, tabId, 'documents', {
+              message: resolved.errors[0] || 'Open Drive link or upload file manually',
+              skipQueue: true,
+              mode: 'single'
+            });
+            return {
+              pausedForHuman: true,
+              state: 'paused',
+              message: resolved.errors[0],
+              runMode: mode,
+              result: { ok: true, needsHuman: true, pauseReason: 'documents' }
+            };
+          }
+        }
+      } catch (_docLinkErr) {}
+
+      await focusTab(tabId);
+
+      const challenge = await detectChallengeInTab(tabId);
+      if (challenge && challenge.challenged) {
+        const msg =
+          challenge.kind === 'cloudflare'
+            ? 'Paused — verify Cloudflare/CAPTCHA'
+            : 'Paused — verify Cloudflare/CAPTCHA';
+        await pauseForHuman(job, tabId, 'challenge', {
+          message: msg,
+          challenge: challenge,
+          skipQueue: true,
+          mode: 'single'
+        });
+        return {
+          pausedForHuman: true,
+          state: 'paused',
+          message: msg,
+          runMode: mode,
+          result: { ok: true, needsHuman: true, pauseReason: 'challenge', challenge: challenge }
+        };
+      }
+
+      await S.appendSessionLog({
+        type: 'single_start',
+        runMode: mode,
+        url: tab.url,
+        message: 'On-page panel — ' + mode + ' on current tab'
+      });
+
+      const packed = await fillTabWithApplyStart(
+        tabId,
+        profile,
+        documents,
+        mode,
+        config,
+        job,
+        {}
+      );
+      let fillResult = packed.result;
+      const resultTabId = packed.tabId != null ? packed.tabId : tabId;
+
+      if (
+        fillResult &&
+        !fillResult.needsHuman &&
+        fillResult.error &&
+        /could not advance step/i.test(String(fillResult.error))
+      ) {
+        fillResult.needsHuman = true;
+        fillResult.pauseReason = fillResult.pauseReason || 'could_not_advance';
+      }
+
+      if (fillResult && fillResult.needsHuman) {
+        const missingFields = Array.isArray(fillResult.missingProfileFields)
+          ? fillResult.missingProfileFields
+          : null;
+        const isMissingProfile =
+          fillResult.pauseReason === 'missing_profile_field' ||
+          looksLikeMissingProfile(fillResult.error, missingFields);
+        const msg = isMissingProfile
+          ? fillResult.error ||
+            'Missing profile field — fill in App Settings or on the page, then retry'
+          : fillResult.pauseReason === 'structure_drift'
+            ? fillResult.error || 'Form changed — review required'
+            : fillResult.error || 'Paused — verify Cloudflare/CAPTCHA';
+        await pauseForHuman(
+          job,
+          resultTabId,
+          isMissingProfile ? 'missing_profile_field' : fillResult.pauseReason || 'challenge',
+          {
+            message: msg,
+            challenge: fillResult.challenge || null,
+            driftLabel: fillResult.driftLabel || null,
+            missingProfileFields: missingFields,
+            skipQueue: true,
+            mode: 'single'
+          }
+        );
+        return {
+          pausedForHuman: true,
+          state: 'paused',
+          message: msg,
+          runMode: mode,
+          result: fillResult
+        };
+      }
+
+      const challengeAfter = await detectChallengeInTab(resultTabId);
+      if (challengeAfter && challengeAfter.challenged) {
+        const msg = 'Paused — verify Cloudflare/CAPTCHA';
+        await pauseForHuman(job, resultTabId, 'challenge', {
+          message: msg,
+          challenge: challengeAfter,
+          skipQueue: true,
+          mode: 'single'
+        });
+        return {
+          pausedForHuman: true,
+          state: 'paused',
+          message: msg,
+          runMode: mode,
+          result: fillResult
+        };
+      }
+
+      await S.appendSessionLog({
+        type: 'fill_once',
+        mode: mode,
+        runMode: mode,
+        filled: fillResult && fillResult.filled,
+        adapterId: fillResult && fillResult.adapterId,
+        submitted: !!(fillResult && fillResult.submitted),
+        advanced: !!(fillResult && fillResult.advanced)
+      });
+
+      if (!fillResult || fillResult.ok === false) {
+        const err = (fillResult && fillResult.error) || 'Fill failed';
+        notifyPagePanel(resultTabId, { state: 'error', message: err, result: fillResult });
+        return {
+          state: 'error',
+          message: err,
+          runMode: mode,
+          result: fillResult || { ok: false, error: err }
+        };
+      }
+
+      const bits = [];
+      if (fillResult.filled != null) {
+        bits.push('filled ' + fillResult.filled + '/' + (fillResult.total != null ? fillResult.total : '?'));
+      }
+      if (fillResult.advanced) bits.push('ready');
+      if (fillResult.submitted) bits.push('submitted');
+      if (fillResult.adapterId) bits.push(fillResult.adapterId);
+      const doneMsg = bits.length ? bits.join(' · ') : 'Done';
+      notifyPagePanel(resultTabId, { state: 'done', message: doneMsg, result: fillResult });
+      return {
+        state: 'done',
+        message: doneMsg,
+        runMode: mode,
+        result: fillResult
+      };
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      notifyPagePanel(tabId, { state: 'error', message: msg });
+      await S.appendSessionLog({ type: 'error', error: msg, runMode: mode, source: 'page_panel' });
+      throw e;
+    } finally {
+      currentTabRunActive = false;
+    }
   }
 
   async function getStatusSnapshot() {
@@ -1171,144 +1590,18 @@
             }
           } catch (_docLinkErr) { /* continue with whatever blobs we have */ }
 
-          let preHandoffUrl = '';
-          try {
-            const preTab = await chrome.tabs.get(tab.id);
-            preHandoffUrl = (preTab && preTab.url) || '';
-          } catch (_ePre) {}
-
           {
-            const packed = await injectAndFill(
+            const packed = await fillTabWithApplyStart(
               tab.id,
               profile,
               documents,
               runMode,
               config,
               job,
-              { returnTabId: true, maxAttempts: 4 }
+              {}
             );
             fillResult = packed.result;
             if (packed.tabId != null) tab.id = packed.tabId;
-          }
-
-          // External Apply handoff OR universal Apply-start (same-host modal / form open):
-          // wait for load/overlay, then re-detect / fill. Host-change required for pure
-          // externalApply; clickedApplyStart / reDetect re-runs even on same host (once).
-          if (
-            fillResult &&
-            fillResult.ok !== false &&
-            (fillResult.deferToPageAdapter ||
-              fillResult.handedOff ||
-              fillResult.externalApply ||
-              fillResult.clickedApplyStart ||
-              fillResult.reDetect) &&
-            !(fillResult.filled > 0) &&
-            !fillResult.submitted &&
-            !fillResult.needsHuman
-          ) {
-            try {
-              await sleep(700 + Math.floor(Math.random() * 500));
-              await waitTabComplete(tab.id, 45000);
-              await sleep(500 + Math.floor(Math.random() * 400));
-              let postUrl = '';
-              try {
-                const postTab = await chrome.tabs.get(tab.id);
-                postUrl = (postTab && postTab.url) || '';
-              } catch (_ePost) {}
-              let hostChanged = false;
-              try {
-                const a = preHandoffUrl ? new URL(preHandoffUrl).hostname : '';
-                const b = postUrl ? new URL(postUrl).hostname : '';
-                hostChanged = !!(a && b && a !== b);
-              } catch (_eHost) {
-                hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
-              }
-              const sameHostOpen =
-                !!(fillResult.clickedApplyStart || fillResult.reDetect);
-              if (hostChanged || sameHostOpen) {
-                const handedPack = await injectAndFill(
-                  tab.id,
-                  profile,
-                  documents,
-                  runMode,
-                  config,
-                  job,
-                  { returnTabId: true, maxAttempts: 4 }
-                );
-                const handed = handedPack && handedPack.result;
-                if (handedPack && handedPack.tabId != null) tab.id = handedPack.tabId;
-                if (handed) {
-                  if (hostChanged) handed.externalApply = true;
-                  if (fillResult.clickedApplyStart) handed.fromApplyStart = true;
-                  handed.fromBoardHandoff = (fillResult && fillResult.adapterId) || true;
-                  if (!handed.message && fillResult && fillResult.message) {
-                    handed.message = fillResult.message;
-                  }
-                  // Slow same-host modals (Teamtailor): one extra wait + fill before giving up
-                  if (
-                    handed.clickedApplyStart &&
-                    fillResult.clickedApplyStart &&
-                    !(handed.filled > 0) &&
-                    !handed.needsHuman
-                  ) {
-                    try {
-                      await sleep(900 + Math.floor(Math.random() * 500));
-                      const handed2Pack = await injectAndFill(
-                        tab.id,
-                        profile,
-                        documents,
-                        runMode,
-                        config,
-                        job,
-                        { returnTabId: true, maxAttempts: 3 }
-                      );
-                      const handed2 = handed2Pack && handed2Pack.result;
-                      if (handed2Pack && handed2Pack.tabId != null) tab.id = handed2Pack.tabId;
-                      if (handed2 && (handed2.filled > 0 || handed2.needsHuman || handed2.submitted)) {
-                        fillResult = handed2;
-                        if (hostChanged) fillResult.externalApply = true;
-                        fillResult.fromApplyStart = true;
-                        fillResult.fromBoardHandoff =
-                          (fillResult && fillResult.adapterId) ||
-                          (fillResult && fillResult.fromBoardHandoff) ||
-                          true;
-                      } else if (handed2 && !(handed2.clickedApplyStart && !(handed2.filled > 0))) {
-                        fillResult = handed2;
-                      } else {
-                        handed.ok = true;
-                        handed.clickedApplyStart = false;
-                        handed.reDetect = false;
-                        handed.message =
-                          (handed.message || fillResult.message || 'Apply clicked') +
-                          ' — form still not open; open Apply manually or check page';
-                        fillResult = handed;
-                      }
-                    } catch (_eExtra) {
-                      handed.ok = true;
-                      handed.clickedApplyStart = false;
-                      handed.reDetect = false;
-                      handed.message =
-                        (handed.message || fillResult.message || 'Apply clicked') +
-                        ' — form still not open; open Apply manually or check page';
-                      fillResult = handed;
-                    }
-                  } else {
-                    fillResult = handed;
-                  }
-                }
-              } else if (fillResult) {
-                fillResult.message =
-                  (fillResult.message || 'External apply handoff') +
-                  ' (same-tab host unchanged — destination may have opened in another tab; continue there or paste ATS URL in queue)';
-              }
-            } catch (handoffErr) {
-              // Keep original handoff result; job may still succeed if destination filled elsewhere.
-              if (fillResult && !fillResult.error) {
-                fillResult.handoffWaitError = String(
-                  (handoffErr && handoffErr.message) || handoffErr || 'handoff wait failed'
-                );
-              }
-            }
           }
 
           // Indeed "could not advance" without needsHuman — promote to pause
@@ -1775,6 +2068,8 @@
     resume: resumeRunner,
     getStatus: getStatusSnapshot,
     injectAndFill: injectAndFill,
+    fillTabWithApplyStart: fillTabWithApplyStart,
+    runOnceOnTab: runOnceOnTab,
     INJECT_FILES: INJECT_FILES
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

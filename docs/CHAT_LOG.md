@@ -294,6 +294,14 @@ Closed the JobPool semantic gap: local bucket `applied` meant “processed for t
 
 ---
 
+## On-page control panel 1.16.0
+
+**User:** Whenever the extension is active on a job/application page, show a compact floating panel on the webpage with Auto Fill / Auto Ready / Auto Submit. Always operate on the currently opened tab (not a pasted queue URL). Reuse Apply-start, field matching, profile, Easy Apply continue, CAPTCHA pause, missing-required handling. Do not invent profile values. Keep the side panel / queue. Isolated styles; do not cover titles, fields, or Apply/Submit buttons.
+
+**Assistant:** Added `content/page-panel.js` (top-frame content script, Shadow DOM, collapsible, six-slot keep-out positioning) and `FillApplyRunner.runOnceOnTab` so the three buttons send `FILL_APPLY_FILL_ONCE` to the service worker, which reuses `injectAndFill` + Apply-start retries on `sender.tab.id`. Queue loop now calls the same `fillTabWithApplyStart` helper. Current-tab pauses skip the queue. Smoke `smoke-page-panel.js` — **v1.16.0**.
+
+---
+
 ## Notes for readers
 
 - Timestamps omitted; order follows the agent transcript turn sequence.

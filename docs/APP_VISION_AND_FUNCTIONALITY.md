@@ -57,6 +57,7 @@ lib/
   backend.js        getNextJob / markApplied / markFailed / markCancelled
 content/fill.js     fill engine, inspectForm, native + custom dropdowns
 content/focus-hud.js focus outline HUD
+content/page-panel.js on-page Auto Fill / Ready / Submit (Shadow DOM)
 profiles/           zahid-general.json seed template
 demo/               sample form (manual only — never enters the queue)
 ```
@@ -82,6 +83,17 @@ demo/               sample form (manual only — never enters the queue)
 - Focus HUD toggle (when exposed)
 
 Toolbar uses `chrome.sidePanel` with `openPanelOnActionClick: true` (no `action.default_popup`).
+
+### On-page floating panel (v1.16)
+
+Whenever the extension is active on a relevant http(s) job/application page, a compact Shadow-DOM box is injected into the **page** (top frame only; never `chrome://` or extension pages):
+
+- Buttons: **Auto Fill** · **Auto Ready** · **Auto Submit** — same semantics as run modes, always on the current tab (`sender.tab.id`).
+- Status line: idle / running / paused / done / error.
+- Collapsible to a small pill; collapse remembered in `fillApply.pagePanel.collapsed`.
+- Positioning: six slots (corners + mid edges). Keep-outs are job titles, Apply/Start/Submit CTAs, and form fields. Least overlap wins; default **bottom-right**. `pointer-events` only on the panel so scrolling and page clicks are unaffected.
+
+Does not replace the side panel, queue runner, or Options. Does not invent profile values; CAPTCHA/auth still pause.
 
 ### App Settings (Options page — UI title “App Settings”)
 
@@ -139,6 +151,7 @@ Stop → current → cancelled; remaining stay queued. Apply caps: per-source de
 | **1.15.1** | Per-control value formatting (phone country-code split, masks and patterns, postal codes, dates, URLs, numbers, country/state spellings) + preloaded resume and cover letter attached by the engine on whichever step asks for them, without the OS file chooser ([FILL_ENGINE.md](FILL_ENGINE.md)) |
 | **1.15.2** | Full applicant profile — every ATS field type (select, radio, checkbox, date, education level, years-of-experience bucket, demonym) filled from a single Zahid General record; blanks (salary, DOB) left blank ([FILL_ENGINE.md](FILL_ENGINE.md)) |
 | **1.15.3** | Source fill checklist + JobPool status contract — honest per-source confidence; unknown URLs fill profile-backed fields; `POST /applied/:id` includes `status` (`submitted` only = Applied); live `POST /cancelled/:id` ([SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md)) |
+| **1.16.0** | On-page floating Auto Fill / Auto Ready / Auto Submit panel on the current job tab; keep-out corner positioning; `FILL_APPLY_FILL_ONCE` → `runOnceOnTab` (queue/side panel unchanged) |
 
 ## Related
 

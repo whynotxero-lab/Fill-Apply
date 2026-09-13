@@ -74,7 +74,7 @@ chrome.runtime.onStartup.addListener(function () {
   configureSidePanel();
 });
 
-chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
   if (!message || !message.type) return false;
 
   const MSG = FillApplyTypes.MSG;
@@ -131,6 +131,26 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
 
   if (message.type === MSG.STATUS) {
     return reply(FillApplyRunner.getStatus());
+  }
+
+  if (message.type === MSG.FILL_ONCE || message.type === 'FILL_APPLY_FILL_ONCE') {
+    return reply(
+      (async function () {
+        var tabId = message.tabId;
+        if (tabId == null && sender && sender.tab && sender.tab.id != null) {
+          tabId = sender.tab.id;
+        }
+        if (tabId == null) {
+          try {
+            var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (tabs && tabs[0] && tabs[0].id != null) tabId = tabs[0].id;
+          } catch (_q) {}
+        }
+        var mode = message.runMode || (message.config && message.config.runMode) || 'fill';
+        if (['fill', 'ready', 'submit'].indexOf(mode) === -1) mode = 'fill';
+        return FillApplyRunner.runOnceOnTab(tabId, mode);
+      })()
+    );
   }
 
   if (message.type === 'FILL_APPLY_RESET_MOCK') {
