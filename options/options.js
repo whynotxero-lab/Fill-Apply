@@ -49,6 +49,9 @@
   const btnProfileDelete = document.getElementById('btnProfileDelete');
   const btnZahidGeneral = document.getElementById('btnZahidGeneral');
   const btnResetMockProfile = document.getElementById('btnResetMockProfile');
+  const btnExportProfile = document.getElementById('btnExportProfile');
+  const btnImportProfile = document.getElementById('btnImportProfile');
+  const importProfileFile = document.getElementById('importProfileFile');
 
   const selectedSourceIdEl = document.getElementById('selectedSourceId');
   const sourceCompletenessMeter = document.getElementById('sourceCompletenessMeter');
@@ -644,17 +647,113 @@
 
   if (btnZahidGeneral) {
     btnZahidGeneral.addEventListener('click', async function () {
-      if (!confirmIfDirty('You have unsaved changes. Discard them and create/reset Zahid General?')) return;
+      if (!confirmIfDirty('You have unsaved changes. Discard them and Create/Reset Zahid to the empty public shell?')) return;
       try {
         var profile = await FillApplyProfile.createZahidGeneralProfile();
         activeIdCache = profile.id;
         selectedIdCache = profile.id;
         await refreshProfilesUI({ selectId: profile.id });
         clearDirty();
-        setStatus(profileMgrStatus, 'Zahid General profile ready and active.', 'ok');
-        setStatus(statusEl, 'Loaded Zahid General into form.', 'ok');
+        setStatus(profileMgrStatus, 'Zahid shell reset (empty template) and active. Import a private profile JSON for real data.', 'ok');
+        setStatus(statusEl, 'Zahid empty shell loaded — use Import Profile for client data.', 'ok');
       } catch (e) {
         setStatus(profileMgrStatus, e.message, 'err');
+      }
+    });
+  }
+
+  if (btnExportProfile) {
+    btnExportProfile.addEventListener('click', async function () {
+      try {
+        if (!globalThis.FillApplyProfileIO) {
+          setStatus(profileMgrStatus, 'Profile export module not loaded.', 'err');
+          return;
+        }
+        var bundled = await FillApplyProfileIO.downloadExport();
+        var kc =
+          bundled.payload && bundled.payload.knowledge && Array.isArray(bundled.payload.knowledge.records)
+            ? bundled.payload.knowledge.records.length
+            : 0;
+        setStatus(
+          profileMgrStatus,
+          'Exported ' +
+            bundled.filename +
+            ' (profile + ' +
+            kc +
+            ' knowledge fact' +
+            (kc === 1 ? '' : 's') +
+            ').',
+          'ok'
+        );
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message || String(e), 'err');
+      }
+    });
+  }
+
+  if (btnImportProfile && importProfileFile) {
+    btnImportProfile.addEventListener('click', function () {
+      if (!confirmIfDirty('You have unsaved changes. Discard them and import a profile?')) return;
+      importProfileFile.value = '';
+      importProfileFile.click();
+    });
+    importProfileFile.addEventListener('change', async function () {
+      var file = importProfileFile.files && importProfileFile.files[0];
+      if (!file) return;
+      try {
+        if (!globalThis.FillApplyProfileIO) {
+          setStatus(profileMgrStatus, 'Profile import module not loaded.', 'err');
+          return;
+        }
+        var text = await file.text();
+        var checked = FillApplyProfileIO.validateImportPayload(text);
+        if (!checked.ok) {
+          setStatus(
+            profileMgrStatus,
+            'Import blocked (no changes applied): ' + (checked.errors || []).join(' '),
+            'err'
+          );
+          return;
+        }
+        var result = await FillApplyProfileIO.importPayload(text, { activate: true });
+        if (!result.ok) {
+          setStatus(
+            profileMgrStatus,
+            'Import failed (no changes applied): ' + (result.errors || []).join(' '),
+            'err'
+          );
+          return;
+        }
+        activeIdCache = result.profileId;
+        selectedIdCache = result.profileId;
+        await refreshProfilesUI({ selectId: result.profileId });
+        clearDirty();
+        if (typeof refreshKnowledgeUI === 'function') {
+          try {
+            await refreshKnowledgeUI();
+          } catch (_k) { /* optional */ }
+        } else if (globalThis.FillApplyKnowledgeUI && FillApplyKnowledgeUI.refresh) {
+          try {
+            await FillApplyKnowledgeUI.refresh();
+          } catch (_k2) { /* optional */ }
+        }
+        setStatus(
+          profileMgrStatus,
+          'Imported "' +
+            (result.profileName || 'profile') +
+            '": ' +
+            (result.fieldsRestored || 0) +
+            ' profile fields, ' +
+            (result.knowledgeImported || 0) +
+            ' knowledge fact' +
+            ((result.knowledgeImported || 0) === 1 ? '' : 's') +
+            ' restored' +
+            (result.activated ? ' (active).' : '.'),
+          'ok'
+        );
+        setStatus(statusEl, 'Profile import complete — ready to fill.', 'ok');
+      } catch (e) {
+        setStatus(profileMgrStatus, e.message || String(e), 'err');
       }
     });
   }

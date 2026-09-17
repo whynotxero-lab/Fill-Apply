@@ -85,7 +85,7 @@ Fill & Apply supports **multiple applicant profiles** (v1.9+):
 5. Data is stored in `chrome.storage.local` keys `fillApply.profiles` and `fillApply.activeProfileId` so it **survives extension updates**. A legacy single profile migrates into **"Mock"** when the multi store is empty (Default is renamed to Mock).
 6b. **Mock** is a permanent system demo profile (`locked` / `systemProfile`, preferred id `mock`): end-to-end SAMPLE fields for demos; **cannot be deleted** — switch to another profile instead. **Reset Mock** reseeds SAMPLE. Use **Zahid General** for real applies.
 6. **Documents** (resume/cover) are **shared across profiles for now**. Export of profiles is TBD.
-7. **Zahid General** — built-in one-click template for Chaudhary Zahid Ali (App Settings → **Create / Reset Zahid**). Creates or resets a named profile, sets it **active**, and persists fields in `chrome.storage.local`. Does not overwrite Mock / sample Alex. Backup JSON: `profiles/zahid-general.json`.
+7. **Zahid + Import/Export** — **Create / Reset Zahid** restores the empty public shell and activates it (does not overwrite Mock). Real applicant data is imported via **Import Profile** (`fill-apply-profile` JSON). **Export Profile** downloads profile + adaptive knowledge. See `docs/PROFILE_IMPORT_EXPORT.md`.
 
 ## No invented answers (v1.9.9+)
 

@@ -7,6 +7,8 @@
  */
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { createPage, createSuite } = require('./test-harness');
 
 const LIBS = [
@@ -25,8 +27,27 @@ const LIBS = [
 
 const suite = createSuite('smoke-profile-fill');
 
-function zahid(page) {
-  return page.window.FillApplyProfile.ZAHID_GENERAL_PROFILE;
+/** Real Zahid PII lives only in the private handoff file (gitignored). */
+function loadPrivateZahidProfile() {
+  const candidates = [
+    path.join('/workspace/private-profiles/zahid-profile.json'),
+    path.join(__dirname, '..', '..', 'private-profiles', 'zahid-profile.json'),
+    path.join(__dirname, '..', 'private', 'zahid-profile.json')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      const payload = JSON.parse(fs.readFileSync(c, 'utf8'));
+      if (payload && payload.profile) return payload.profile;
+      return payload;
+    }
+  }
+  throw new Error(
+    'Private Zahid fixture missing. Expected /workspace/private-profiles/zahid-profile.json (Deliverable B).'
+  );
+}
+
+function zahid(_page) {
+  return loadPrivateZahidProfile();
 }
 
 function run(page, profile, options) {

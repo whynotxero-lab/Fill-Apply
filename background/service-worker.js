@@ -8,6 +8,7 @@ importScripts(
   '../lib/types.js',
   '../lib/storage.js',
   '../lib/profile.js',
+  '../lib/profile-io.js',
   '../lib/knowledge-canonical.js',
   '../lib/knowledge-store.js',
   '../lib/knowledge-learn.js',

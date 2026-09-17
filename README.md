@@ -47,7 +47,7 @@ App Settings → **Profiles** (collapsible; expanded by default):
 - Side panel shows active applicant `Person · email` only (not chip·person·email)
 - Storage: `fillApply.profiles` + `fillApply.activeProfileId`. Legacy migrates to **"Mock"**. Section open-state: `fillApply.ui.sections`.
 - **Documents**: file upload + optional Resume/Cover Drive/URL (`resumeLink`/`coverLink` + profile `resumeUrl`/`coverUrl`). Fetch→blob is best-effort; Drive auth/CORS → pause + manual upload.
-- **Zahid General**: Create/Reset loads Chaudhary Zahid Ali’s full KSA FP&A profile — every ATS field type, not just contact + a paragraph (see `profiles/zahid-general.json`). Salary, date of birth and driving licence stay blank until supplied.
+- **Zahid profile**: Create/Reset restores an **empty public shell** (no real PII in the store package). Import a private `fill-apply-profile` JSON (client handoff) via **Import Profile**. Export captures profile + adaptive knowledge. See `docs/PROFILE_IMPORT_EXPORT.md`.
 - **Missing profile fields**: never invented — OS notification + **in-panel popup** to type values → Save & continue writes the active profile, then Resume (batch) or re-runs Single.
 
 ## Single vs Batch (v1.12)

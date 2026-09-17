@@ -6,7 +6,7 @@ Comprehensive product and architecture overview for **Fill & Apply** (Chrome Man
 
 **Fill & Apply** is a queue-driven job-application filler: a Chrome / Edge MV3 extension that opens apply URLs, detects the ATS or job board, fills forms from a saved applicant profile, and respects human gates (Cloudflare, captcha, sign-in, paywall).
 
-Primary applicant profile: **Chaudhary Zahid Ali** (KSA FP&A template — **Zahid General**). The product also supports **multi-profile** (Mock locked demo, Create new, Duplicate, Rename, Delete).
+Primary applicant workflow: import a private **fill-apply-profile** JSON (client handoff) onto the Zahid shell, or fill Profile settings manually. Multi-profile: Mock (locked demo), Create, Duplicate, Rename, Delete, Import/Export.
 
 Vanilla HTML / CSS / JS — load unpacked, no build step.
 

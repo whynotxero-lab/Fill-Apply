@@ -9,3 +9,10 @@ node_modules/
 dist/
 .env
 .env.*
+
+# Private applicant profiles (client handoff only — never ship in CWS package)
+private/
+private-profiles/
+/workspace/private-profiles/
+**/zahid-profile.json
+!profiles/zahid-general.json

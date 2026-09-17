@@ -16,6 +16,7 @@ const SUITES = [
   'smoke-documents.js',
   'smoke-profile-fill.js',
   'smoke-profile-init.js',
+  'smoke-profile-import-export.js',
   'smoke-jobpool-status.js',
   'smoke-run-modes.js',
   'smoke-knowledge.js',
