@@ -10,6 +10,8 @@ Vanilla HTML / CSS / JS — load unpacked, no build step.
 
 Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh Air→iCIMS), eFinancialCareers account-first + employer handoff, NaukriGulf 100% profile + Easy Apply modal, per-source caps, source profiles / Start gate, App Settings, diversity survey policy.
 
+**Version 1.17.6 (experimental)** — ATS **Continue applying** social-login wall: detect email + Google/Facebook overlays (ATS-agnostic), prefer **Continue with Google** / bare google in that context only, never Facebook, never invent passwords; resume fill after OAuth. Extends existing `ats-auth` / `auth-walls` (no second auth system). Smoke coverage for AL Kanz–style fixtures.
+
 **Version 1.17.5 (experimental)** — semantic evidence policy made explicit: higher-priority question/label wins; name/id never override or define identity alone; placeholder/autocomplete contradictions do not manufacture ambiguity; question/label vs aria/group disagreement → AMBIGUOUS / DO_NOT_FILL. Same resolver for Auto Fill, discovery, learn, and reload reuse. Mandatory generic-DOM regressions added. Continues PR #7 on `grok/adaptive-knowledge-ux` — **do not merge** until reviewed.
 
 **Version 1.17.4 (experimental)** — **integration release** combining the on-page Auto Fill / Ready / Submit panel (#2), adaptive applicant knowledge (#3), and ATS Google OAuth auth lifecycle (#4). One coherent experimental build on `grok/integration-experimental-release` — not yet merged to `main`.

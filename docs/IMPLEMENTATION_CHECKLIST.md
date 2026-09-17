@@ -249,6 +249,7 @@ Safe Continue / Sign-in-with-Google before fill. Pauses on CAPTCHA / MFA / ambig
 | Item | Status | Notes |
 |------|--------|-------|
 | Detect auth walls + Google Continue | ✅ | `lib/ats-auth.js` + `lib/auth-walls.js` |
+| Continue applying social wall (email+Google/Facebook) | ✅ | Prefer Google only; never Facebook (v1.17.6) |
 | High-confidence applicant account select | ✅ | Chaudhry/Chaudary Zahid Ali only when unambiguous |
 | Existing-account → Google login resume | ✅ | Non-secret ATS state in `fillApply.atsAccounts` |
 | Pause CAPTCHA / MFA / ambiguous | ✅ | Never bypass |

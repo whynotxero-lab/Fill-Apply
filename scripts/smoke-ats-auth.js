@@ -272,4 +272,78 @@ const PROFILE = {
   suite.ok(clicked, 'Google button received click');
 })();
 
+
+(function continueApplyingSocialWallPrefersGoogle() {
+  const page = createPage(
+    `
+    <div class="modal overlay" role="dialog" aria-label="Continue applying">
+      <h2>Continue applying to Finance Manager at AL Kanz Jewellery LLC</h2>
+      <label for="em">Enter Email Id</label>
+      <input id="em" type="text" placeholder="Enter Email Id" />
+      <button type="button" id="emailContinue">Continue</button>
+      <div class="social">
+        <button type="button" id="googleBtn">google</button>
+        <button type="button" id="fbBtn">Facebook</button>
+      </div>
+      <p>All your activity will remain private</p>
+    </div>
+  `,
+    LIBS
+  );
+  const A = page.window.FillApplyAtsAuth;
+  const wall = page.window.FillApplyAuthWalls.detectAuthWall(page.document);
+  suite.ok(wall.challenged, 'Continue applying + email + social is an auth wall');
+  suite.ok(wall.continueApplying || wall.kind === 'continue_applying_social', 'wall marked continueApplying');
+  suite.ok(A.isContinueApplyingContext(page.document), 'isContinueApplyingContext true');
+  const actions = A.findGoogleAuthActions(page.document);
+  suite.ok(actions.length >= 1, 'bare google button detected in Continue applying context');
+  suite.ok(actions.every(function (a) { return !/facebook/i.test(a.text); }), 'Facebook never listed as Google action');
+  const insp = A.inspectAuthPage(page.document, PROFILE);
+  suite.equal(insp.action, 'click_google', 'Continue applying prefers Google OAuth');
+  suite.equal(insp.result, 'GOOGLE_AUTH_AVAILABLE', 'GOOGLE_AUTH_AVAILABLE for Continue applying');
+  suite.ok(!insp.pause, 'Continue applying with Google does not pause before click');
+
+  let clicked = null;
+  page.document.getElementById('googleBtn').addEventListener('click', function () { clicked = 'google'; });
+  page.document.getElementById('fbBtn').addEventListener('click', function () { clicked = 'facebook'; });
+  page.document.getElementById('emailContinue').addEventListener('click', function () { clicked = 'email'; });
+  const out = A.performAuthAction(page.document, PROFILE, insp);
+  suite.ok(out.ok, 'perform clicks Google on Continue applying wall');
+  suite.equal(clicked, 'google', 'clicked google — not Facebook, not email Continue');
+})();
+
+(function continueApplyingWithoutGooglePauses() {
+  const page = createPage(
+    `
+    <h2>Continue applying to Warehouse Associate at Example Corp</h2>
+    <input type="email" placeholder="Enter your Email ID" />
+    <button type="button">Continue</button>
+    <button type="button">Facebook</button>
+    <p>All your activity will remain private</p>
+  `,
+    LIBS
+  );
+  const A = page.window.FillApplyAtsAuth;
+  const insp = A.inspectAuthPage(page.document, PROFILE);
+  suite.equal(insp.result, A.AUTH_RESULTS.UNSUPPORTED_AUTH_FLOW, 'no Google → UNSUPPORTED_AUTH_FLOW');
+  suite.ok(insp.pause, 'Continue applying without Google pauses');
+  suite.ok(!insp.action || insp.action !== 'click_google', 'does not click when Google missing');
+})();
+
+(function bareGoogleStillRejectedOutsideSocialContext() {
+  const page = createPage(
+    `
+    <p>We use Google Maps for office locations.</p>
+    <button type="button">Google</button>
+    <a href="https://maps.google.com">Open Google Maps</a>
+  `,
+    LIBS
+  );
+  const A = page.window.FillApplyAtsAuth;
+  const actions = A.findGoogleAuthActions(page.document);
+  suite.equal(actions.length, 0, 'bare Google outside social/continue context still rejected');
+})();
+
+
 suite.finish();
+
