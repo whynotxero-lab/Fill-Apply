@@ -98,10 +98,24 @@
     return el.getAttribute('aria-label') || el.placeholder || el.name || '';
   }
 
+  function isGenderField(labelBlob) {
+    var t = String(labelBlob || '');
+    if (!/\b(gender(\s*identity)?|sex)\b/i.test(t)) return false;
+    if (/sexual\s*orientation/i.test(t)) return false;
+    return true;
+  }
+
   function isDiversityField(labelBlob) {
     return /diversity|eeo|equal opportunity|race|ethnicity|gender identity|gender\b|veteran|disability|sexual orientation|hispanic|latino|lgbt|decline to (self-)?identify|voluntary self.?identif/i.test(
       String(labelBlob || '')
     );
+  }
+
+  /** Skip EEO fields, but fill Gender Identity when the profile has a gender. */
+  function shouldSkipDiversity(labelBlob, el, profile) {
+    if (!(isDiversityField(labelBlob) || isInDiversitySection(el))) return false;
+    if (isGenderField(labelBlob) && profile && String(profile.gender || '').trim()) return false;
+    return true;
   }
 
   function isInDiversitySection(el) {
@@ -376,7 +390,7 @@
     var candidates = [];
     for (var i = 0; i < roots.length; i++) {
       var lab = (roots[i].textContent || '').replace(/\s+/g, ' ').trim();
-      if (isDiversityField(lab) || isInDiversitySection(roots[i])) continue;
+      if (shouldSkipDiversity(lab, roots[i], profile)) continue;
       if (questionRe.test(lab) && lab.length < 500) candidates.push(roots[i]);
     }
     for (var c = 0; c < candidates.length; c++) {
@@ -438,7 +452,7 @@
       var blob = norm(
         label + ' ' + (el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '')
       );
-      if (isDiversityField(blob) || isInDiversitySection(el)) continue;
+      if (shouldSkipDiversity(blob, el, profile)) continue;
       for (var p = 0; p < predicates.length; p++) {
         var pred = predicates[p];
         if (pred.match(blob, el, label)) {
@@ -501,8 +515,20 @@
         }
       },
       {
-        match: function (b) {
-          return /phone.?country|country.?code|dial.?code|country for phone/.test(b);
+        match: function (b, el) {
+          if (/phone.?country|country.?code|dial.?code|country for phone/.test(b)) return true;
+          // Greenhouse often labels the dial select just "Country*".
+          if (/^country\b/.test(b) || /\bcountry\*?$/.test(b)) {
+            if (el && el.tagName === 'SELECT' && el.options) {
+              var dialish = 0;
+              for (var i = 0; i < Math.min(el.options.length, 40); i++) {
+                var t = String(el.options[i].textContent || el.options[i].value || '');
+                if (/\+\d{1,4}\b/.test(t)) dialish++;
+              }
+              if (dialish >= 3) return true;
+            }
+          }
+          return false;
         },
         value: function (p) {
           return profileValue(p, 'phoneCountry');
@@ -514,6 +540,14 @@
         },
         value: function (p) {
           return profileValue(p, 'phone');
+        }
+      },
+      {
+        match: function (b) {
+          return /\bgender(\s*identity)?\b|\bsex\b/.test(b) && !/sexual\s*orientation/.test(b);
+        },
+        value: function (p) {
+          return profileValue(p, 'gender');
         }
       },
       {
@@ -622,7 +656,7 @@
       if (!visible(el) && el.offsetParent === null) continue;
       var lab = getLabelFor(el);
       var blob = norm(lab + ' ' + (el.name || '') + ' ' + (el.id || ''));
-      if (isDiversityField(blob) || isInDiversitySection(el)) continue;
+      if (shouldSkipDiversity(blob, el, profile)) continue;
       if (/country of residence|\bcountry\b/.test(blob) && !/phone|code|sponsor|authorized/.test(blob)) {
         var c = profileValue(profile, 'country');
         if (c && setNativeValue(el, c)) filled++;
@@ -646,7 +680,7 @@
       if (type === 'hidden' || type === 'file') continue;
       var label = getLabelFor(el);
       var blob = norm(label + ' ' + (el.name || '') + ' ' + (el.id || ''));
-      if (isDiversityField(blob) || isInDiversitySection(el)) continue;
+      if (shouldSkipDiversity(blob, el, profile)) continue;
       if (
         /^(name|email|linkedin|phone|city|country|location|preferred|website|first|last)/.test(blob) &&
         blob.length < 48
@@ -705,7 +739,7 @@
     for (var i = 0; i < roots.length; i++) {
       var root = roots[i];
       var lab = (root.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 400);
-      if (isDiversityField(lab) || isInDiversitySection(root)) continue;
+      if (shouldSkipDiversity(lab, root, profile)) continue;
       if (
         !/team interest|which team|interest(ed)? in|corporate|gtm|growth|go.to.market/i.test(lab)
       ) {
@@ -752,7 +786,7 @@
     return { filled: filled, unmappedRequired: unmappedRequired };
   }
 
-  function skipDiversity() {
+  function skipDiversity(profile) {
     // Prefer "Prefer not to answer" / leave blank — never invent demographics
     var selects = document.querySelectorAll('select');
     for (var i = 0; i < selects.length; i++) {
@@ -760,6 +794,8 @@
       var lab = getLabelFor(el);
       var blob = lab + ' ' + (el.name || '') + ' ' + (el.id || '');
       if (!isDiversityField(blob) && !isInDiversitySection(el)) continue;
+      // Gender Identity is filled from the profile when present — do not blank it.
+      if (isGenderField(blob) && profile && String(profile.gender || '').trim()) continue;
       for (var o = 0; o < el.options.length; o++) {
         var t = (el.options[o].textContent || '').trim();
         if (/prefer not|decline|do not wish|choose not|not to (self-)?identify/i.test(t)) {
@@ -776,6 +812,7 @@
       var wrap = radio.closest('fieldset, [role="group"], .field, div') || radio.parentElement;
       var wLab = ((wrap && wrap.textContent) || '') + ' ' + getLabelFor(radio);
       if (!isDiversityField(wLab) && !isInDiversitySection(radio)) continue;
+      if (isGenderField(wLab) && profile && String(profile.gender || '').trim()) continue;
       var rLab = getLabelFor(radio) || radio.value || '';
       if (/prefer not|decline|do not wish|choose not|not to (self-)?identify/i.test(rLab)) {
         try {
@@ -977,7 +1014,7 @@
         totalFilled += team.filled || 0;
 
         // 3) Diversity/EEO voluntary — skip / prefer not (never invent)
-        skipDiversity();
+        skipDiversity(profile);
 
         // 4) Generic fallback heuristics without re-attaching files
         if (global.FillApplyFallbackAdapter) {

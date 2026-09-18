@@ -13,6 +13,7 @@ const SUITES = [
   'smoke-form-detection.js',
   'smoke-fill-engine.js',
   'smoke-value-format.js',
+  'smoke-global-fill-fixes.js',
   'smoke-documents.js',
   'smoke-profile-fill.js',
   'smoke-profile-init.js',

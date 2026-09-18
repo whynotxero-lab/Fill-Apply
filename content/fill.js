@@ -27,6 +27,78 @@
   const CONSENT_RE =
     /\b(i agree|i accept|i consent|i acknowledge|i certify|i confirm|terms|privacy policy|data protection|gdpr|declaration)\b/i;
 
+  /** Gender / sex questions (including voluntary "Gender Identity"). */
+  const GENDER_FIELD_RE = /\b(gender(\s*identity)?|sex)\b/i;
+  const SEXUAL_ORIENTATION_RE = /sexual\s*orientation/i;
+
+  function isGenderField(label) {
+    const t = String(label || '');
+    if (!GENDER_FIELD_RE.test(t)) return false;
+    if (SEXUAL_ORIENTATION_RE.test(t)) return false;
+    return true;
+  }
+
+  function profileHasGender(profile) {
+    const g = profile && profile.gender;
+    return !!(g != null && String(g).trim());
+  }
+
+  /**
+   * EEO / diversity controls are skipped — except gender/sex when the profile
+   * already has a gender value the applicant chose to share.
+   */
+  function shouldSkipDiversity(el, label, profile) {
+    if (!isDiversityControl(el, label)) return false;
+    if (isGenderField(label) && profileHasGender(profile)) return false;
+    return true;
+  }
+
+  /** Options that look like phone dial codes: "+966", "+966 Saudi Arabia". */
+  function optionsLookLikeDialCodes(options) {
+    if (!options || !options.length) return false;
+    let dialish = 0;
+    const n = Math.min(options.length, 40);
+    for (let i = 0; i < n; i++) {
+      const o = options[i];
+      const t = String((o && (o.text || o.label || o.value)) || '');
+      if (/\+\d{1,4}\b/.test(t) || /^\s*\d{1,4}\s*[-–/]/.test(t)) dialish += 1;
+    }
+    return dialish >= 3 || (dialish >= 1 && dialish / n >= 0.25);
+  }
+
+  function descriptorLooksLikePhoneCountry(descriptor, el) {
+    if (!descriptor) return false;
+    const blob = String(
+      (descriptor.label || '') +
+        ' ' +
+        (descriptor.name || '') +
+        ' ' +
+        (descriptor.id || '') +
+        ' ' +
+        (descriptor.autocomplete || '') +
+        ' ' +
+        (descriptor.placeholder || '')
+    ).toLowerCase();
+    if (/country code|dial code|calling code|phone country|tel-country|phone.?country/.test(blob)) {
+      return true;
+    }
+    const opts = descriptor.options || (el && el.options ? null : null);
+    let optionList = descriptor.options;
+    if ((!optionList || !optionList.length) && el && el.tagName === 'SELECT' && el.options) {
+      optionList = [];
+      for (let i = 0; i < el.options.length; i++) {
+        optionList.push({ text: el.options[i].textContent, value: el.options[i].value });
+      }
+    }
+    if (optionsLookLikeDialCodes(optionList)) {
+      // Bare "Country*" next to a phone field, or any dial-code select.
+      if (/^\s*country\b/.test(blob) || /\bcountry\b/.test(blob)) return true;
+      return true;
+    }
+    return false;
+  }
+
+
   function dom() {
     return global.FillApplyDom || null;
   }
@@ -149,10 +221,15 @@
       else if (tLower === wantLower || vLower === wantLower) score = 90;
       else if (tLower.indexOf(wantLower) !== -1 || wantLower.indexOf(tLower) !== -1) score = 70;
       else if (vLower.indexOf(wantLower) !== -1) score = 60;
-      // Yes/No fuzzy
       else if (/^(yes|y)$/i.test(want) && /^(yes|y|true|1)$/i.test(t + v)) score = 85;
       else if (/^(no|n)$/i.test(want) && /^(no|n|false|0)$/i.test(t + v) && !/not sure|unknown/i.test(t)) {
         score = 85;
+      } else {
+        // Dial-code options: "+966" must match "+966 Saudi Arabia" / "Saudi Arabia (+966)".
+        const wantDial = (want.match(/\+?\d{1,4}/) || [''])[0].replace(/^\+/, '');
+        const tDial = (t.match(/\+?\d{1,4}/) || [''])[0].replace(/^\+/, '');
+        const vDial = (v.match(/\+?\d{1,4}/) || [''])[0].replace(/^\+/, '');
+        if (wantDial && (wantDial === tDial || wantDial === vDial)) score = 88;
       }
 
       if (score > bestScore) {
@@ -431,6 +508,9 @@
   }
 
   function clearHighlights() {
+    if (global.FillApplyFocusHud && global.FillApplyFocusHud.clearStatus) {
+      global.FillApplyFocusHud.clearStatus();
+    }
     queryAll('[' + HIGHLIGHT_ATTR + ']').forEach(function (el) {
       el.removeAttribute(HIGHLIGHT_ATTR);
       el.style.outline = '';
@@ -441,13 +521,19 @@
     });
   }
 
-  function highlight(el, kind) {
+    function highlight(el, kind) {
     if (kind === 'unmatched') {
       el.setAttribute(HIGHLIGHT_ATTR, '1');
       el.style.outline = '2px solid #f59e0b';
+      if (global.FillApplyFocusHud && global.FillApplyFocusHud.markStatus) {
+        global.FillApplyFocusHud.markStatus(el, 'unfilled', 'Needs info');
+      }
     } else {
       el.setAttribute(FILLED_ATTR, '1');
       el.style.outline = '2px solid #22c55e';
+      if (global.FillApplyFocusHud && global.FillApplyFocusHud.markStatus) {
+        global.FillApplyFocusHud.markStatus(el, 'filled', 'Filled');
+      }
     }
   }
 
@@ -699,6 +785,9 @@
     const labLower = label.toLowerCase();
 
     let key = map.bestKeyForField(descriptor);
+    if (descriptorLooksLikePhoneCountry(descriptor, null) && resolveValue(profile, 'phoneCountry')) {
+      key = 'phoneCountry';
+    }
     let value = resolveValue(profile, key);
     if (value) return { key: key, value: value, source: 'fieldMap' };
 
@@ -1192,9 +1281,11 @@
 
     // A form with its own country-code control needs the national number in the
     // phone box; one without it needs the full international number.
-    const hasPhoneCountryField = fields.some(function (el) {
+        const hasPhoneCountryField = fields.some(function (el) {
       const fmt = global.FillApplyFormat;
-      return !!fmt && fmt.fieldKind(D && D.describeField ? D.describeField(el) : el) === 'phoneCountry';
+      const descriptor = D && D.describeField ? D.describeField(el) : legacyDescriptor(el);
+      if (descriptorLooksLikePhoneCountry(descriptor, el)) return true;
+      return !!fmt && fmt.fieldKind(descriptor, null) === 'phoneCountry';
     });
 
     let filled = 0;
@@ -1250,7 +1341,7 @@
       const descriptor = D && D.describeField ? D.describeField(el) : legacyDescriptor(el);
       const label = descriptor.label || '';
 
-      if (isDiversityControl(el, label)) {
+      if (shouldSkipDiversity(el, label, profile)) {
         skipped.push({ label: label, reason: 'voluntary_self_identification' });
         continue;
       }
@@ -1278,7 +1369,7 @@
               canonicalKey: answer.canonicalKey || null
             })
           );
-          if (highlightUnmatched) highlight(el, 'unmatched');
+          highlight(el, 'unmatched');
           continue;
         }
         const fillValue = gate.value != null ? gate.value : answer.value;
@@ -1286,7 +1377,7 @@
         if (picked.ok) {
           filled += 1;
           markAutofilled(el, fillValue);
-          if (highlightUnmatched) highlight(el, 'filled');
+          highlight(el, 'filled');
           details.push(
             Object.assign(filledDetail(descriptor, Object.assign({}, answer, { value: fillValue })), {
               controlType: 'combobox',
@@ -1315,7 +1406,7 @@
       if (!answer.value || !gate.ok) {
         unmatched += 1;
         pushUnknown(descriptor, el, gate.reason || 'unknown');
-        if (highlightUnmatched) highlight(el, 'unmatched');
+        highlight(el, 'unmatched');
         details.push(
           Object.assign(unmatchedDetail(descriptor, gate.reason || answer.reason || 'no_profile_value'), {
             controlType: gate.controlType || controlTypeOf(el, descriptor),
@@ -1354,13 +1445,13 @@
             canonicalKey: answer.canonicalKey || answer.key || null
           })
         );
-        if (highlightUnmatched) highlight(el, 'unmatched');
+        highlight(el, 'unmatched');
         continue;
       }
 
       filled += 1;
       markAutofilled(el, fillValue);
-      if (highlightUnmatched) highlight(el, 'filled');
+      highlight(el, 'filled');
       details.push(
         Object.assign(filledDetail(descriptor, Object.assign({}, answer, { value: fillValue })), {
           controlType: gate.controlType,
@@ -1643,6 +1734,10 @@
   }
 
   global.__fillApply = {
+    isGenderField: isGenderField,
+    shouldSkipDiversity: shouldSkipDiversity,
+    optionsLookLikeDialCodes: optionsLookLikeDialCodes,
+    descriptorLooksLikePhoneCountry: descriptorLooksLikePhoneCountry,
     run: run,
     inspectForm: inspectForm,
     collectFields: collectFields,
