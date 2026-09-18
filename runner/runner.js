@@ -562,7 +562,10 @@
     }
   }
 
-  async function detectChallengeInTab(tabId) {
+  async function detectChallengeInTab(tabId, opts) {
+    opts = opts || {};
+    const settleMs = opts.settleMs != null ? opts.settleMs : 10000;
+    const skipWait = !!opts.skipWait;
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tabId },
@@ -570,13 +573,23 @@
       });
       const results = await chrome.scripting.executeScript({
         target: { tabId: tabId },
-        func: function () {
+        func: function (settleMsArg, skipWaitArg) {
           const C = globalThis.FillApplyChallenges;
-          if (!C || !C.detectChallenge) {
-            return { challenged: false, kind: null, detail: '', markers: [] };
+          if (!C) {
+            return Promise.resolve({ challenged: false, kind: null, detail: '', markers: [] });
           }
-          return C.detectChallenge(document);
-        }
+          if (C.detectChallengeWithSettle) {
+            return C.detectChallengeWithSettle(document, {
+              settleMs: settleMsArg,
+              skipWait: skipWaitArg
+            });
+          }
+          if (!C.detectChallenge) {
+            return Promise.resolve({ challenged: false, kind: null, detail: '', markers: [] });
+          }
+          return Promise.resolve(C.detectChallenge(document));
+        },
+        args: [settleMs, skipWait]
       });
       return (
         (results && results[0] && results[0].result) || {
@@ -758,6 +771,45 @@
       };
     }
 
+    // CAPTCHA/Cloudflare can flash briefly on Greenhouse boards — wait + recheck
+    // before pausing. If the challenge clears or coexists with a fillable form,
+    // continue (do not hard-error / instant pause).
+    if (inspection.result === AR.CAPTCHA_REQUIRED) {
+      await logAuth('CAPTCHA/Cloudflare detected — waiting ~10s to settle, then re-check', {
+        detail: inspection.detail
+      });
+      const settled = await detectChallengeInTab(tabId, { settleMs: 10000 });
+      if (!settled || !settled.challenged) {
+        await logAuth('Challenge cleared or non-blocking after settle — continuing', {
+          suppressed: !!(settled && settled.suppressed),
+          clearedAfterWait: !!(settled && settled.clearedAfterWait),
+          formFillable: !!(settled && settled.formFillable)
+        });
+        inspection = await inspectAuthInTab(tabId, profile);
+        if (inspection && inspection.result === AR.CAPTCHA_REQUIRED) {
+          // Widget still flagged by sync inspect but settle said non-blocking
+          inspection = Object.assign({}, inspection, {
+            result: AR.NOT_REQUIRED || 'NOT_REQUIRED',
+            pause: false,
+            detail: 'CAPTCHA settle: form usable / challenge non-blocking',
+            captchaSettled: true
+          });
+        }
+      } else {
+        await logAuth('Challenge still blocking after settle — pausing for human', {
+          detail: settled.detail,
+          kind: settled.kind
+        });
+        inspection = Object.assign({}, inspection, {
+          pause: true,
+          detail: settled.detail || inspection.detail,
+          challenge: settled
+        });
+        await persistAtsAuthState(job, profile, inspection);
+        return { proceed: false, paused: true, outcome: inspection };
+      }
+    }
+
     if (inspection.result === AR.NOT_REQUIRED) {
       return { proceed: true, outcome: inspection };
     }
@@ -768,7 +820,7 @@
     }
 
     if (inspection.pause && inspection.result !== AR.ACCOUNT_ALREADY_EXISTS) {
-      // CAPTCHA / MFA / unsupported / ambiguous — do not click
+      // MFA / unsupported / ambiguous — do not click (CAPTCHA handled above with settle)
       await persistAtsAuthState(job, profile, inspection);
       return { proceed: false, paused: true, outcome: inspection };
     }

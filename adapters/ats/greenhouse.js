@@ -875,27 +875,45 @@
       var runMode = ctx.runMode || (ctx.options && ctx.options.runMode) || 'fill';
       if (['fill', 'ready', 'submit'].indexOf(runMode) === -1) runMode = 'fill';
 
-      if (global.FillApplyChallenges && global.FillApplyChallenges.detectChallenge) {
-        var ch = global.FillApplyChallenges.detectChallenge(document);
-        if (ch && ch.challenged) {
-          return {
-            ok: false,
-            adapterId: 'greenhouse',
-            needsHuman: true,
-            challenge: ch,
-            filled: 0,
-            unmatched: 0,
-            total: 0,
-            error:
-              (global.FillApplyChallenges.describeChallenge &&
-                global.FillApplyChallenges.describeChallenge(ch)) ||
-              'Human verification required',
-            pauseReason: 'challenge'
-          };
-        }
-      }
-
       return Promise.resolve().then(async function () {
+        // CAPTCHA/Cloudflare: wait ~10s and re-check before pausing. If the
+        // challenge clears or is a widget on a fillable GH form, continue fill.
+        if (global.FillApplyChallenges) {
+          var C = global.FillApplyChallenges;
+          var ch = null;
+          if (typeof C.detectChallengeWithSettle === 'function') {
+            ch = await C.detectChallengeWithSettle(document, { settleMs: C.CHALLENGE_SETTLE_MS || 10000 });
+          } else if (typeof C.detectChallenge === 'function') {
+            ch = C.detectChallenge(document);
+            if (ch && ch.challenged) {
+              await sleep(10000);
+              ch = C.detectChallenge(document);
+              if (
+                ch &&
+                ch.challenged &&
+                typeof C.shouldPauseForChallenge === 'function' &&
+                !C.shouldPauseForChallenge(ch, document)
+              ) {
+                ch = { challenged: false, kind: null, detail: '', markers: [], suppressed: true };
+              }
+            }
+          }
+          if (ch && ch.challenged) {
+            return {
+              ok: false,
+              adapterId: 'greenhouse',
+              needsHuman: true,
+              challenge: ch,
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              error:
+                (C.describeChallenge && C.describeChallenge(ch)) || 'Human verification required',
+              pauseReason: 'challenge'
+            };
+          }
+        }
+
         var totalFilled = 0;
         var submitted = false;
 

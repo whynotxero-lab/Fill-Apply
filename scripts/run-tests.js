@@ -22,7 +22,8 @@ const SUITES = [
   'smoke-knowledge.js',
   'smoke-backend-jobpool.js',
   'smoke-page-panel.js',
-  'smoke-ats-auth.js'
+  'smoke-ats-auth.js',
+  'smoke-challenges.js'
 ];
 
 let failed = 0;
