@@ -248,8 +248,8 @@ function sleep(ms) {
       if (r && r.canonicalKey) byKey[r.canonicalKey] = r;
     });
 
-    suite.equal(byKey.first_name && byKey.first_name.value, 'Chaudhary', 'first_name Chaudhary');
-    suite.equal(byKey.last_name && byKey.last_name.value, 'Zahid Ali', 'last_name Zahid Ali');
+    suite.equal(byKey.first_name && byKey.first_name.value, 'Alex', 'first_name Alex');
+    suite.equal(byKey.last_name && byKey.last_name.value, 'Sample Ali', 'last_name Sample Ali');
     suite.equal(byKey.qualified_ca_or_acca && byKey.qualified_ca_or_acca.value, 'Yes', 'CA or ACCA Yes');
     suite.equal(byKey.qualified_ca && byKey.qualified_ca.value, 'No', 'CA-only No');
     suite.equal(byKey.highest_education && byKey.highest_education.value, 'Masters', 'Masters');
@@ -259,22 +259,22 @@ function sleep(ms) {
       'Yes',
       'ME visa Yes'
     );
-    suite.equal(byKey.phone_full && byKey.phone_full.value, '+966504131857', 'phone_full E.164');
-    suite.equal(byKey.date_of_birth && byKey.date_of_birth.value, '1979-04-06', 'DOB ISO');
+    suite.equal(byKey.phone_full && byKey.phone_full.value, '+966501234567', 'phone_full E.164');
+    suite.equal(byKey.date_of_birth && byKey.date_of_birth.value, '1990-01-15', 'DOB ISO');
 
     // Resolver + format path for DOB display variants
     const profile = await ctx.Profile.getProfile();
-    suite.equal(profile.firstName, 'Chaudhary', 'profile firstName');
-    suite.equal(profile.lastName, 'Zahid Ali', 'profile lastName');
+    suite.equal(profile.firstName, 'Alex', 'profile firstName');
+    suite.equal(profile.lastName, 'Sample Ali', 'profile lastName');
 
     if (ctx.Format && ctx.Format.formatDate) {
       const mmdd = ctx.Format.formatDate(
         { type: 'text', placeholder: 'MM/DD/YYYY' },
-        profile.dateOfBirth || '1979-04-06'
+        profile.dateOfBirth || '1990-01-15'
       );
-      suite.equal(mmdd && mmdd.value, '04/06/1979', 'DOB MM/DD/YYYY');
+      suite.equal(mmdd && mmdd.value, '01/15/1990', 'DOB MM/DD/YYYY');
     } else {
-      suite.equal(String(profile.dateOfBirth || ''), '1979-04-06', 'profile DOB ISO');
+      suite.equal(String(profile.dateOfBirth || ''), '1990-01-15', 'profile DOB ISO');
     }
 
     // Knowledge resolver for screening labels

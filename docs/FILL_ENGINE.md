@@ -123,7 +123,7 @@ Every value is shaped against the constraints the control advertises — `type`,
 | number | Currency stripped, rounded to the step, clamped to `min`/`max` |
 | text | Long answers cut on a word boundary rather than mid-word |
 
-**Name split:** `nameParts()` prefers explicit `firstName` / `lastName`. When only `fullName` is set, First = first token and Last = the remainder — never the final token alone (`Chaudhary Zahid Ali` → Last=`Zahid Ali`, not `Ali`). Given / Surname / Family name map to First / Last via the field map.
+**Name split:** `nameParts()` prefers explicit `firstName` / `lastName`. When only `fullName` is set, First = first token and Last = the remainder — never the final token alone (`Alex Sample Ali` → Last=`Sample Ali`, not `Ali`). Given / Surname / Family name map to First / Last via the field map.
 
 Selects and listboxes also try alternate spellings, so a profile saying `United Arab Emirates` finds an option labelled `AE`, and `California` finds `CA`. Nationality selects list the demonym, so `Pakistan` finds `Pakistani`.
 
@@ -144,7 +144,7 @@ ATS forms split what a CV writes as prose. Workday asks for school, degree, fiel
 
 App Settings → Profile settings exposes the same fields, with a completeness readout that names what is still blank. Blank is deliberate: salary, date of birth, driving licence and similar answers are the applicant's to give, and the engine pauses rather than guessing.
 
-**Create / Reset Zahid** reseeds the record from that JSON. Documents stay in the shared Documents section — they are not stored on the profile.
+**Create / Reset Sample** reseeds the record from that JSON. Documents stay in the shared Documents section — they are not stored on the profile.
 
 The phone rules are the ones that matter most in practice: Greenhouse and Lever take a single field, while Indeed, LinkedIn and iCIMS render a country-code selector beside the number — and sending the international form into the second shape produces `+971 +971501234567`.
 

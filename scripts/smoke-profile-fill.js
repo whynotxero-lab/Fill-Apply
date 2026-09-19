@@ -29,9 +29,10 @@ const LIBS = [
 
 const suite = createSuite('smoke-profile-fill');
 
-/** Real Zahid PII lives only in the private handoff file (gitignored). */
-function loadPrivateZahidProfile() {
+/** Public tests use the redacted fixture; private handoff is optional. */
+function loadPrivateSampleProfile() {
   const candidates = [
+    path.join(__dirname, 'fixtures', 'zahid-profile-redacted.json'),
     path.join('/workspace/private-profiles/zahid-profile.json'),
     path.join(__dirname, '..', '..', 'private-profiles', 'zahid-profile.json'),
     path.join(__dirname, '..', 'private', 'zahid-profile.json')
@@ -44,12 +45,12 @@ function loadPrivateZahidProfile() {
     }
   }
   throw new Error(
-    'Private Zahid fixture missing. Expected /workspace/private-profiles/zahid-profile.json (Deliverable B).'
+    'Profile fixture missing. Expected scripts/fixtures/zahid-profile-redacted.json'
   );
 }
 
 function zahid(_page) {
-  return loadPrivateZahidProfile();
+  return loadPrivateSampleProfile();
 }
 
 function run(page, profile, options) {
@@ -66,10 +67,10 @@ function run(page, profile, options) {
    * The stored record itself
    * ---------------------------------------------------------------- */
 
-  suite.equal(profile.fullName, 'Chaudhary Zahid Ali', 'full name is stored');
-  suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'email is stored');
+  suite.equal(profile.fullName, 'Alex Sample Ali', 'full name is stored');
+  suite.equal(profile.email, 'alex.sample@example.com', 'email is stored');
   suite.equal(profile.phoneCountry, '+966', 'Saudi dial code is stored');
-  suite.equal(profile.phone, '504131857', 'national number is stored without the code');
+  suite.equal(profile.phone, '501234567', 'national number is stored without the code');
   suite.ok(profile.city === 'Khobar' || profile.city === 'Riyadh', 'city is stored (got ' + profile.city + ')');
   suite.equal(profile.country, 'Saudi Arabia', 'country is stored');
   suite.equal(profile.nationality, 'Pakistan', 'nationality is stored');
@@ -155,7 +156,7 @@ function run(page, profile, options) {
   suite.ok(noticeVariants.indexOf('Onspot') !== -1, 'immediate notice also tries Teamtailor Onspot');
 
   /* ---------------------------------------------------------------- *
-   * End-to-end fill of every control type from the Zahid record
+   * End-to-end fill of every control type from the Sample record
    * ---------------------------------------------------------------- */
 
   await (async function fillsEveryControlType() {
@@ -270,11 +271,11 @@ function run(page, profile, options) {
     const doc = form.document;
 
     suite.ok(result.ok, 'the full form run completes');
-    suite.equal(doc.getElementById('fn').value, 'Chaudhary', 'first name filled');
-    suite.equal(doc.getElementById('ln').value, 'Zahid Ali', 'last name filled (multi-word)');
-    suite.equal(doc.getElementById('em').value, 'czahidali.accacma@gmail.com', 'email filled');
+    suite.equal(doc.getElementById('fn').value, 'Alex', 'first name filled');
+    suite.equal(doc.getElementById('ln').value, 'Sample Ali', 'last name filled (multi-word)');
+    suite.equal(doc.getElementById('em').value, 'alex.sample@example.com', 'email filled');
     suite.equal(doc.getElementById('cc').value, '+966', 'phone country code selected');
-    suite.equal(doc.getElementById('ph').value, '504131857', 'national number written beside the code');
+    suite.equal(doc.getElementById('ph').value, '501234567', 'national number written beside the code');
     suite.ok(['Khobar','Riyadh'].indexOf(doc.getElementById('city').value) !== -1, 'city filled (got ' + doc.getElementById('city').value + ')');
     suite.equal(doc.getElementById('nat').value, 'Pakistani', 'nationality select uses the demonym');
     suite.equal(doc.getElementById('co').value, 'SA', 'country select uses the ISO code');

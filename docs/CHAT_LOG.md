@@ -168,7 +168,7 @@ Chronological narrative of the Fill & Apply build conversation between **User** 
 
 ## Zahid General & no invented answers
 
-**User:** Create **Zahid General** — the real applicant the extension is built for. *(Large portfolio / experience paste — summarized: Chaudhary Zahid Ali, KSA FP&A / finance leadership background, contact + work history + education for the seed template.)*
+**User:** Create **Zahid General** — the real applicant the extension is built for. *(Large portfolio / experience paste — summarized: Alex Sample Ali, KSA FP&A / finance leadership background, contact + work history + education for the seed template.)*
 
 **Assistant:** Built `profiles/zahid-general.json` + Options Create/Reset Zahid — v1.9.8.
 
@@ -196,7 +196,7 @@ Chronological narrative of the Fill & Apply build conversation between **User** 
 
 ## UI 1.11 & locked Mock
 
-**User:** Branding/UI: remove banner (wastes space). Profiles: Zahid, Mock, Create New. Collapsible sections. Lean side panel (profile + mode + Start). Application queue clarity.
+**User:** Branding/UI: remove banner (wastes space). Profiles: Sample, Mock, Create New. Collapsible sections. Lean side panel (profile + mode + Start). Application queue clarity.
 
 **Assistant:** Production Options (collapsible, no banner) + lean side panel — v1.11.0.
 

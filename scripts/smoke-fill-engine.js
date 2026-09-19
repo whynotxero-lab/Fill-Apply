@@ -26,9 +26,9 @@ const LIBS = [
 const suite = createSuite('smoke-fill-engine');
 
 const PROFILE = {
-  firstName: 'Zahid',
+  firstName: 'Sample',
   lastName: 'Ali',
-  fullName: 'Chaudhary Zahid Ali',
+  fullName: 'Alex Sample Ali',
   email: 'zahid@example.com',
   phone: '+966500000000',
   linkedin: 'https://linkedin.com/in/zahid',
@@ -111,7 +111,7 @@ function run(page, options) {
     const doc = page.document;
 
     suite.ok(result.ok, 'run() completes on a standard form');
-    suite.equal(doc.getElementById('fn').value, 'Zahid', 'first name filled');
+    suite.equal(doc.getElementById('fn').value, 'Sample', 'first name filled');
     suite.equal(doc.getElementById('em').value, 'zahid@example.com', 'email filled');
     suite.equal(doc.getElementById('ph').value, '+966500000000', 'phone filled');
     suite.equal(doc.getElementById('li').value, PROFILE.linkedin, 'linkedin filled');

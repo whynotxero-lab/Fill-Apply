@@ -65,7 +65,7 @@ function makePage() {
     const names = list.map(function (p) {
       return String(p.name || '').toLowerCase();
     });
-    suite.ok(!names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init does not auto-seed Zahid');
+    suite.ok(!names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init does not auto-seed Sample');
     suite.ok(names.some(function (n) { return n === 'mock'; }), 'fresh init includes Mock');
     suite.equal(list.length, 1, 'fresh init has Mock as only built-in');
     const activeId = await P.getActiveProfileId();
@@ -73,12 +73,12 @@ function makePage() {
     suite.ok(active, 'active profile exists');
     suite.ok(
       P.isMockName ? P.isMockName(active.name) : /^mock$/i.test(active.name),
-      'fresh init activates Mock (not Zahid-only)'
+      'fresh init activates Mock (not Sample-only)'
     );
     suite.ok(activeId === 'mock' || /^mock$/i.test(active.name), 'extension opens with Mock as default active');
   })();
 
-  await (async function createResetActivatesZahidKeepsMock() {
+  await (async function createResetActivatesSampleKeepsMock() {
     const ctx = makePage();
     const P = ctx.Profile;
     await P.listProfiles();
@@ -95,9 +95,9 @@ function makePage() {
     suite.ok(zahid && zahid.id, 'Create/Reset Zahid returns profile');
     suite.ok(
       P.isZahidName ? P.isZahidName(zahid.name) : /zahid/i.test(zahid.name),
-      'Create/Reset names profile Zahid'
+      'Create/Reset names profile Sample'
     );
-    suite.equal(await P.getActiveProfileId(), zahid.id, 'Create/Reset Zahid activates Zahid immediately');
+    suite.equal(await P.getActiveProfileId(), zahid.id, 'Create/Reset Zahid activates Sample immediately');
 
     const list2 = await P.listProfiles();
     suite.ok(
@@ -110,7 +110,7 @@ function makePage() {
       list2.some(function (p) {
         return P.isZahidName ? P.isZahidName(p.name) : /zahid/i.test(p.name);
       }),
-      'Zahid still present (not deleted on init/reset)'
+      'Sample still present (not deleted on init/reset)'
     );
   })();
 
@@ -122,7 +122,7 @@ function makePage() {
       return P.isMockName ? P.isMockName(p.name) : String(p.name).toLowerCase() === 'mock';
     })[0];
     await P.setActiveProfile(mock.id);
-    // Subsequent readStore / listProfiles must not bounce back to Zahid
+    // Subsequent readStore / listProfiles must not bounce back to Sample
     const again = await P.listProfiles();
     const activeId = await P.getActiveProfileId();
     suite.equal(activeId, mock.id, 'explicit Mock selection persists across reads');
@@ -142,7 +142,7 @@ function makePage() {
     if (P.ensureDefaultProfiles) {
       await P.ensureDefaultProfiles({ forceZahidActive: true });
       const active = await P.getActiveProfileMeta();
-      suite.ok(P.isZahidName(active.name), 'forceZahidActive switches to Zahid');
+      suite.ok(P.isZahidName(active.name), 'forceZahidActive switches to Sample');
       const stillMock = (await P.listProfiles()).some(function (p) {
         return P.isMockName(p.name);
       });

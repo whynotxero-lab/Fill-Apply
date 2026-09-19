@@ -27,7 +27,7 @@ const DOCUMENTS = {
 };
 
 const PROFILE = {
-  firstName: 'Zahid',
+  firstName: 'Sample',
   lastName: 'Ali',
   email: 'zahid@example.com',
   phone: '501234567',

@@ -12,10 +12,10 @@ const LIBS = ['lib/auth-walls.js', 'lib/challenges.js', 'lib/ats-auth.js'];
 const suite = createSuite('smoke-ats-auth');
 
 const PROFILE = {
-  fullName: 'Chaudhry Zahid Ali',
-  firstName: 'Chaudhry Zahid',
-  lastName: 'Ali',
-  email: 'czahidali@gmail.com'
+  fullName: 'Chaudhry Sample Ali',
+  firstName: 'Chaudhry',
+  lastName: 'Sample Ali',
+  email: 'alex.sample@example.com'
 };
 
 (function detectionPhrases() {
@@ -74,24 +74,24 @@ const PROFILE = {
   const page = createPage('<div></div>', LIBS);
   const A = page.window.FillApplyAtsAuth;
   suite.equal(
-    A.normalizePersonName('Chaudary Zahid Ali'),
-    A.normalizePersonName('Chaudhry Zahid Ali'),
+    A.normalizePersonName('Chaudary Sample Ali'),
+    A.normalizePersonName('Chaudhry Sample Ali'),
     'Chaudary ≡ Chaudhry after normalize'
   );
   suite.equal(
-    A.normalizePersonName('Chaudhary Zahid Ali'),
-    A.normalizePersonName('Chaudhry Zahid Ali'),
-    'Chaudhary ≡ Chaudhry after normalize'
+    A.normalizePersonName('Chaudhry Sample Ali'),
+    A.normalizePersonName('Chaudhry Sample Ali'),
+    'preferred spelling normalizes identically'
   );
   suite.ok(
-    A.namesEquivalent('Chaudary Zahid Ali', 'Chaudhry Zahid Ali'),
+    A.namesEquivalent('Chaudary Sample Ali', 'Chaudhry Sample Ali'),
     'namesEquivalent treats preferred/variant as equal'
   );
   suite.ok(
-    A.namesEquivalent('Zahid Ali Chaudhry', 'Chaudhry Zahid Ali'),
+    A.namesEquivalent('Sample Ali Chaudhry', 'Chaudhry Sample Ali'),
     'token-order-insensitive name match'
   );
-  suite.ok(!A.namesEquivalent('Someone Else', 'Chaudhry Zahid Ali'), 'different names do not match');
+  suite.ok(!A.namesEquivalent('Someone Else', 'Chaudhry Sample Ali'), 'different names do not match');
 })();
 
 (function existingAccountSwitchesToGoogleLogin() {
@@ -121,11 +121,11 @@ const PROFILE = {
       <div>other@example.com</div>
     </div>
     <div data-identifier="also@example.com">
-      <div class="account-name">Chaudhry Zahid Ali</div>
+      <div class="account-name">Chaudhry Sample Ali</div>
       <div>also@example.com</div>
     </div>
     <div data-identifier="twin@example.com">
-      <div class="account-name">Chaudary Zahid Ali</div>
+      <div class="account-name">Chaudary Sample Ali</div>
       <div>twin@example.com</div>
     </div>
   `,
@@ -146,9 +146,9 @@ const PROFILE = {
       <div class="account-name">Other Person</div>
       other@example.com
     </div>
-    <div data-identifier="czahidali@gmail.com">
-      <div class="account-name">Chaudary Zahid Ali</div>
-      czahidali@gmail.com
+    <div data-identifier="alex.sample@example.com">
+      <div class="account-name">Chaudary Sample Ali</div>
+      alex.sample@example.com
     </div>
   `,
     LIBS
@@ -158,7 +158,7 @@ const PROFILE = {
   suite.ok(opts.length >= 2, 'lists Google account options');
   const match = A.matchApplicantAccount(opts, PROFILE);
   suite.equal(match.status, 'match', 'email match is high confidence');
-  suite.equal(match.option.email, 'czahidali@gmail.com', 'selects applicant email');
+  suite.equal(match.option.email, 'alex.sample@example.com', 'selects applicant email');
   const insp = A.inspectAuthPage(page.document, PROFILE, { forceGoogleChooser: true });
   suite.equal(insp.result, 'GOOGLE_ACCOUNT_MATCH', 'inspect exposes account match action');
   suite.equal(insp.action, 'click_account', 'action is click_account');
@@ -167,7 +167,7 @@ const PROFILE = {
 (function continueAsButton() {
   const page = createPage(
     `
-    <button type="button">Continue as Chaudhry Zahid Ali</button>
+    <button type="button">Continue as Chaudhry Sample Ali</button>
   `,
     LIBS
   );

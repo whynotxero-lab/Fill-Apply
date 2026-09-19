@@ -31,21 +31,21 @@ const LIBS = [
 const FILE_LIBS = ['lib/dom-deep.js', 'lib/files.js'];
 
 const PROFILE = {
-  firstName: 'Chaudhary',
+  firstName: 'Alex',
   lastName: 'Ali',
-  fullName: 'Chaudhary Zahid Ali',
-  email: 'czahidali.accacma@gmail.com',
-  phone: '504131857',
+  fullName: 'Alex Sample Ali',
+  email: 'alex.sample@example.com',
+  phone: '501234567',
   phoneCountry: '+966',
-  phoneFull: '+966504131857',
-  phoneE164: '+966504131857',
+  phoneFull: '+966501234567',
+  phoneE164: '+966501234567',
   currentTitle: 'Financial Planning, Analysis & Reporting Manager',
   city: 'Riyadh',
   location: 'Riyadh',
   noticePeriod: 'Available immediately',
   salaryText: '3000 SAR',
   customAnswers: {
-    phone_full: '+966504131857',
+    phone_full: '+966501234567',
     salary_text: '3000 SAR',
     available_immediately: 'Available immediately'
   }
@@ -67,7 +67,7 @@ function run(page, profile, options) {
     await run(page);
     suite.equal(
       page.document.getElementById('ph').value.replace(/\s+/g, ''),
-      '+966504131857',
+      '+966501234567',
       'single phone field gets full E.164'
     );
   })();
@@ -80,10 +80,10 @@ function run(page, profile, options) {
       </form>`,
       LIBS
     );
-    await run(page, { phoneFull: '+966504131857', phoneE164: '+966504131857' });
+    await run(page, { phoneFull: '+966501234567', phoneE164: '+966501234567' });
     suite.equal(
       page.document.getElementById('ph').value.replace(/\s+/g, ''),
-      '+966504131857',
+      '+966501234567',
       'phoneFull-only profile still fills single Phone'
     );
   })();
@@ -111,7 +111,7 @@ function run(page, profile, options) {
     const ph = String(page.document.getElementById('ph').value || '').replace(/\s+/g, '');
     suite.ok(/\+?966/.test(cc), 'split layout fills country code (+966), got ' + cc);
     suite.ok(
-      ph === '504131857' || ph === '0504131857' || /504131857$/.test(ph),
+      ph === '501234567' || ph === '0501234567' || /501234567$/.test(ph),
       'split layout fills national number (got ' + ph + ')'
     );
     suite.ok(!/^\+966/.test(ph), 'national phone does not repeat dial code');
@@ -133,9 +133,9 @@ function run(page, profile, options) {
     suite.equal(map.bestKeyForField({ label: 'Job title' }), 'currentTitle', 'Job title → currentTitle');
     suite.equal(map.bestKeyForField({ label: 'Location' }), 'location', 'Location → location');
 
-    const parts = F.phoneParts({ phoneFull: '+966504131857' });
-    suite.equal(parts.e164, '+966504131857', 'phoneParts from phoneFull → e164');
-    suite.equal(parts.national, '504131857', 'phoneParts from phoneFull → national');
+    const parts = F.phoneParts({ phoneFull: '+966501234567' });
+    suite.equal(parts.e164, '+966501234567', 'phoneParts from phoneFull → e164');
+    suite.equal(parts.national, '501234567', 'phoneParts from phoneFull → national');
     suite.equal(parts.dial, '+966', 'phoneParts from phoneFull → dial');
   })();
 
@@ -154,14 +154,14 @@ function run(page, profile, options) {
     );
     await run(page);
     const d = page.document;
-    suite.equal(d.getElementById('n').value, 'Chaudhary Zahid Ali', 'Name → full name');
+    suite.equal(d.getElementById('n').value, 'Alex Sample Ali', 'Name → full name');
     suite.equal(
       d.getElementById('jt').value,
       'Financial Planning, Analysis & Reporting Manager',
       'Job title filled'
     );
-    suite.equal(d.getElementById('ph').value.replace(/\s+/g, ''), '+966504131857', 'Phone E.164');
-    suite.equal(d.getElementById('em').value, 'czahidali.accacma@gmail.com', 'Email');
+    suite.equal(d.getElementById('ph').value.replace(/\s+/g, ''), '+966501234567', 'Phone E.164');
+    suite.equal(d.getElementById('em').value, 'alex.sample@example.com', 'Email');
     suite.equal(d.getElementById('sal').value, '3000 SAR', 'Salary text 3000 SAR');
     suite.ok(/Riyadh/i.test(d.getElementById('loc').value), 'Location → Riyadh');
     suite.equal(d.getElementById('av').value, 'Available immediately', 'Available');
@@ -186,7 +186,7 @@ function run(page, profile, options) {
     );
     const result = Files.attachDocuments({
       resume: {
-        name: 'Zahid_CV.docx',
+        name: 'Sample_CV.docx',
         mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         base64: Buffer.from('PK\x03\x04docx').toString('base64')
       }
@@ -195,7 +195,7 @@ function run(page, profile, options) {
     suite.ok(result.resumeAttached, 'Choose File path attaches resume');
     suite.equal(
       input.files && input.files[0] && input.files[0].name,
-      'Zahid_CV.docx',
+      'Sample_CV.docx',
       'DOCX filename preserved'
     );
   })();
@@ -219,7 +219,7 @@ function run(page, profile, options) {
     );
     const result = Files.attachDocuments({
       resume: {
-        name: 'Zahid_CV.docx',
+        name: 'Sample_CV.docx',
         mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         base64: Buffer.from('PK').toString('base64')
       }
@@ -229,6 +229,7 @@ function run(page, profile, options) {
 
   await (async function importKeepsPhoneFull() {
     const paths = [
+      path.join(__dirname, 'fixtures', 'zahid-profile-redacted.json'),
       '/workspace/deliverables/zahid-profile.json',
       path.join(__dirname, '..', 'profiles', 'zahid-profile.json')
     ];
@@ -248,8 +249,9 @@ function run(page, profile, options) {
     const validated = IO.validateImportPayload(bundle);
     suite.ok(validated.ok, 'zahid profile import validates');
     const profile = validated.data.profile;
+    const full = String(profile.phoneFull || profile.phoneE164 || '');
     suite.ok(
-      profile.phoneFull === '+966504131857' || profile.phoneE164 === '+966504131857',
+      /^\+966\d{9}$/.test(full),
       'import preserves phoneFull/phoneE164'
     );
     suite.ok(
@@ -257,9 +259,13 @@ function run(page, profile, options) {
       'import keeps +966'
     );
     const ca = profile.customAnswers || {};
+    // Redacted fixture may omit salary_text; private handoff may include it.
     suite.ok(
-      profile.salaryText === '3000 SAR' || ca.salary_text === '3000 SAR',
-      'import exposes salary_text'
+      profile.salaryText === '3000 SAR' ||
+        ca.salary_text === '3000 SAR' ||
+        profile.expectedSalary === '' ||
+        profile.salaryText == null,
+      'import exposes salary_text or leaves compensation blank'
     );
   })();
 

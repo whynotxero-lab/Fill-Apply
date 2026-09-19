@@ -21,10 +21,10 @@ const LIBS = [
 const suite = createSuite('smoke-global-fill-fixes');
 
 const PROFILE = {
-  firstName: 'Zahid',
+  firstName: 'Sample',
   lastName: 'Ali',
   email: 'zahid@example.com',
-  phone: '504131857',
+  phone: '501234567',
   phoneCountry: '+966',
   country: 'Saudi Arabia',
   gender: 'Male',
@@ -152,7 +152,7 @@ function run(page, options) {
     suite.equal(doc.getElementById('cc').value, 'SA', 'phone country select matches +966 / Saudi');
     const phoneVal = String(doc.getElementById('ph').value || '').replace(/\s+/g, '');
     suite.ok(
-      phoneVal === '504131857' || phoneVal === '0504131857' || /504131857$/.test(phoneVal),
+      phoneVal === '501234567' || phoneVal === '0501234567' || /501234567$/.test(phoneVal),
       'phone field gets national number (got ' + doc.getElementById('ph').value + ')'
     );
     suite.ok(!/^\+966/.test(phoneVal), 'national phone does not repeat the dial code');

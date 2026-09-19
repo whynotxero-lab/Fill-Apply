@@ -165,7 +165,7 @@ A CV paragraph cannot fill Workday's four education controls or Teamtailor's yea
 | Batch-by-source queue sort | ✅ | v1.13.0 |
 | Mock seed source answers (Teamtailor/Indeed/Glassdoor/…) | ✅ | v1.13.0 + Glassdoor in 1.14.0 |
 | Frame-removed / No-tab retry on Easy Apply Continue | ✅ | v1.14.0 — runner + panel |
-| Zahid empty source shells (fill when needed) | ✅ | v1.13.0 |
+| Sample empty source shells (fill when needed) | ✅ | v1.13.0 |
 
 ---
 
@@ -250,7 +250,7 @@ Safe Continue / Sign-in-with-Google before fill. Pauses on CAPTCHA / MFA / ambig
 |------|--------|-------|
 | Detect auth walls + Google Continue | ✅ | `lib/ats-auth.js` + `lib/auth-walls.js` |
 | Continue applying social wall (email+Google/Facebook) | ✅ | Prefer Google only; never Facebook (v1.17.6) |
-| High-confidence applicant account select | ✅ | Chaudhry/Chaudary Zahid Ali only when unambiguous |
+| High-confidence applicant account select | ✅ | Chaudhry/Chaudary Sample Ali only when unambiguous |
 | Existing-account → Google login resume | ✅ | Non-secret ATS state in `fillApply.atsAccounts` |
 | Pause CAPTCHA / MFA / ambiguous | ✅ | Never bypass |
 | No password / token storage | ✅ | By design |
@@ -267,4 +267,4 @@ Safe Continue / Sign-in-with-Google before fill. Pauses on CAPTCHA / MFA / ambig
 | Key — Aliases — Type — Value Options UI | ✅ | User types: boolean/string/number/date/select/multiselect |
 | Complete Missing Information checklist | ✅ | Side panel; immediate KB persist + same-session refill |
 | Application database collapsible groups | ✅ | Personal/Contact/Work Auth/Screening/Preferences/Education/Experience/Other |
-| Zahid default active + Mock secondary | ✅ | Fresh init; Create/Reset Zahid activates Zahid; selection persists |
+| Sample default active + Mock secondary | ✅ | Fresh init; Create/Reset Zahid activates Sample; selection persists |

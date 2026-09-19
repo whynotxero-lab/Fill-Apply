@@ -19,13 +19,13 @@ const LIBS = [
 ];
 
 const PROFILE = {
-  firstName: 'Chaudhary',
+  firstName: 'Alex',
   lastName: 'Ali',
   city: 'Riyadh',
   location: 'Riyadh',
   noticePeriod: 'Immediately available',
-  phoneFull: '+966504131857',
-  phoneE164: '+966504131857',
+  phoneFull: '+966501234567',
+  phoneE164: '+966501234567',
   salaryText: '0 AED / SAR (Currently available for immediate joining)',
   certifications: 'ACCA — UK; CMA',
   skills: 'Oracle ERP, SAP, Sage',

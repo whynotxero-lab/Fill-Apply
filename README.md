@@ -42,8 +42,8 @@ Manifest `description` shortened to fit Chrome Web Store’s 132-character limit
 
 ## v1.19.3 — Name split + DOB format conversion (Workable / Qiddiya)
 
-- **Name split:** First=`Chaudhary`, Last=`Zahid Ali` (never Last=`Ali` alone). `nameParts()` + field-map Given/Surname/Family; catalog `first_name` / `last_name`.
-- **DOB formatter:** Canonical ISO `1979-04-06` → MM/DD, DD/MM, `type=date` ISO, or year/month/day parts from placeholder / `data-format` / aria / label / autocomplete. Optional knowledge `formats` map.
+- **Name split:** First=`Alex`, Last=`Sample Ali` (never Last=`Ali` alone). `nameParts()` + field-map Given/Surname/Family; catalog `first_name` / `last_name`.
+- **DOB formatter:** Canonical ISO `1990-01-15` → MM/DD, DD/MM, `type=date` ISO, or year/month/day parts from placeholder / `data-format` / aria / label / autocomplete. Optional knowledge `formats` map.
 - **Workable / Qiddiya:** Education Masters, conflict No, PIF skip-if-empty, LinkedIn social, Location Riyadh, salary skip-if-empty, salutation/nationality/years, Qiddiya No, privacy/criminal Yes, resume upload.
 
 ## v1.19.2 — NaukriGulf Yes/No radios that actually click
@@ -83,7 +83,7 @@ When the profile includes a **password field**, Auto Fill fills career-site Emai
 2. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
 3. Enable **Developer mode**.
 4. **Load unpacked** → select this folder (contains `manifest.json`).
-5. Open **App Settings** (Options page): manage **profiles** (chips: Set active / Rename / Duplicate / Delete / Create-Reset Zahid), edit **Profile settings**, paste **Application queue** target apply URLs, optionally upload resume/cover or Drive/URL links (documents shared across profiles).
+5. Open **App Settings** (Options page): manage **profiles** (chips: Set active / Rename / Duplicate / Delete / Create-Reset Sample), edit **Profile settings**, paste **Application queue** target apply URLs, optionally upload resume/cover or Drive/URL links (documents shared across profiles).
 6. Click the **Fill & Apply** toolbar icon — the UI opens in Chrome’s **right sidebar** (not a tiny popup).
 7. On a job/application page, a compact **Fill & Apply** box appears on the page itself with **Auto Fill / Auto Ready / Auto Submit** (current tab only; collapse it if it sits near a field).
 
@@ -92,7 +92,7 @@ When the profile includes a **password field**, Auto Fill fills career-site Emai
 App Settings → **Profiles** (collapsible; expanded by default):
 
 - Chips: **Zahid General**, **Mock** 🔒 (permanent demo — cannot delete), **+ Create new profile** (★ = active)
-- **Set active / Rename / Duplicate / Delete / Reset Mock / Create-Reset Zahid**
+- **Set active / Rename / Duplicate / Delete / Reset Mock / Create-Reset Sample**
 - **Profile settings / Identity** is a separate collapsed section (opens while editing)
 - Form edits save into the **active** profile only; switching warns if unsaved
 - Side panel shows active applicant `Person · email` only (not chip·person·email)

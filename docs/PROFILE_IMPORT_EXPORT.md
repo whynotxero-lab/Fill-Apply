@@ -7,7 +7,7 @@
   "format": "fill-apply-profile",
   "schemaVersion": 1,
   "exportedAt": "ISO-8601",
-  "meta": { "profileName": "Zahid", "activate": true, "appVersion": "1.18.0" },
+  "meta": { "profileName": "Sample", "activate": true, "appVersion": "1.18.0" },
   "profile": { /* applicant fields, customQA, customAnswers, experienceEntries, … */ },
   "knowledge": { "version": 1, "records": [ /* key / aliases / type / value */ ] }
 }
@@ -24,7 +24,7 @@ Import validates fully before writing; success reports field + knowledge counts.
 
 ## Public vs private
 
-- Published package: empty/generic Zahid shell only (`Create / Reset Zahid`).
+- Published package: empty/generic Zahid shell only (`Create / Reset Sample`).
 - Real client PII: private handoff file (gitignored), e.g. `/workspace/private-profiles/zahid-profile.json`.
 - Never auto Create/Reset Zahid on startup or update — only create missing defaults; Mock preserved.
 
@@ -32,7 +32,7 @@ Import validates fully before writing; success reports field + knowledge counts.
 
 1. Install / load Fill & Apply 1.18.7+.
 2. Options → Import Profile → select private `zahid-profile.json`.
-3. Zahid activates and is immediately usable; survives reload and updates.
+3. Sample activates and is immediately usable; survives reload and updates.
 
 ## v1.18.5 notes
 

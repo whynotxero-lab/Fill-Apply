@@ -1,5 +1,5 @@
 /**
- * Name split (First=Chaudhary, Last=Zahid Ali) + DOB format detection
+ * Name split (First=Alex, Last=Sample Ali) + DOB format detection
  * (MM/DD vs DD/MM vs type=date + split year/month/day).
  * Run: node scripts/smoke-name-dob-formats.js
  */
@@ -25,19 +25,19 @@ const LIBS = [
 const suite = createSuite('smoke-name-dob-formats');
 
 const PROFILE = {
-  firstName: 'Chaudhary',
-  lastName: 'Zahid Ali',
-  fullName: 'Chaudhary Zahid Ali',
+  firstName: 'Alex',
+  lastName: 'Sample Ali',
+  fullName: 'Alex Sample Ali',
   middleName: '',
-  email: 'czahidali.accacma@gmail.com',
-  phone: '504131857',
+  email: 'alex.sample@example.com',
+  phone: '501234567',
   phoneCountry: '+966',
-  dateOfBirth: '1979-04-06',
+  dateOfBirth: '1990-01-15',
   salutation: 'Mr.',
   nationality: 'Pakistan',
   city: 'Riyadh',
   location: 'Riyadh',
-  linkedin: 'https://www.linkedin.com/in/chaudhryzahidali',
+  linkedin: 'https://www.linkedin.com/in/alex-sample',
   highestEducation: "Master's Degree",
   yearsExperience: '15',
   conflictOfInterest: 'No',
@@ -45,13 +45,13 @@ const PROFILE = {
   neverHadCriminalConviction: 'Yes',
   privacyAccepted: 'Yes',
   customAnswers: {
-    date_of_birth: '1979-04-06',
+    date_of_birth: '1990-01-15',
     highest_education: 'Masters',
     'Highest Education Level': 'Masters',
     conflict_of_interest: 'No',
     working_for_qiddiya: 'No',
     never_had_criminal_conviction: 'Yes',
-    social_media_profiles: 'https://www.linkedin.com/in/chaudhryzahidali',
+    social_media_profiles: 'https://www.linkedin.com/in/alex-sample',
     current_location: 'Riyadh',
     years_of_relevant_experience: '15',
     current_monthly_salary: '',
@@ -68,14 +68,14 @@ const PROFILE = {
   /* ---------------------------------------------------------------- *
    * A) Name split
    * ---------------------------------------------------------------- */
-  const fromFull = F.nameParts({ fullName: 'Chaudhary Zahid Ali' });
-  suite.equal(fromFull.first, 'Chaudhary', 'nameParts from fullName → first=Chaudhary');
-  suite.equal(fromFull.last, 'Zahid Ali', 'nameParts from fullName → last=Zahid Ali (not Ali alone)');
-  suite.equal(fromFull.full, 'Chaudhary Zahid Ali', 'nameParts full preserved');
+  const fromFull = F.nameParts({ fullName: 'Alex Sample Ali' });
+  suite.equal(fromFull.first, 'Alex', 'nameParts from fullName → first=Alex');
+  suite.equal(fromFull.last, 'Sample Ali', 'nameParts from fullName → last=Sample Ali (not Ali alone)');
+  suite.equal(fromFull.full, 'Alex Sample Ali', 'nameParts full preserved');
 
   const explicit = F.nameParts(PROFILE);
-  suite.equal(explicit.first, 'Chaudhary', 'explicit firstName kept');
-  suite.equal(explicit.last, 'Zahid Ali', 'explicit multi-word lastName kept');
+  suite.equal(explicit.first, 'Alex', 'explicit firstName kept');
+  suite.equal(explicit.last, 'Sample Ali', 'explicit multi-word lastName kept');
 
   suite.equal(
     Map.bestKeyForField({ label: 'Given name', type: 'text' }),
@@ -108,10 +108,10 @@ const PROFILE = {
     );
     await p.window.__fillApply.run(PROFILE, {});
     const doc = p.document;
-    suite.equal(doc.getElementById('fn').value, 'Chaudhary', 'fills First name=Chaudhary');
-    suite.equal(doc.getElementById('ln').value, 'Zahid Ali', 'fills Last name=Zahid Ali');
-    suite.equal(doc.getElementById('gn').value, 'Chaudhary', 'fills Given name=Chaudhary');
-    suite.equal(doc.getElementById('sn').value, 'Zahid Ali', 'fills Surname=Zahid Ali');
+    suite.equal(doc.getElementById('fn').value, 'Alex', 'fills First name=Alex');
+    suite.equal(doc.getElementById('ln').value, 'Sample Ali', 'fills Last name=Sample Ali');
+    suite.equal(doc.getElementById('gn').value, 'Alex', 'fills Given name=Alex');
+    suite.equal(doc.getElementById('sn').value, 'Sample Ali', 'fills Surname=Sample Ali');
   })();
 
   await (async function nameFromFullNameOnly() {
@@ -126,18 +126,18 @@ const PROFILE = {
       LIBS
     );
     await p.window.__fillApply.run(
-      { fullName: 'Chaudhary Zahid Ali', email: PROFILE.email },
+      { fullName: 'Alex Sample Ali', email: PROFILE.email },
       {}
     );
     suite.equal(
       p.document.getElementById('fn').value,
-      'Chaudhary',
-      'fullName-only → First=Chaudhary'
+      'Alex',
+      'fullName-only → First=Alex'
     );
     suite.equal(
       p.document.getElementById('ln').value,
-      'Zahid Ali',
-      'fullName-only → Last=Zahid Ali (not Ali)'
+      'Sample Ali',
+      'fullName-only → Last=Sample Ali (not Ali)'
     );
   })();
 
@@ -170,40 +170,40 @@ const PROFILE = {
     'label hint DD/MM/YYYY → dmy'
   );
   suite.equal(
-    F.formatDate({ type: 'text', placeholder: 'MM/DD/YYYY' }, '1979-04-06').value,
-    '04/06/1979',
+    F.formatDate({ type: 'text', placeholder: 'MM/DD/YYYY' }, '1990-01-15').value,
+    '01/15/1990',
     'canonical → MM/DD/YYYY (Workable)'
   );
   suite.equal(
-    F.formatDate({ type: 'text', placeholder: 'DD/MM/YYYY' }, '1979-04-06').value,
-    '06/04/1979',
+    F.formatDate({ type: 'text', placeholder: 'DD/MM/YYYY' }, '1990-01-15').value,
+    '15/01/1990',
     'canonical → DD/MM/YYYY'
   );
   suite.equal(
-    F.formatDate({ type: 'date' }, '1979-04-06').value,
-    '1979-04-06',
+    F.formatDate({ type: 'date' }, '1990-01-15').value,
+    '1990-01-15',
     'canonical → ISO for type=date'
   );
   suite.equal(
-    F.formatDate({ type: 'text', name: 'birth_year' }, '1979-04-06').value,
-    '1979',
+    F.formatDate({ type: 'text', name: 'birth_year' }, '1990-01-15').value,
+    '1990',
     'split DOB year'
   );
   suite.equal(
-    F.formatDate({ type: 'text', name: 'birth_month' }, '1979-04-06').value,
-    '04',
+    F.formatDate({ type: 'text', name: 'birth_month' }, '1990-01-15').value,
+    '01',
     'split DOB month'
   );
   suite.equal(
-    F.formatDate({ type: 'text', name: 'birth_day' }, '1979-04-06').value,
-    '06',
+    F.formatDate({ type: 'text', name: 'birth_day' }, '1990-01-15').value,
+    '15',
     'split DOB day'
   );
   suite.equal(
     F.formatDate(
       { type: 'text', placeholder: 'MM/DD/YYYY' },
-      '1979-04-06',
-      { formats: { mm_dd_yyyy: '04/06/1979', dd_mm_yyyy: '06/04/1979' } }
+      '1990-01-15',
+      { formats: { mm_dd_yyyy: '01/15/1990', dd_mm_yyyy: '15/01/1990' } }
     ).source,
     'formats_map',
     'optional formats map is used when present'
@@ -235,12 +235,12 @@ const PROFILE = {
     );
     await p.window.__fillApply.run(PROFILE, {});
     const doc = p.document;
-    suite.equal(doc.getElementById('dob1').value, '04/06/1979', 'fills MM/DD/YYYY DOB');
-    suite.equal(doc.getElementById('dob2').value, '06/04/1979', 'fills DD/MM/YYYY DOB');
-    suite.equal(doc.getElementById('dob3').value, '1979-04-06', 'fills type=date ISO DOB');
-    suite.equal(doc.getElementById('by').value, '1979', 'fills birth year part');
-    suite.equal(doc.getElementById('bm').value, '04', 'fills birth month part');
-    suite.equal(doc.getElementById('bd').value, '06', 'fills birth day part');
+    suite.equal(doc.getElementById('dob1').value, '01/15/1990', 'fills MM/DD/YYYY DOB');
+    suite.equal(doc.getElementById('dob2').value, '15/01/1990', 'fills DD/MM/YYYY DOB');
+    suite.equal(doc.getElementById('dob3').value, '1990-01-15', 'fills type=date ISO DOB');
+    suite.equal(doc.getElementById('by').value, '1990', 'fills birth year part');
+    suite.equal(doc.getElementById('bm').value, '01', 'fills birth month part');
+    suite.equal(doc.getElementById('bd').value, '15', 'fills birth day part');
   })();
 
   /* ---------------------------------------------------------------- *
@@ -266,13 +266,13 @@ const PROFILE = {
     suite.ok(workable.detect('https://apply.workable.com/qiddiya/j/ABC'), 'detects workable URL');
     suite.ok(workable.detect('https://careers.qiddiya.com/j/1'), 'detects qiddiya.com');
     const enriched = workable.enrichProfile({
-      fullName: 'Chaudhary Zahid Ali',
-      dateOfBirth: '1979-04-06',
+      fullName: 'Alex Sample Ali',
+      dateOfBirth: '1990-01-15',
       linkedin: PROFILE.linkedin,
       customAnswers: { worked_for_pif_or_affiliate: '', current_monthly_salary: '' }
     });
-    suite.equal(enriched.firstName, 'Chaudhary', 'enrich firstName');
-    suite.equal(enriched.lastName, 'Zahid Ali', 'enrich lastName multi-word');
+    suite.equal(enriched.firstName, 'Alex', 'enrich firstName');
+    suite.equal(enriched.lastName, 'Sample Ali', 'enrich lastName multi-word');
     suite.equal(enriched.customAnswers.conflict_of_interest, 'No', 'enrich conflict → No');
     suite.equal(enriched.customAnswers.working_for_qiddiya, 'No', 'enrich working for Qiddiya → No');
     suite.equal(
@@ -379,9 +379,9 @@ const PROFILE = {
     );
     await p.window.__fillApply.run(PROFILE, {});
     const doc = p.document;
-    suite.equal(doc.getElementById('fn').value, 'Chaudhary', 'Workable First name');
-    suite.equal(doc.getElementById('ln').value, 'Zahid Ali', 'Workable Last name');
-    suite.equal(doc.getElementById('dob').value, '04/06/1979', 'Workable DOB MM/DD/YYYY');
+    suite.equal(doc.getElementById('fn').value, 'Alex', 'Workable First name');
+    suite.equal(doc.getElementById('ln').value, 'Sample Ali', 'Workable Last name');
+    suite.equal(doc.getElementById('dob').value, '01/15/1990', 'Workable DOB MM/DD/YYYY');
     suite.ok(
       /masters|mba/i.test(doc.getElementById('edu').value) ||
         /masters|mba/i.test(doc.getElementById('edu').selectedOptions[0].text),

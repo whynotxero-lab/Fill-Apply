@@ -79,13 +79,13 @@ Per-platform **compulsory** screening fields live in `lib/source-profiles.js` an
 Fill & Apply supports **multiple applicant profiles** (v1.9+):
 
 1. Open **App Settings** → **Profiles** (top of the page).
-2. Use profile **chips** + **Set active / Rename / Duplicate / Delete / Create-Reset Zahid**, or **+ Create new profile**.
+2. Use profile **chips** + **Set active / Rename / Duplicate / Delete / Create-Reset Sample**, or **+ Create new profile**.
 3. Edit Identity / Location / Links / Q&A and click **Save profile** — writes the **active** profile only.
 4. The runner and side panel always use the active profile (`getProfile()`).
 5. Data is stored in `chrome.storage.local` keys `fillApply.profiles` and `fillApply.activeProfileId` so it **survives extension updates**. A legacy single profile migrates into **"Mock"** when the multi store is empty (Default is renamed to Mock).
 6b. **Mock** is a permanent system demo profile (`locked` / `systemProfile`, preferred id `mock`): end-to-end SAMPLE fields for demos; **cannot be deleted** — switch to another profile instead. **Reset Mock** reseeds SAMPLE. Use **Zahid General** for real applies.
 6. **Documents** (resume/cover) are **shared across profiles for now**. Export of profiles is TBD.
-7. **Zahid + Import/Export** — **Create / Reset Zahid** restores the empty public shell and activates it (does not overwrite Mock). Real applicant data is imported via **Import Profile** (`fill-apply-profile` JSON). **Export Profile** downloads profile + adaptive knowledge. See `docs/PROFILE_IMPORT_EXPORT.md`.
+7. **Sample + Import/Export** — **Create / Reset Sample** restores the empty public shell and activates it (does not overwrite Mock). Real applicant data is imported via **Import Profile** (`fill-apply-profile` JSON). **Export Profile** downloads profile + adaptive knowledge. See `docs/PROFILE_IMPORT_EXPORT.md`.
 
 ## No invented answers (v1.9.9+)
 
@@ -778,12 +778,12 @@ External SuccessFactors-style career sites use the **common signup/login** helpe
 
 | Control | Behavior |
 |---------|----------|
-| Resume/CV upload | Existing file pipeline (`Zahid_CV.docx` / profile resume) |
+| Resume/CV upload | Existing file pipeline (`Sample_CV.docx` / profile resume) |
 | Email + Retype Email | `profile.email` / confirm aliases |
 | Password + Retype Password | **profile password field** only — never invent |
 | Prefer Sign in | When copy says "Already a registered user? Please sign in" and credentials exist |
-| First / Last Name | Chaudhary / Ali |
-| Country/Region Code + Phone | Saudi Arabia (+966) / 504131857 |
+| First / Last Name | Alex / Ali |
+| Country/Region Code + Phone | Saudi Arabia (+966) / 501234567 |
 | Title / Nationality / Country of Residence | Mr / Pakistani / Saudi Arabia |
 | How did you hear | Job Board |
 | Previous / currently employed / family AF | No |

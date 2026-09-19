@@ -20,7 +20,7 @@ const LIBS = [
 const suite = createSuite('smoke-run-modes');
 
 const PROFILE = {
-  firstName: 'Zahid',
+  firstName: 'Sample',
   lastName: 'Ali',
   email: 'zahid@example.com'
 };
@@ -56,7 +56,7 @@ function wireClicks(doc) {
     options: { formWaitMs: 50 }
   });
   suite.ok(fillResult.ok, 'fill mode completes');
-  suite.equal(fillPage.document.getElementById('fn').value, 'Zahid', 'fill mode writes mapped fields');
+  suite.equal(fillPage.document.getElementById('fn').value, 'Sample', 'fill mode writes mapped fields');
   suite.equal(fillClicks.continue, 0, 'fill mode does not click Continue');
   suite.equal(fillClicks.submit, 0, 'fill mode does not click Submit');
   suite.equal(!!fillResult.advanced, false, 'fill result is not advanced');

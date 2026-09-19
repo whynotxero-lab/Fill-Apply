@@ -99,7 +99,7 @@ Does not replace the side panel, queue runner, or Options. Does not invent profi
 
 Collapsible sections:
 
-1. **Profiles** — Zahid General, Mock 🔒 (locked complete demo), Create new; Set active / Rename / Duplicate / Delete / Reset Mock / Create-Reset Zahid
+1. **Profiles** — Zahid General, Mock 🔒 (locked complete demo), Create new; Set active / Rename / Duplicate / Delete / Reset Mock / Create-Reset Sample
 2. **Application queue** — paste apply URLs; Save & rebuild queued; batch later sorts by source
 3. **Documents / Drive links** — upload resume/cover; optional URL/Drive links (shared across profiles)
 4. **Backend / runner** — delay, keep-recent tabs, auto-close (Submit only), PDF report, apply caps, preferIndeedApply, etc.

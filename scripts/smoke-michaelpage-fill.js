@@ -28,9 +28,9 @@ const LIBS = [
 ];
 
 const PROFILE = {
-  firstName: 'Chaudhary',
+  firstName: 'Alex',
   lastName: 'Ali',
-  phone: '504131857',
+  phone: '501234567',
   phoneCountry: '+966',
   city: 'Khobar',
   country: 'Saudi Arabia',
@@ -128,10 +128,10 @@ const PROFILE = {
   const fillResult = await page.window.__fillApply.run(PROFILE, { skipCvImport: true });
   suite.ok(fillResult && fillResult.ok !== false, 'fill engine ok');
   suite.ok((fillResult.filled || 0) >= 4, 'filled ≥ 4 personal fields (was 0/4): filled=' + fillResult.filled);
-  suite.equal(page.document.getElementById('fn').value, 'Chaudhary', 'first name filled');
+  suite.equal(page.document.getElementById('fn').value, 'Alex', 'first name filled');
   suite.equal(page.document.getElementById('ln').value, 'Ali', 'last name filled');
   suite.ok(
-    /504131857/.test(page.document.getElementById('tel').value),
+    /501234567/.test(page.document.getElementById('tel').value),
     'phone filled: ' + page.document.getElementById('tel').value
   );
   suite.equal(page.document.getElementById('town').value, 'Khobar', 'city/town filled from profile.city in raw fill');
@@ -276,7 +276,7 @@ const PROFILE = {
     `
     <form id="wiz">
       <p class="question">First name</p>
-      <input id="nfn" placeholder="Name" value="Chaudhary" />
+      <input id="nfn" placeholder="Name" value="Alex" />
       <p class="question">Last Name</p>
       <input id="nln" placeholder="Last Name" value="Ali" />
       <button type="button" id="next">Next</button>
@@ -356,7 +356,7 @@ const PROFILE = {
     runMode: 'fill'
   });
   suite.ok((fillMode.filled || 0) >= 2, 'Auto Fill (runMode=fill) still fills fields: ' + (fillMode && fillMode.filled));
-  suite.equal(pageFill.document.getElementById('ffn').value, 'Chaudhary', 'fill mode wrote first name');
+  suite.equal(pageFill.document.getElementById('ffn').value, 'Alex', 'fill mode wrote first name');
   suite.ok(!fillMode.navOnly, 'fill mode is not navOnly');
 
   suite.finish();

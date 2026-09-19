@@ -341,7 +341,7 @@ function pageWith(html) {
       confidence: 1,
       aliases: ['SAP']
     });
-    const original = { id: 'p1', email: 'zahid@example.com', firstName: 'Zahid' };
+    const original = { id: 'p1', email: 'zahid@example.com', firstName: 'Sample' };
     const stamped = await S.attachToProfile(original);
     suite.ok(stamped.__adaptiveKnowledge, 'attachToProfile stamps a snapshot for the fill pass');
     suite.ok(!original.__adaptiveKnowledge, 'the saved profile object is not mutated');
@@ -507,7 +507,7 @@ function pageWith(html) {
     const yesNo = [{ text: 'Yes', value: 'Yes' }, { text: 'No', value: 'No' }];
     const okBool = C.prepareFillValue('Yes', 'boolean', 'select', yesNo);
     suite.ok(okBool.ok && okBool.value === 'Yes', 'boolean maps onto Yes/No select');
-    const badText = C.prepareFillValue('Zahid Khan', 'string', 'select', yesNo);
+    const badText = C.prepareFillValue('Sample Khan', 'string', 'select', yesNo);
     suite.ok(!badText.ok && badText.action === 'DO_NOT_FILL', 'free text into Yes/No select is DO NOT FILL');
     const badBoolNum = C.prepareFillValue('Yes', 'boolean', 'number', []);
     suite.ok(!badBoolNum.ok, 'boolean into number is incompatible');
@@ -1180,7 +1180,7 @@ function pageWith(html) {
     const R = page.window.FillApplyReport;
     suite.ok(R && R.groupApplicationFields, 'report groupApplicationFields exported');
     const groups = R.groupApplicationFields({
-      'First name': 'Zahid',
+      'First name': 'Sample',
       Email: 'z@example.com',
       'Requires sponsorship': 'No',
       'Notice period': 'Immediate',
@@ -1199,7 +1199,7 @@ function pageWith(html) {
     const html = R.buildHtmlReport({
       title: 'Demo',
       company: 'Acme',
-      fields: { Email: 'z@example.com', 'First name': 'Zahid' },
+      fields: { Email: 'z@example.com', 'First name': 'Sample' },
       status: 'Submitted'
     });
     suite.ok(html.indexOf('<details class="field-group">') !== -1, 'HTML report uses collapsible groups');

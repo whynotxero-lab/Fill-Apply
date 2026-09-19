@@ -73,18 +73,18 @@ IndexedDB is the source of truth. Records are keyed by **profileId + canonicalKe
 
 ## Value formats (one dictionary value → many ATS shapes)
 
-Canonical facts stay in one shape. Dates are stored as ISO `YYYY-MM-DD` (`dateOfBirth` / `date_of_birth` = `1979-04-06`). At fill time `FillApplyFormat.formatForField` / `detectDateFormat` converts to whatever the control asks for:
+Canonical facts stay in one shape. Dates are stored as ISO `YYYY-MM-DD` (`dateOfBirth` / `date_of_birth` = `1990-01-15`). At fill time `FillApplyFormat.formatForField` / `detectDateFormat` converts to whatever the control asks for:
 
 | Signal | Example output |
 |--------|----------------|
-| `input type="date"` | `1979-04-06` |
-| placeholder / data-format `MM/DD/YYYY` (Workable) | `04/06/1979` |
-| placeholder / label `DD/MM/YYYY` | `06/04/1979` |
+| `input type="date"` | `1990-01-15` |
+| placeholder / data-format `MM/DD/YYYY` (Workable) | `01/15/1990` |
+| placeholder / label `DD/MM/YYYY` | `15/01/1990` |
 | `birth_year` / `birth_month` / `birth_day` | `1979` / `04` / `06` |
 
 Phone already follows the same idea (full E.164 vs national when a country-code sibling exists). Knowledge records may include an optional `formats` map; the formatter does not require it.
 
-**Names:** `first_name` / `last_name` are first-class catalog keys. Last name may be multi-word (`Zahid Ali`). Deriving from `full_name` uses First = first token, Last = remainder — never the final token alone.
+**Names:** `first_name` / `last_name` are first-class catalog keys. Last name may be multi-word (`Sample Ali`). Deriving from `full_name` uses First = first token, Last = remainder — never the final token alone.
 
 ## Unified resolver precedence
 

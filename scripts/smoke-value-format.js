@@ -20,7 +20,7 @@ const LIBS = [
 const suite = createSuite('smoke-value-format');
 
 const PROFILE = {
-  firstName: 'Zahid',
+  firstName: 'Sample',
   lastName: 'Ali',
   email: 'zahid@example.com',
   phone: '501234567',
@@ -214,10 +214,10 @@ function shape(page, descriptor, value, context) {
   );
 
   suite.equal(
-    shape(page, { tag: 'INPUT', type: 'text', placeholder: 'MM/DD/YYYY' }, '1979-04-06', {
+    shape(page, { tag: 'INPUT', type: 'text', placeholder: 'MM/DD/YYYY' }, '1990-01-15', {
       kind: 'date'
     }).value,
-    '04/06/1979',
+    '01/15/1990',
     'Workable-style MM/DD/YYYY DOB from canonical ISO'
   );
 
@@ -240,8 +240,8 @@ function shape(page, descriptor, value, context) {
   );
 
   suite.equal(
-    page.window.FillApplyFormat.nameParts({ fullName: 'Chaudhary Zahid Ali' }).last,
-    'Zahid Ali',
+    page.window.FillApplyFormat.nameParts({ fullName: 'Alex Sample Ali' }).last,
+    'Sample Ali',
     'nameParts keeps multi-word last name'
   );
 

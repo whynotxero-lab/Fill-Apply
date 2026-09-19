@@ -39,10 +39,10 @@ const LEARN_LIBS = [
 const suite = createSuite('smoke-hilton-consent-cv-learn');
 
 const PROFILE = {
-  firstName: 'Zahid',
+  firstName: 'Sample',
   lastName: 'Ali',
   email: 'zahid@example.com',
-  phone: '504131857',
+  phone: '501234567',
   phoneCountry: '+966',
   gender: 'Male'
 };

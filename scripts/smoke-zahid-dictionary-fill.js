@@ -1,5 +1,5 @@
 /**
- * Zahid dictionary fill: title Mr., Yes/No app Q by label, skip empty address,
+ * Sample dictionary fill: title Mr., Yes/No app Q by label, skip empty address,
  * country / province / city from profile + adaptive knowledge.
  * Run: node scripts/smoke-zahid-dictionary-fill.js
  */
@@ -32,7 +32,7 @@ const PROFILE_PATHS = [
   path.join(__dirname, '..', 'profiles', 'zahid-profile.json')
 ];
 
-function loadZahid() {
+function loadSample() {
   for (let i = 0; i < PROFILE_PATHS.length; i++) {
     if (fs.existsSync(PROFILE_PATHS[i])) {
       return JSON.parse(fs.readFileSync(PROFILE_PATHS[i], 'utf8'));
@@ -42,7 +42,7 @@ function loadZahid() {
   return {
     format: 'fill-apply-profile',
     schemaVersion: 1,
-    meta: { profileName: 'Zahid', activate: true },
+    meta: { profileName: 'Sample', activate: true },
     profile: {
       title: 'Mr.',
       salutation: 'Mr.',
@@ -221,7 +221,7 @@ function checkedRadio(doc, name) {
 }
 
 (async function main() {
-  const zahid = loadZahid();
+  const zahid = loadSample();
   const page0 = createPage('<div></div>', ['lib/profile-io.js', 'lib/profile.js']);
   const IO = page0.window.FillApplyProfileIO;
   const validated = IO.validateImportPayload(zahid);

@@ -178,7 +178,7 @@ function reloadPage(prev) {
   return ctx;
 }
 
-function readPrivateZahid() {
+function readPrivateSample() {
   suite.ok(fs.existsSync(PRIVATE_ZAHID), 'private Zahid fixture exists at ' + PRIVATE_ZAHID);
   return JSON.parse(fs.readFileSync(PRIVATE_ZAHID, 'utf8'));
 }
@@ -191,10 +191,10 @@ function sleep(ms) {
 
 (async function main() {
   /* ------------------------------------------------------------------ */
-  /* Package must not contain real Zahid PII                             */
+  /* Package must not contain real Sample PII                             */
   /* ------------------------------------------------------------------ */
   await (async function noPrivateDataInPackage() {
-    const markers = ['czahidali.accacma@gmail.com', 'chaudhryzahidali', '504131857', 'Chaudhary Zahid Ali'];
+    const markers = ['czahidali.accacma@gmail.com', 'czahidali@gmail.com', '504131857', 'Chaudhary Zahid Ali', '1979-04-06', '+966504131857'];
     const scanFiles = [
       'lib/profile.js',
       'profiles/zahid-general.json',
@@ -208,9 +208,9 @@ function sleep(ms) {
         suite.ok(text.indexOf(m) === -1, rel + ' has no private marker: ' + m);
       });
     });
-    const publicZahid = JSON.parse(fs.readFileSync(path.join(ROOT, 'profiles/zahid-general.json'), 'utf8'));
-    suite.equal(publicZahid.email || '', '', 'public zahid-general.json email is empty');
-    suite.equal(publicZahid.firstName || '', '', 'public zahid-general.json firstName is empty');
+    const publicSample = JSON.parse(fs.readFileSync(path.join(ROOT, 'profiles/zahid-general.json'), 'utf8'));
+    suite.equal(publicSample.email || '', '', 'public zahid-general.json email is empty');
+    suite.equal(publicSample.firstName || '', '', 'public zahid-general.json firstName is empty');
   })();
 
   /* ------------------------------------------------------------------ */
@@ -223,7 +223,7 @@ function sleep(ms) {
     const names = list.map(function (p) {
       return String(p.name || '').toLowerCase();
     });
-    suite.ok(!names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init does not auto-seed Zahid');
+    suite.ok(!names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init does not auto-seed Sample');
     suite.ok(names.some(function (n) { return n === 'mock'; }), 'fresh init includes Mock');
     suite.equal(list.length, 1, 'fresh init Mock-only built-in');
     const active = await P.getActiveProfileMeta();
@@ -231,9 +231,9 @@ function sleep(ms) {
   })();
 
   /* ------------------------------------------------------------------ */
-  /* Import Zahid + immediate use + knowledge                             */
+  /* Import Sample + immediate use + knowledge                             */
   /* ------------------------------------------------------------------ */
-  const privatePayload = readPrivateZahid();
+  const privatePayload = readPrivateSample();
   suite.equal(privatePayload.format, 'fill-apply-profile', 'private fixture format');
   suite.equal(privatePayload.schemaVersion, 1, 'private fixture schemaVersion');
 
@@ -261,7 +261,7 @@ function sleep(ms) {
     ]
   };
 
-  await (async function importZahid() {
+  await (async function importSample() {
     const result = await ctx.IO.importPayload(enriched, { activate: true });
     suite.ok(result.ok, 'import Zahid ok: ' + JSON.stringify(result.errors || []));
     suite.ok(result.activated, 'import activates profile');
@@ -277,7 +277,7 @@ function sleep(ms) {
     );
 
     const active = await ctx.Profile.getActiveProfileMeta();
-    suite.ok(ctx.Profile.isZahidName(active.name), 'Zahid active after import');
+    suite.ok(ctx.Profile.isZahidName(active.name), 'Sample active after import');
 
     // Knowledge + aliases
     await sleep(20);
@@ -303,7 +303,7 @@ function sleep(ms) {
     suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'email survives reload');
     suite.equal(profile.nationality, 'Pakistan', 'nationality survives reload');
     const active = await ctx.Profile.getActiveProfileMeta();
-    suite.ok(ctx.Profile.isZahidName(active.name), 'Zahid still active after reload');
+    suite.ok(ctx.Profile.isZahidName(active.name), 'Sample still active after reload');
 
     const facts = await ctx.Knowledge.listKnowledge(await ctx.Profile.getActiveProfileId());
     suite.ok(
@@ -318,7 +318,7 @@ function sleep(ms) {
   /* Update does not reset / Mock preserved                              */
   /* ------------------------------------------------------------------ */
   await (async function updateDoesNotReset() {
-    // Simulate "update" startup paths: ensureMock + ensureZahid without reset
+    // Simulate "update" startup paths: ensureMock + ensureSample without reset
     await ctx.Profile.ensureMockProfile();
     await ctx.Profile.ensureZahidProfile({ activate: false, reset: false });
     if (ctx.Profile.ensureDefaultProfiles) {
@@ -340,14 +340,14 @@ function sleep(ms) {
     })[0];
     await ctx.Profile.setActiveProfile(mock.id);
     await ctx.Profile.ensureZahidProfile({ activate: false, reset: false });
-    suite.equal(await ctx.Profile.getActiveProfileId(), mock.id, 'explicit Mock selection not bounced to Zahid');
+    suite.equal(await ctx.Profile.getActiveProfileId(), mock.id, 'explicit Mock selection not bounced to Sample');
   })();
 
   /* ------------------------------------------------------------------ */
   /* Export → fresh → import equivalent                                  */
   /* ------------------------------------------------------------------ */
   await (async function exportFreshImportEquivalent() {
-    // Switch back to Zahid and export
+    // Switch back to Sample and export
     const list = await ctx.Profile.listProfiles();
     const zahid = list.filter(function (p) {
       return ctx.Profile.isZahidName(p.name);
@@ -365,7 +365,7 @@ function sleep(ms) {
       'export includes accumulated knowledge'
     );
 
-    // Fresh extension storage — Mock only; import creates Zahid from JSON
+    // Fresh extension storage — Mock only; import creates Sample from JSON
     const fresh = makePage();
     await fresh.Profile.listProfiles();
     const freshList = await fresh.Profile.listProfiles();
@@ -375,7 +375,7 @@ function sleep(ms) {
           ? fresh.Profile.isZahidName(p.name)
           : /zahid/i.test(p.name);
       }),
-      'fresh page has no Zahid until import'
+      'fresh page has no Sample until import'
     );
     const mockBefore = freshList.filter(function (p) {
       return fresh.Profile.isMockName ? fresh.Profile.isMockName(p.name) : /^mock$/i.test(p.name);
@@ -478,7 +478,7 @@ function sleep(ms) {
     await page.Profile.createZahidGeneralProfile();
     const after = await page.Profile.getProfile();
     suite.equal(after.email || '', '', 'Create/Reset Zahid restores empty public shell');
-    suite.ok(page.Profile.isZahidName((await page.Profile.getActiveProfileMeta()).name), 'Create/Reset activates Zahid');
+    suite.ok(page.Profile.isZahidName((await page.Profile.getActiveProfileMeta()).name), 'Create/Reset activates Sample');
     suite.ok(
       (await page.Profile.listProfiles()).some(function (p) {
         return page.Profile.isMockName(p.name);

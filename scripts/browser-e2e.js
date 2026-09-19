@@ -142,9 +142,9 @@ const CAREER_PAGE = `<!doctype html><html><body>
 </body></html>`;
 
 const PROFILE = {
-  firstName: 'Zahid',
+  firstName: 'Sample',
   lastName: 'Ali',
-  fullName: 'Chaudhary Zahid Ali',
+  fullName: 'Alex Sample Ali',
   email: 'zahid@example.com',
   phone: '+966500000000',
   phoneCountry: '+966',
@@ -305,7 +305,7 @@ function check(condition, message) {
     });
     console.log('  form values: ' + JSON.stringify(values));
 
-    check(values.fn === 'Zahid', 'first name filled from a wrapper-div label');
+    check(values.fn === 'Sample', 'first name filled from a wrapper-div label');
     check(values.em === 'zahid@example.com', 'email filled');
     check(values.cc === '+966', 'phone country code selected in its own control');
     check(values.ph === '500000000', 'phone field beside it gets the national number');

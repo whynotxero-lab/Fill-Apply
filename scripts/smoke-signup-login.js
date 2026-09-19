@@ -28,27 +28,27 @@ const SIGNUP_LIBS = [
 ];
 
 const PROFILE_WITH_PW = {
-  firstName: 'Chaudhary',
+  firstName: 'Alex',
   lastName: 'Ali',
-  email: 'czahidali.accacma@gmail.com',
+  email: 'alex.sample@example.com',
   password: 'profile-password-field',
   confirm_password: 'profile-password-field',
   retype_password: 'profile-password-field',
-  confirm_email: 'czahidali.accacma@gmail.com',
-  retype_email: 'czahidali.accacma@gmail.com',
+  confirm_email: 'alex.sample@example.com',
+  retype_email: 'alex.sample@example.com',
   title: 'Mr',
   salutation: 'Mr',
   nationality: 'Pakistani',
   country: 'Saudi Arabia',
-  phone: '504131857',
+  phone: '501234567',
   phoneCountry: 'Saudi Arabia (+966)',
   referralSource: 'Job Board',
   customAnswers: {
     password: 'profile-password-field',
     confirm_password: 'profile-password-field',
     retype_password: 'profile-password-field',
-    confirm_email: 'czahidali.accacma@gmail.com',
-    retype_email: 'czahidali.accacma@gmail.com',
+    confirm_email: 'alex.sample@example.com',
+    retype_email: 'alex.sample@example.com',
     'How did you hear about this position?': 'Job Board',
     'Are you a previous Al-Futtaim Group employee?': 'No',
     'Are you currently employed with any Al-Futtaim Group company': 'No',
@@ -62,9 +62,9 @@ const PROFILE_WITH_PW = {
 };
 
 const PROFILE_NO_PW = {
-  firstName: 'Chaudhary',
+  firstName: 'Alex',
   lastName: 'Ali',
-  email: 'czahidali.accacma@gmail.com'
+  email: 'alex.sample@example.com'
 };
 
 (async function main() {
@@ -145,12 +145,12 @@ const PROFILE_NO_PW = {
     suite.ok(doc.getElementById('pw2').value.length > 0, 'retype password filled');
     suite.ok(doc.getElementById('pw').value === doc.getElementById('pw2').value, 'password matches retype');
     // Never print raw password
-    suite.ok(doc.getElementById('fn').value === 'Chaudhary', 'first name');
+    suite.ok(doc.getElementById('fn').value === 'Alex', 'first name');
     suite.ok(doc.getElementById('title').value === 'Mr' || /Mr/i.test(doc.getElementById('title').selectedOptions[0].text), 'Title Mr');
     suite.ok(/Pakistani/i.test(doc.getElementById('nat').selectedOptions[0].text), 'Nationality Pakistani');
     suite.ok(/Saudi Arabia/i.test(doc.getElementById('res').selectedOptions[0].text), 'Country of Residence');
     suite.ok(/\+966|Saudi/i.test(doc.getElementById('cc').selectedOptions[0].text), 'Country/Region Code +966');
-    suite.equal(doc.getElementById('ph').value.replace(/\D/g, '').slice(-9), '504131857', 'phone national');
+    suite.equal(doc.getElementById('ph').value.replace(/\D/g, '').slice(-9), '501234567', 'phone national');
     suite.ok(/Job Board/i.test(doc.getElementById('hear').selectedOptions[0].text), 'How did you hear Job Board');
     suite.ok(/No/i.test(doc.getElementById('prev').selectedOptions[0].text), 'previous AF No');
     suite.ok(doc.getElementById('terms').checked, 'Terms / privacy ticked');
@@ -216,9 +216,9 @@ const PROFILE_NO_PW = {
       format: 'fill-apply-profile',
       schemaVersion: 1,
       profile: {
-        email: 'czahidali.accacma@gmail.com',
+        email: 'alex.sample@example.com',
         password: 'profile-password-field',
-        firstName: 'Chaudhary',
+        firstName: 'Alex',
         customAnswers: { password: 'profile-password-field', confirm_password: 'profile-password-field' }
       },
       knowledge: { records: [] }
