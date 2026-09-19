@@ -40,6 +40,21 @@
     return false;
   }
 
+  function stripOptionNoise(label) {
+    var s = String(label || '').replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    s = s.replace(/[\s:?\-–—]*\bYes\s*\/?\s*No\b\s*$/i, '');
+    s = s.replace(/[\s:?\-–—]*\bY\s*\/?\s*N\b\s*$/i, '');
+    s = s.replace(/YesNo\s*$/i, '');
+    s = s.replace(/\?Yes\s*$/i, '?');
+    s = s.replace(/\?No\s*$/i, '?');
+    return s.replace(/\s+/g, ' ').trim();
+  }
+
+  function cleanLabel(s) {
+    return stripOptionNoise(String(s || '').replace(/\s+/g, ' ').trim());
+  }
+
   function norm(s) {
     return String(s || '')
       .toLowerCase()
@@ -259,7 +274,7 @@
   }
 
   function answerFromCustom(profile, label) {
-    var lab = norm(label);
+    var lab = norm(cleanLabel(label));
     if (!lab) return null;
 
     var map = profile && profile.customAnswers;
@@ -319,11 +334,46 @@
    */
   function resolveYesNoAnswer(profile, questionLabel) {
     profile = profile || {};
-    var lab = norm(questionLabel);
+    var cleaned = cleanLabel(questionLabel);
+    var lab = norm(cleaned);
 
-    var custom = answerFromCustom(profile, questionLabel);
+    var custom =
+      answerFromCustom(profile, cleaned) ||
+      answerFromCustom(profile, questionLabel);
     var yn = toYesNo(custom);
     if (yn) return { answer: yn, known: true, reason: 'customAnswers' };
+
+    // Qualified CA / ACCA / CMA / CPA
+    if (
+      /qualified\s*(ca|acca|cma|cpa)|\b(ca|acca)\b.*\?|are you a qualified|acca\b|chartered accountant/i.test(
+        lab
+      ) ||
+      /qualified ca or acca|ca or acca/i.test(lab)
+    ) {
+      yn =
+        toYesNo(answerFromCustom(profile, 'Are you a qualified CA or ACCA?')) ||
+        toYesNo(answerFromCustom(profile, 'qualified_ca_or_acca')) ||
+        toYesNo(answerFromCustom(profile, 'acca_qualified')) ||
+        toYesNo(answerFromCustom(profile, 'Are you a qualified CA or ACCA')) ||
+        toYesNo(answerFromCustom(profile, 'ACCA')) ||
+        toYesNo(answerFromCustom(profile, 'finance_accounting_qualifications'));
+      if (!yn) {
+        // Profile facts: ACCA/CA credentials imply Yes
+        var blob = [
+          profile.certifications,
+          profile.qualifications,
+          profile.headline,
+          profile.summary,
+          (profile.customAnswers && profile.customAnswers.acca) || '',
+          (profile.customAnswers && profile.customAnswers.acca_qualified) || ''
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (/\bacca\b|\bca\b|chartered accountant|cma\b|cpa\b/.test(blob)) yn = 'Yes';
+      }
+      if (yn) return { answer: yn, known: true, reason: 'ca_acca' };
+      return { answer: null, known: false, reason: 'ca_acca_unknown' };
+    }
 
     // Currently employed
     if (/currently employed|are you employed|presently employed|currently working/i.test(lab)) {
@@ -407,22 +457,23 @@
         group.querySelector('legend, .question-text, [class*="label"], label:not([for])') || null;
       var labelText = '';
       if (labelEl) {
-        labelText = (labelEl.textContent || '').replace(/\s+/g, ' ').trim();
+        labelText = cleanLabel(labelEl.textContent || '');
       }
       if (!labelText || /^yes$|^no$/i.test(labelText) || labelText.length < 8) {
-        // Use group text but strip trailing Yes/No options
-        labelText = (group.textContent || '')
-          .replace(/\s+/g, ' ')
-          .replace(/\bYes\b/gi, ' ')
-          .replace(/\bNo\b/gi, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+        // Use group text but strip trailing Yes/No options (incl. glued YesNo)
+        labelText = cleanLabel(
+          String(group.textContent || '')
+            .replace(/\s+/g, ' ')
+            .replace(/\bYes\b/gi, ' ')
+            .replace(/\bNo\b/gi, ' ')
+        );
       }
+      labelText = cleanLabel(labelText);
       // Keep short-ish question labels
       if (!labelText || labelText.length < 8 || labelText.length > 220) continue;
-      if (!/\?|employed|located|experience|industry|are you|do you|have you/i.test(labelText)) {
+      if (!/\?|employed|located|experience|industry|are you|do you|have you|qualified|acca|\bca\b/i.test(labelText)) {
         // Still accept if it looks like a screening prompt
-        if (!/currently|uae|manufacturing|work/i.test(labelText)) continue;
+        if (!/currently|uae|manufacturing|work|notice|remuner|salary|contract/i.test(labelText)) continue;
       }
       if (alreadyHave(labelText)) continue;
 
@@ -512,11 +563,143 @@
     return null;
   }
 
-  function answerModalQuestions(modal, profile, runMode) {
-    var questions = collectYesNoQuestions(modal);
+
+  /**
+   * Fill text / textarea / select fields inside the Easy Apply modal
+   * (Notice Period, Remuneration, contracting experience, location, salary).
+   */
+  function fillModalFields(modal, profile) {
+    profile = profile || {};
+    var ca = profile.customAnswers || {};
     var filled = 0;
+    var details = [];
+    if (!modal) return { filled: filled, details: details };
+
+    function pick() {
+      for (var i = 0; i < arguments.length; i++) {
+        var v = arguments[i];
+        if (v != null && String(v).trim() !== '') return String(v).trim();
+      }
+      return '';
+    }
+
+    var notice = pick(
+      ca['What is your notice Period?'],
+      ca['Notice period'],
+      ca.notice_period,
+      ca.noticePeriod,
+      ca.available_immediately,
+      profile.noticePeriod,
+      'Immediately available'
+    );
+    var remuner = pick(
+      ca['What is your current Remuneration?'],
+      ca.current_remuneration,
+      ca.current_salary_text,
+      ca.salary_text,
+      ca.salary_display,
+      ca.ignite_salary,
+      profile.salaryText,
+      profile.currentSalary,
+      '0 AED / SAR (Currently available for immediate joining)'
+    );
+    var contracting = pick(
+      ca.contracting_finance_experience,
+      ca[
+        'How many years of relevant experience do you have in finance/accounting within the contracting industry?'
+      ],
+      ca['contracting industry']
+    );
+    var location = pick(
+      ca.location,
+      ca['Primary work location'],
+      ca.preferred_locations,
+      profile.city,
+      profile.location,
+      'Riyadh'
+    );
+    var phone = pick(profile.phoneFull, profile.phoneE164, ca.phone_full, ca.Phone);
+
+    var controls = modal.querySelectorAll('input, textarea, select');
+    for (var i = 0; i < controls.length; i++) {
+      var el = controls[i];
+      if (!visible(el) || el.disabled) continue;
+      var type = String(el.type || '').toLowerCase();
+      if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'radio' || type === 'checkbox' || type === 'file') {
+        continue;
+      }
+      var lab = cleanLabel(getLabelFor(el, modal) || el.name || el.placeholder || '');
+      var nlab = norm(lab);
+      if (!nlab) continue;
+
+      var value = '';
+      if (/notice\s*period|when can you (join|start)|availability|available|immediate/i.test(nlab)) {
+        value = notice;
+      } else if (/remuneration|current\s*(salary|ctc|pay)|salary|compensation|monthly\s*salary/i.test(nlab)) {
+        value = remuner;
+      } else if (/contracting|construction|years of relevant|finance\/accounting within/i.test(nlab)) {
+        value = contracting;
+      } else if (/location|city|based in|work location|where are you/i.test(nlab)) {
+        value = location;
+      } else if (/phone|mobile|telephone|contact number/i.test(nlab)) {
+        value = phone;
+      } else {
+        // generic customAnswers / knowledge lookup
+        value = answerFromCustom(profile, lab) || '';
+      }
+      if (!value) continue;
+      if (el.value && String(el.value).trim() !== '') continue;
+
+      try {
+        if (el.tagName === 'SELECT') {
+          // try match option
+          var opts = el.options || [];
+          var matched = false;
+          for (var o = 0; o < opts.length; o++) {
+            var ot = String(opts[o].text || opts[o].value || '');
+            if (norm(ot) === norm(value) || (norm(ot) && norm(value).indexOf(norm(ot)) !== -1) || (norm(ot) && norm(ot).indexOf(norm(value)) !== -1)) {
+              el.selectedIndex = o;
+              matched = true;
+              break;
+            }
+          }
+          // Notice period selects often have "Immediate" / "Currently serving"
+          if (!matched && /notice|available/i.test(nlab)) {
+            for (var o2 = 0; o2 < opts.length; o2++) {
+              var ot2 = String(opts[o2].text || '');
+              if (/immediate|serving notice|0\s*day|available/i.test(ot2)) {
+                el.selectedIndex = o2;
+                matched = true;
+                break;
+              }
+            }
+          }
+          if (!matched) continue;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+          el.focus();
+          el.value = value;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        filled++;
+        details.push({ label: lab, value: value.slice(0, 80) });
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return { filled: filled, details: details };
+  }
+
+  function answerModalQuestions(modal, profile, runMode) {
+    var textFill = fillModalFields(modal, profile);
+    var questions = collectYesNoQuestions(modal);
+    var filled = textFill.filled || 0;
     var unmatched = [];
-    var answered = [];
+    var answered = (textFill.details || []).map(function (d) {
+      return { label: d.label, answer: d.value, reason: 'modal_text' };
+    });
 
     for (var i = 0; i < questions.length; i++) {
       var q = questions[i];
@@ -799,5 +982,13 @@
   };
 
   if (global.FillApplyRegistry) global.FillApplyRegistry.register(adapter);
+  adapter._test = {
+    cleanLabel: cleanLabel,
+    stripOptionNoise: stripOptionNoise,
+    resolveYesNoAnswer: resolveYesNoAnswer,
+    collectYesNoQuestions: collectYesNoQuestions,
+    fillModalFields: fillModalFields,
+    answerModalQuestions: answerModalQuestions
+  };
   global.FillApply_naukrigulfAdapter = adapter;
 })(typeof globalThis !== 'undefined' ? globalThis : self);

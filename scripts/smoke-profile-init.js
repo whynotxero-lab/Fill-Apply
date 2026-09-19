@@ -1,5 +1,5 @@
 /**
- * Zahid + Mock profile init, Create/Reset Zahid activation, selection persistence.
+ * Mock-only fresh init; explicit createZahidGeneralProfile; selection persistence.
  *
  * Run: node scripts/smoke-profile-init.js
  */
@@ -65,8 +65,9 @@ function makePage() {
     const names = list.map(function (p) {
       return String(p.name || '').toLowerCase();
     });
-    suite.ok(names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init includes Zahid');
+    suite.ok(!names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init does not auto-seed Zahid');
     suite.ok(names.some(function (n) { return n === 'mock'; }), 'fresh init includes Mock');
+    suite.equal(list.length, 1, 'fresh init has Mock as only built-in');
     const activeId = await P.getActiveProfileId();
     const active = list.filter(function (p) { return p.id === activeId; })[0];
     suite.ok(active, 'active profile exists');

@@ -184,7 +184,12 @@
     return new Promise(function (resolve, reject) {
       chrome.runtime.sendMessage(Object.assign({ type: type }, extra || {}), function (res) {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+          var _m = chrome.runtime.lastError.message || '';
+          if (/Extension context invalidated|Receiving end does not exist|Could not establish connection/i.test(_m)) {
+            reject(new Error('Extension was reloaded — refresh this tab (or reopen the side panel), then try again.'));
+            return;
+          }
+          reject(new Error(_m));
           return;
         }
         if (!res || res.ok === false) {

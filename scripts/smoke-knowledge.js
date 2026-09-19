@@ -796,12 +796,12 @@ function pageWith(html) {
     });
 
     const salary = C.resolveFromEvidence(C.buildEvidence({ label: 'Salary' }));
-    suite.ok(salary.ambiguous, 'bare Salary is AMBIGUOUS');
-    suite.ok((salary.candidateKeys || []).indexOf('current_salary') !== -1, 'Salary candidates include current');
-    suite.ok((salary.candidateKeys || []).indexOf('expected_salary') !== -1, 'Salary candidates include expected');
+    // v1.19.1: bare Salary is the generic salary_text box (Ignite etc.), not current vs expected.
+    suite.equal(salary.key, 'salary_text', 'bare Salary → salary_text');
+    suite.ok(!salary.ambiguous, 'bare Salary is not AMBIGUOUS when salary_text claims it');
 
     const comp = C.resolveFromEvidence(C.buildEvidence({ label: 'Compensation' }));
-    suite.ok(comp.ambiguous, 'bare Compensation is AMBIGUOUS');
+    suite.equal(comp.key, 'salary_text', 'bare Compensation → salary_text');
 
     const expn = C.resolveFromEvidence(C.buildEvidence({ label: 'Experience' }));
     suite.ok(expn.ambiguous, 'bare Experience is AMBIGUOUS');
@@ -815,9 +815,9 @@ function pageWith(html) {
     const map = page.window.FillApplyFieldMap;
     const profile = { __adaptiveKnowledge: { records: [] } };
     const salaryResolve = K.resolve(profile, { label: 'Salary', type: 'number' }, map);
+    // No salary_text in profile/knowledge → still empty (does not invent current/expected).
     suite.equal(salaryResolve.value, '', 'bare Salary does not silently fill current or expected');
-    suite.ok(salaryResolve.action === 'DO_NOT_FILL' || !salaryResolve.value, 'bare Salary → DO_NOT_FILL');
-    suite.ok(salaryResolve.ambiguous || salaryResolve.reason === 'ambiguous_bare_label' || !salaryResolve.value, 'bare Salary flagged ambiguous/empty');
+    suite.ok(!salaryResolve.value, 'bare Salary stays empty without salary_text');
 
     // aliasScore must not treat bare salary as strong hit on longer aliases
     suite.ok(C.aliasScore('salary', ['expected salary', 'current salary']) < 90, 'bare salary aliasScore stays weak');
@@ -991,7 +991,7 @@ function pageWith(html) {
     );
     suite.equal(hit.key, 'expected_salary', 'Missing Info pipeline: label wins over name/id');
     const amb = C.resolveFromEvidence(C.buildEvidence({ label: 'Salary', type: 'number' }));
-    suite.ok(amb.ambiguous, 'Missing Info pipeline: bare Salary ambiguous');
+    suite.equal(amb.key, 'salary_text', 'Missing Info pipeline: bare Salary → salary_text');
   })();
 
   await (async function evidencePriorityPolicyRegression_v1175() {
@@ -1052,11 +1052,11 @@ function pageWith(html) {
     suite.equal(nameOnlyConflict.action, 'FILL', 'policy: contradictory name/id does not block FILL');
     suite.ok(!nameOnlyConflict.ambiguous, 'policy: contradictory name/id does not manufacture ambiguity');
 
-    // 5) Bare Salary + name expected_salary → AMBIGUOUS / DO_NOT_FILL
+    // 5) Bare Salary + name expected_salary → salary_text (label wins; name does not redirect to expected)
     const bareSal = hit({ label: 'Salary', name: 'expected_salary' });
-    suite.ok(bareSal.ambiguous, 'policy: bare Salary + name expected → AMBIGUOUS');
-    suite.equal(bareSal.action, 'DO_NOT_FILL', 'policy: bare Salary + name → DO_NOT_FILL');
-    suite.ok(!bareSal.key, 'policy: name cannot rescue bare Salary');
+    suite.equal(bareSal.key, 'salary_text', 'policy: bare Salary + name expected → salary_text');
+    suite.equal(bareSal.action, 'FILL', 'policy: bare Salary + name → FILL salary_text');
+    suite.ok(!bareSal.ambiguous, 'policy: bare Salary + name is not ambiguous');
 
     // 6) Bare Experience + name years_experience → AMBIGUOUS / DO_NOT_FILL
     const bareExp = hit({ label: 'Experience', name: 'years_experience' });
@@ -1170,7 +1170,7 @@ function pageWith(html) {
     const bareDiscover = Cr.resolveFromEvidence(
       Cr.buildEvidence({ label: 'Salary', name: 'expected_salary', type: 'number' })
     );
-    suite.ok(bareDiscover.ambiguous, 'discovery pipeline: bare Salary + name still AMBIGUOUS');
+    suite.equal(bareDiscover.key, 'salary_text', 'discovery pipeline: bare Salary + name → salary_text');
   })();
 
   await (async function reportFieldGroups() {

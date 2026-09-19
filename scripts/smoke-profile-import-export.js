@@ -1,7 +1,7 @@
 /**
  * Profile Import / Export — mandatory coverage for Fill & Apply 1.18.0
  *
- * - fresh init (Mock + empty Zahid shell; Zahid active)
+ * - fresh init (Mock only built-in; Mock active)
  * - import Zahid from private fill-apply-profile JSON
  * - immediate use after import
  * - knowledge + aliases restored
@@ -221,17 +221,11 @@ function sleep(ms) {
     const names = list.map(function (p) {
       return String(p.name || '').toLowerCase();
     });
-    suite.ok(names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init includes Zahid');
+    suite.ok(!names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init does not auto-seed Zahid');
     suite.ok(names.some(function (n) { return n === 'mock'; }), 'fresh init includes Mock');
+    suite.equal(list.length, 1, 'fresh init Mock-only built-in');
     const active = await P.getActiveProfileMeta();
     suite.ok(P.isMockName ? P.isMockName(active.name) : /^mock$/i.test(active.name), 'fresh init activates Mock');
-    const zahidMeta = list.filter(function (p) {
-      return P.isZahidName ? P.isZahidName(p.name) : /zahid/i.test(p.name);
-    })[0];
-    suite.ok(zahidMeta, 'Zahid shell exists on fresh init');
-    const profile = await P.getProfileById(zahidMeta.id);
-    suite.equal(profile.email || '', '', 'fresh Zahid shell has no email PII');
-    suite.equal(profile.firstName || '', '', 'fresh Zahid shell has no firstName PII');
   })();
 
   /* ------------------------------------------------------------------ */
@@ -369,18 +363,22 @@ function sleep(ms) {
       'export includes accumulated knowledge'
     );
 
-    // Fresh extension storage — Mock is active by default; Zahid shell stays empty until import
+    // Fresh extension storage — Mock only; import creates Zahid from JSON
     const fresh = makePage();
     await fresh.Profile.listProfiles();
     const freshList = await fresh.Profile.listProfiles();
-    const freshZahid = freshList.filter(function (p) {
-      return fresh.Profile.isZahidName
-        ? fresh.Profile.isZahidName(p.name)
-        : /zahid/i.test(p.name);
+    suite.ok(
+      !freshList.some(function (p) {
+        return fresh.Profile.isZahidName
+          ? fresh.Profile.isZahidName(p.name)
+          : /zahid/i.test(p.name);
+      }),
+      'fresh page has no Zahid until import'
+    );
+    const mockBefore = freshList.filter(function (p) {
+      return fresh.Profile.isMockName ? fresh.Profile.isMockName(p.name) : /^mock$/i.test(p.name);
     })[0];
-    suite.ok(freshZahid, 'fresh page has Zahid shell');
-    const before = await fresh.Profile.getProfileById(freshZahid.id);
-    suite.equal(before.email || '', '', 'fresh profile empty before import');
+    suite.ok(mockBefore, 'fresh has Mock');
     const imported = await fresh.IO.importPayload(bundled.payload, { activate: true });
     suite.ok(imported.ok, 're-import ok');
     const after = await fresh.Profile.getProfile();

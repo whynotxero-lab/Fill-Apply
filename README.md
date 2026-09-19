@@ -26,6 +26,14 @@ Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh
 
 Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
+## v1.19.1 — full phone + Choose File + Ignite labels
+
+**Universal fill (not ATS-limited):** prefer extending `fill.js` / field-map / synonyms / file upload over one-off adapters.
+
+- **Combined phone:** when a phone-like field is alone (no sibling country dropdown), fill full E.164 (`phoneFull` / `phoneE164` / `+966` + local). Split Country Code + Phone keeps national number only.
+- **Choose File:** detect Choose File / Upload CV / Browse CTAs (including `input[type=button]` and short spans) that reveal hidden `input[type=file]`; attach DOCX/PDF from stored documents.
+- **Short labels:** Name, Job title, Phone, Email, Salary (`3000 SAR` / `salary_text`), Location, Available → profile + adaptive knowledge synonyms (Ignite Selection “Submit Your CV” works without a dedicated adapter).
+
 ## v1.19.0 — tab handoff, Apply popups, leaner Options
 
 **New-tab Apply handoff:** when Apply opens a new tab (or the apply form lands elsewhere), the runner adopts that tab and resumes Fill / Ready / Submit — no longer stuck on the listing page.

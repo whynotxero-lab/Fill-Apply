@@ -19,6 +19,12 @@
 (function (global) {
   'use strict';
 
+  function isContextDeadError(msg) {
+    msg = String(msg || '');
+    return /Extension context invalidated|Receiving end does not exist|Could not establish connection|message port closed/i.test(msg);
+  }
+
+
   var HOST_ID = 'fill-apply-page-panel-host';
   var ATTR = 'data-fill-apply-page-panel';
   var PANEL_WIDTH = 216;
@@ -412,7 +418,15 @@
     try {
       chrome.runtime.sendMessage({ type: 'FILL_APPLY_FILL_ONCE', runMode: mode }, function (res) {
         if (chrome.runtime.lastError) {
-          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Message failed');
+          var errMsg = chrome.runtime.lastError.message || 'Message failed';
+          if (isContextDeadError(errMsg)) {
+            setStatus(
+              STATUS.error,
+              'Extension was reloaded — refresh this tab, then try again (Load unpacked / Update).'
+            );
+            return;
+          }
+          setStatus(STATUS.error, errMsg);
           return;
         }
         if (!res || res.ok === false) {

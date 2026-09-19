@@ -12,7 +12,7 @@
       <img class="titlebar-logo" src="../icons/icon48.png" width="28" height="28" alt="" />
       <div class="titlebar-main">
         <strong class="titlebar-name">Fill &amp; Apply</strong>
-        <span class="titlebar-ver" id="extVersion">v1.19.0</span>
+        <span class="titlebar-ver" id="extVersion">v1.19.1</span>
       </div>
       <span class="active-chip" id="headerActiveChip" title="Active profile">…</span>
     </header>
@@ -22,19 +22,14 @@
         <summary>Profiles</summary>
         <div class="sec-body">
           <p class="hint">
-            Default active profile is <strong>Mock</strong> (demo sample).
-            Select a chip, then <strong>Set active</strong>, <strong>Import</strong>, <strong>Export</strong>,
-            <strong>Create</strong> (+ Create New Profile), or <strong>Delete</strong>.
-            Real applicant data (e.g. Zahid) is import-only — not hardcoded in the store build.
+            Built-in profile: <strong>Mock</strong> (demo only). Click a chip to switch.
+            Use <strong>Import Profile</strong> for real applicant data (never shipped in the store build),
+            <strong>Export Profile</strong> to back up, and <strong>Delete</strong> for imported profiles.
           </p>
           <div id="profileChips" class="profile-chips" role="list"></div>
           <div class="actions profile-actions">
-            <button type="button" id="btnProfileSetActive" class="ghost">Set active</button>
-            <button type="button" id="btnProfileRename" class="ghost">Rename</button>
-            <button type="button" id="btnProfileDuplicate" class="ghost">Duplicate</button>
             <button type="button" id="btnProfileDelete" class="danger">Delete</button>
             <button type="button" id="btnResetMockProfile" class="ghost">Reset Mock</button>
-            <button type="button" id="btnZahidGeneral" class="primary">Create / Reset Zahid shell</button>
             <button type="button" id="btnExportProfile" class="ghost">Export Profile</button>
             <button type="button" id="btnImportProfile" class="ghost">Import Profile</button>
             <input type="file" id="importProfileFile" accept="application/json,.json" hidden />

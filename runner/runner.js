@@ -12,6 +12,12 @@
 (function (global) {
   'use strict';
 
+  function isContextDeadError(msg) {
+    msg = String(msg || '');
+    return /Extension context invalidated|Receiving end does not exist|Could not establish connection|message port closed|Frame with ID|No tab with id/i.test(msg);
+  }
+
+
   const INJECT_FILES = [
     'lib/dom-deep.js',
     'lib/format.js',
@@ -170,7 +176,11 @@
       /No frame with id/i.test(msg) ||
       /The tab was closed/i.test(msg) ||
       /Cannot access contents of (the page|url)/i.test(msg) ||
-      /Frame does not exist/i.test(msg)
+      /Frame does not exist/i.test(msg) ||
+      /Extension context invalidated/i.test(msg) ||
+      /Receiving end does not exist/i.test(msg) ||
+      /Could not establish connection/i.test(msg) ||
+      /message port closed/i.test(msg)
     );
   }
 

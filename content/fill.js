@@ -861,6 +861,84 @@
         ''
       );
     }
+    if (key === 'phone') {
+      const ca = profile.customAnswers || {};
+      // Prefer full E.164 when stored; formatPhone still strips to national
+      // when the form has a sibling country-code control.
+      const full =
+        profile.phoneFull ||
+        profile.phoneE164 ||
+        ca.phone_full ||
+        ca.phoneFull ||
+        ca.phone_complete ||
+        ca.phone_with_country ||
+        ca.Phone ||
+        '';
+      const national = profile.phone || ca.phone || ca.phone_number || '';
+      const country =
+        profile.phoneCountry ||
+        profile.phoneCountryCode ||
+        ca.phone_country ||
+        ca.phoneCountry ||
+        '';
+      if (full) return String(full);
+      if (national && country) {
+        const dial = String(country).replace(/\D/g, '');
+        const nat = String(national).replace(/\D/g, '');
+        if (dial && nat) return '+' + dial + nat;
+      }
+      return national ? String(national) : '';
+    }
+    if (key === 'phoneCountry') {
+      const ca = profile.customAnswers || {};
+      return (
+        profile.phoneCountry ||
+        profile.phoneCountryCode ||
+        ca.phone_country ||
+        ca.phoneCountry ||
+        ''
+      );
+    }
+    if (key === 'salaryText' || key === 'expectedSalary' || key === 'currentSalary') {
+      const ca = profile.customAnswers || {};
+      if (key === 'salaryText') {
+        return (
+          profile.salaryText ||
+          ca.salary_text ||
+          ca.salary_display ||
+          ca.ignite_salary ||
+          ca.current_salary_text ||
+          ca.current_remuneration ||
+          ca['What is your current Remuneration?'] ||
+          profile.currentSalary ||
+          profile.expectedSalary ||
+          ca.current_salary ||
+          ''
+        );
+      }
+      // Prefer dedicated salary_text for bare salary boxes when the typed field is empty.
+      const direct = profile[key];
+      if (direct != null && String(direct).trim() !== '') return String(direct);
+      return (
+        profile.salaryText ||
+        ca.salary_text ||
+        ca.salary_display ||
+        ca.ignite_salary ||
+        ''
+      );
+    }
+    if (key === 'noticePeriod') {
+      const ca = profile.customAnswers || {};
+      return (
+        profile.noticePeriod ||
+        ca.availability ||
+        ca.available_immediately ||
+        ca.available_to_start ||
+        ca.notice_period ||
+        profile.availableFrom ||
+        ''
+      );
+    }
     if (key === 'emailConfirm' || key === 'confirm_email' || key === 'retype_email') {
       const ca = profile.customAnswers || {};
       return (

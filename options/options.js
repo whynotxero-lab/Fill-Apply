@@ -297,7 +297,7 @@
   function updateActiveLabels() {
     var meta = findMeta(activeIdCache);
     var name = meta ? meta.name : '—';
-    if (headerActiveChip) headerActiveChip.textContent = '★ ' + name;
+    if (headerActiveChip) headerActiveChip.textContent = name;
     if (formActiveProfileHint) {
       var selMeta = findMeta(selectedIdCache || activeIdCache);
       formActiveProfileHint.textContent = selMeta ? '(editing: ' + selMeta.name + ')' : '';
@@ -311,7 +311,7 @@
     profilesCache.forEach(function (p) {
       var opt = document.createElement('option');
       opt.value = p.id;
-      opt.textContent = p.name + (p.id === activeIdCache ? ' ★' : '');
+      opt.textContent = p.name + (p.id === activeIdCache ? ' (active)' : '');
       profileSelect.appendChild(opt);
     });
     if (keep && findMeta(keep)) {
@@ -353,18 +353,14 @@
   }
 
   function profileSortKey(p) {
-    var name = String(p && p.name || '').toLowerCase();
+    var name = String((p && p.name) || '').toLowerCase();
     var isActive = p && p.id === activeIdCache;
-    var isZahid = FillApplyProfile.isZahidName
-      ? FillApplyProfile.isZahidName(p.name)
-      : name === 'zahid' || name === 'zahid general';
     var isMock = FillApplyProfile.isMockName
       ? FillApplyProfile.isMockName(p.name)
       : name === 'mock';
-    // Active first, then Zahid, then others, Mock last among system demos
+    // Active first, then Mock demo, then imported profiles
     if (isActive) return 0;
-    if (isZahid) return 1;
-    if (isMock) return 90;
+    if (isMock) return 1;
     return 50;
   }
 
@@ -375,7 +371,7 @@
     hierarchy.className = 'profile-hierarchy-label';
     var activeMeta = findMeta(activeIdCache);
     hierarchy.textContent =
-      'ACTIVE PROFILE ★ ' + ((activeMeta && activeMeta.name) || '—');
+      'Active: ' + ((activeMeta && activeMeta.name) || '—');
     profileChipsEl.appendChild(hierarchy);
 
     var sorted = profilesCache.slice().sort(function (a, b) {
@@ -392,17 +388,13 @@
       btn.setAttribute('role', 'listitem');
       var locked = profileIsLocked(p);
       var name = String(p.name || '').toLowerCase();
-      var isZahid = FillApplyProfile.isZahidName
-        ? FillApplyProfile.isZahidName(p.name)
-        : name === 'zahid' || name === 'zahid general';
       var isMock = locked || (FillApplyProfile.isMockName && FillApplyProfile.isMockName(p.name));
       if (locked) btn.classList.add('locked');
-      if (isZahid) btn.classList.add('primary-profile');
-      if (isMock && !isZahid) btn.classList.add('secondary-profile');
+      if (isMock) btn.classList.add('secondary-profile');
       var label = p.name || 'Untitled';
-      if (p.id === activeIdCache) label = '★ ' + label;
+      if (p.id === activeIdCache) label = '● ' + label;
       if (locked) label += ' 🔒';
-      if (isMock && !isZahid) label = label.replace(/🔒/, '').trim() + ' (demo)';
+      if (isMock) label = label.replace(/🔒/, '').trim() + ' (demo)';
       btn.textContent = label;
       if (p.id === selectedIdCache) btn.classList.add('selected');
       if (p.id === activeIdCache) btn.classList.add('active-mark');
@@ -420,14 +412,7 @@
       });
       profileChipsEl.appendChild(btn);
     });
-    var createBtn = document.createElement('button');
-    createBtn.type = 'button';
-    createBtn.className = 'profile-chip create';
-    createBtn.textContent = '+ Create New Profile';
-    createBtn.addEventListener('click', function () {
-      createNewProfile();
-    });
-    profileChipsEl.appendChild(createBtn);
+    /* Create New Profile removed — import-only for real data; Mock is the built-in demo. */
   }
 
   async function refreshProfilesUI(opts) {
@@ -645,22 +630,7 @@
     });
   }
 
-  if (btnZahidGeneral) {
-    btnZahidGeneral.addEventListener('click', async function () {
-      if (!confirmIfDirty('You have unsaved changes. Discard them and Create/Reset Zahid to the empty public shell?')) return;
-      try {
-        var profile = await FillApplyProfile.createZahidGeneralProfile();
-        activeIdCache = profile.id;
-        selectedIdCache = profile.id;
-        await refreshProfilesUI({ selectId: profile.id });
-        clearDirty();
-        setStatus(profileMgrStatus, 'Zahid shell reset (empty template) and active. Import a private profile JSON for real data.', 'ok');
-        setStatus(statusEl, 'Zahid empty shell loaded — use Import Profile for client data.', 'ok');
-      } catch (e) {
-        setStatus(profileMgrStatus, e.message, 'err');
-      }
-    });
-  }
+  // Create/Reset Zahid shell removed from store UI — import private profile JSON instead.
 
   if (btnExportProfile) {
     btnExportProfile.addEventListener('click', async function () {
