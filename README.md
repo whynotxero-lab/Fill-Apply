@@ -26,6 +26,15 @@ Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh
 
 Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
+## v1.19.2 — NaukriGulf Yes/No radios that actually click
+
+**NaukriGulf Easy Apply:** screening Yes/No (and multi-option) answers now:
+
+- Find the question by cleaned label (strip trailing / glued `YesNo`)
+- Click the matching radio, associated `label[for]`, or Yes/No control via `realClick` + `input`/`change`/`click` — not `.checked` alone
+- Correctly classify options when one parent label wraps both Yes and No
+- **CA or ACCA?** → Yes (`qualified_ca_or_acca`); **qualified Chartered Accountant (CA)?** alone → No (`qualified_ca`, ACCA+CMA ≠ ICAI CA); **B.Com/M.Com?** → Yes; **ERP/accounting software?** → Yes; **post-qualification years** → More than 10 years; OACPA / experience letters stay empty when unset
+
 ## v1.19.1 — full phone + Choose File + Ignite labels
 
 **Universal fill (not ATS-limited):** prefer extending `fill.js` / field-map / synonyms / file upload over one-off adapters.

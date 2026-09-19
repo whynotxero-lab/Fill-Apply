@@ -119,6 +119,201 @@
     return el.getAttribute('aria-label') || el.placeholder || el.name || '';
   }
 
+  function realClick(el) {
+    if (!el) return false;
+    try {
+      if (global.FillApplyDom && typeof global.FillApplyDom.realClick === 'function') {
+        if (global.FillApplyDom.realClick(el)) return true;
+      }
+    } catch (_eDom) {
+      /* fall through */
+    }
+    try {
+      if (el.focus) el.focus({ preventScroll: true });
+    } catch (_eF) {
+      /* ignore */
+    }
+    try {
+      var view = el.ownerDocument && el.ownerDocument.defaultView;
+      var opts = { bubbles: true, cancelable: true, composed: true, view: view || window };
+      var seq = ['pointerdown', 'mousedown', 'pointerup', 'mouseup'];
+      for (var i = 0; i < seq.length; i++) {
+        try {
+          var name = seq[i];
+          var Ctor = /^pointer/.test(name) && view && view.PointerEvent ? view.PointerEvent : view && view.MouseEvent;
+          if (Ctor) el.dispatchEvent(new Ctor(name, opts));
+        } catch (_eSeq) {
+          /* optional */
+        }
+      }
+      el.click();
+      return true;
+    } catch (_eClick) {
+      try {
+        el.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }));
+        return true;
+      } catch (_e2) {
+        return false;
+      }
+    }
+  }
+
+  function fireInputChange(el) {
+    if (!el) return;
+    try {
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Option text for ONE radio/control — never the wrapping question that contains
+   * both "Yes" and "No" (that bug made every radio look like Yes).
+   */
+  function optionTextForRadio(radio, root) {
+    if (!radio) return '';
+    var val = String(radio.value || '').trim();
+    if (/^(yes|y|no|n|true|false|1|0)$/i.test(val)) {
+      // Prefer dedicated short label when present; value is still a strong signal.
+    }
+    if (radio.id) {
+      try {
+        var scope = root || document;
+        var byFor = scope.querySelector('label[for="' + CSS.escape(radio.id) + '"]');
+        if (byFor) {
+          var forText = String(byFor.textContent || '').replace(/\s+/g, ' ').trim();
+          if (forText && forText.length < 80) return forText;
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    var parentLabel = radio.closest && radio.closest('label');
+    if (parentLabel) {
+      var radiosInLabel = parentLabel.querySelectorAll('input[type="radio"]');
+      if (radiosInLabel.length <= 1) {
+        var only = String(parentLabel.textContent || '').replace(/\s+/g, ' ').trim();
+        if (only) return only;
+      } else {
+        // Shared parent label wrapping multiple radios — take adjacent text only.
+        var adj = adjacentOptionText(radio);
+        if (adj) return adj;
+      }
+    }
+    var near = adjacentOptionText(radio);
+    if (near) return near;
+    var aria = radio.getAttribute && radio.getAttribute('aria-label');
+    if (aria) return String(aria).trim();
+    return val;
+  }
+
+  function adjacentOptionText(el) {
+    var parts = [];
+    var next = el.nextSibling;
+    while (next) {
+      if (next.nodeType === 1) {
+        if (/^INPUT$/i.test(next.tagName)) break;
+        if (next.querySelector && next.querySelector('input[type="radio"], input[type="checkbox"]')) break;
+        if (/^(LABEL|SPAN|DIV|P|STRONG|EM|I|B)$/i.test(next.tagName)) {
+          parts.push(next.textContent || '');
+          break;
+        }
+        break;
+      }
+      if (next.nodeType === 3) {
+        var chunk = String(next.textContent || '');
+        if (chunk.replace(/\s+/g, '')) parts.push(chunk);
+      }
+      next = next.nextSibling;
+    }
+    var t = parts.join('').replace(/\s+/g, ' ').trim();
+    if (t) return t;
+    // Sometimes the clickable text is a sibling label after a wrapper
+    var sib = el.nextElementSibling;
+    if (sib && !sib.querySelector('input') && /^(LABEL|SPAN|DIV)$/i.test(sib.tagName)) {
+      return String(sib.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+    return '';
+  }
+
+  /**
+   * Classify a radio/control as Yes / No / null.
+   * Strict: exact short labels and clear values win. Never treat a long string
+   * that contains BOTH yes and no as Yes.
+   */
+  function classifyYesNoOption(text, value) {
+    var v = String(value == null ? '' : value).trim();
+    var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    if (/^(yes|y|true|1)$/i.test(v)) return 'Yes';
+    if (/^(no|n|false|0)$/i.test(v)) return 'No';
+    if (/^(yes|y)$/i.test(t)) return 'Yes';
+    if (/^(no|n)$/i.test(t)) return 'No';
+    if (t.length <= 16) {
+      var hasYes = /\byes\b/i.test(t);
+      var hasNo = /\bno\b/i.test(t);
+      if (hasYes && !hasNo) return 'Yes';
+      if (hasNo && !hasYes) return 'No';
+    }
+    return null;
+  }
+
+  function findLabelForInput(el, root) {
+    if (!el) return null;
+    if (el.id) {
+      try {
+        var scope = root || (el.ownerDocument || document);
+        var byFor = scope.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+        if (byFor) return byFor;
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    return el.closest ? el.closest('label') : null;
+  }
+
+  function isCaOrAccaQuestion(lab) {
+    var s = String(lab || '');
+    return /ca\s*or\s*acca|acca\s*or\s*ca|qualified\s*ca\s*or\s*acca|ca\s*\/\s*acca|acca\s*\/\s*ca/i.test(s);
+  }
+
+  function isCaOnlyQuestion(lab) {
+    var s = String(lab || '');
+    if (isCaOrAccaQuestion(s)) return false;
+    if (/\bacca\b/i.test(s) && !/chartered accountant|\(\s*ca\s*\)/i.test(s)) return false;
+    // Strict ICAI-style CA (no ACCA in the question)
+    return (
+      /qualified\s+chartered\s+accountant/i.test(s) ||
+      /are you a qualified\s+chartered\s+accountant\s*\(\s*ca\s*\)/i.test(s) ||
+      /are you a qualified\s*\(\s*ca\s*\)/i.test(s) ||
+      (/are you a qualified/i.test(s) && /\(\s*ca\s*\)/i.test(s) && !/\bacca\b/i.test(s)) ||
+      (/qualified\s+ca\b/i.test(s) && !/\bacca\b/i.test(s) && !/\bor\b/i.test(s))
+    );
+  }
+
+  function isBcomQuestion(lab) {
+    return /b\.?\s*com|m\.?\s*com|bachelor.*commerce|commerce.*bachelor/i.test(String(lab || ''));
+  }
+
+  function isErpQuestion(lab) {
+    return /\berp\b|accounting software|oracle|sap|sage/i.test(String(lab || '')) &&
+      /experience|practical|working with|familiar|used/i.test(String(lab || ''));
+  }
+
+  function isOacpaOrLettersQuestion(lab) {
+    return /oacpa|oman association|attested|experience letters|certificates supporting/i.test(
+      String(lab || '')
+    );
+  }
+
+  function isPostQualYearsQuestion(lab) {
+    return /post[-\s]?qualification|years of relevant.*experience.*finance|how many years of relevant post/i.test(
+      String(lab || '')
+    );
+  }
+
   function detectProfileRedirect(doc, href) {
     href = String(href || '');
     var bodyText = '';
@@ -343,22 +538,30 @@
     var yn = toYesNo(custom);
     if (yn) return { answer: yn, known: true, reason: 'customAnswers' };
 
-    // Qualified CA / ACCA / CMA / CPA
-    if (
-      /qualified\s*(ca|acca|cma|cpa)|\b(ca|acca)\b.*\?|are you a qualified|acca\b|chartered accountant/i.test(
-        lab
-      ) ||
-      /qualified ca or acca|ca or acca/i.test(lab)
-    ) {
+    // OACPA attested / experience letters — leave empty (do not invent)
+    if (isOacpaOrLettersQuestion(lab)) {
+      return { answer: null, known: false, reason: 'leave_empty_shell' };
+    }
+
+    // Strict CA-only BEFORE CA-or-ACCA (portfolio is ACCA+CMA, not ICAI CA)
+    if (isCaOnlyQuestion(lab)) {
+      yn =
+        toYesNo(answerFromCustom(profile, 'Are you a qualified Chartered Accountant (CA)?')) ||
+        toYesNo(answerFromCustom(profile, 'qualified_ca')) ||
+        toYesNo(answerFromCustom(profile, 'ca_icai'));
+      if (yn) return { answer: yn, known: true, reason: 'qualified_ca' };
+      return { answer: 'No', known: true, reason: 'qualified_ca_default_no' };
+    }
+
+    // Qualified CA or ACCA / ACCA
+    if (isCaOrAccaQuestion(lab) || (/are you a qualified/i.test(lab) && /\bacca\b/i.test(lab))) {
       yn =
         toYesNo(answerFromCustom(profile, 'Are you a qualified CA or ACCA?')) ||
         toYesNo(answerFromCustom(profile, 'qualified_ca_or_acca')) ||
         toYesNo(answerFromCustom(profile, 'acca_qualified')) ||
-        toYesNo(answerFromCustom(profile, 'Are you a qualified CA or ACCA')) ||
-        toYesNo(answerFromCustom(profile, 'ACCA')) ||
-        toYesNo(answerFromCustom(profile, 'finance_accounting_qualifications'));
+        toYesNo(answerFromCustom(profile, 'Are you ACCA qualified?')) ||
+        toYesNo(answerFromCustom(profile, 'ACCA'));
       if (!yn) {
-        // Profile facts: ACCA/CA credentials imply Yes
         var blob = [
           profile.certifications,
           profile.qualifications,
@@ -369,10 +572,35 @@
         ]
           .join(' ')
           .toLowerCase();
-        if (/\bacca\b|\bca\b|chartered accountant|cma\b|cpa\b/.test(blob)) yn = 'Yes';
+        if (/\bacca\b|cma\b|cpa\b/.test(blob)) yn = 'Yes';
       }
       if (yn) return { answer: yn, known: true, reason: 'ca_acca' };
       return { answer: null, known: false, reason: 'ca_acca_unknown' };
+    }
+
+    // B.Com / M.Com
+    if (isBcomQuestion(lab)) {
+      yn =
+        toYesNo(answerFromCustom(profile, 'Do you hold a Bachelor’s Degree in Commerce (B.Com) or M.Com qualification?')) ||
+        toYesNo(answerFromCustom(profile, "Do you hold a Bachelor's Degree in Commerce (B.Com) or M.Com qualification?")) ||
+        toYesNo(answerFromCustom(profile, 'bcom_or_mcom'));
+      if (yn) return { answer: yn, known: true, reason: 'bcom_or_mcom' };
+      return { answer: null, known: false, reason: 'bcom_unknown' };
+    }
+
+    // ERP / accounting software
+    if (isErpQuestion(lab)) {
+      yn =
+        toYesNo(answerFromCustom(profile, 'Do you have practical experience working with ERP/accounting software?')) ||
+        toYesNo(answerFromCustom(profile, 'erp_experience'));
+      if (yn) return { answer: yn, known: true, reason: 'erp_experience' };
+      var erpBlob = [profile.skills, profile.summary, profile.certifications]
+        .join(' ')
+        .toLowerCase();
+      if (/\berp\b|\boracle\b|\bsap\b|\bsage\b/.test(erpBlob)) {
+        return { answer: 'Yes', known: true, reason: 'erp_from_skills' };
+      }
+      return { answer: null, known: false, reason: 'erp_unknown' };
     }
 
     // Currently employed
@@ -383,7 +611,6 @@
         toYesNo(profile.currentlyEmployed) ||
         toYesNo(profile.employed);
       if (yn) return { answer: yn, known: true, reason: 'employed' };
-      // Default unknown — do not invent
       return { answer: null, known: false, reason: 'employed_unknown' };
     }
 
@@ -415,7 +642,6 @@
       return { answer: null, known: false, reason: 'industry_unknown' };
     }
 
-    // Generic: only if customAnswers matched somehow as non-Yes/No text — already handled
     if (custom != null) {
       yn = toYesNo(custom);
       if (yn) return { answer: yn, known: true, reason: 'customAnswers' };
@@ -426,7 +652,7 @@
 
   /**
    * Collect Yes/No question blocks inside the modal.
-   * Each item: { label, root, radios/yesEl/noEl }
+   * Each item: { label, root, yesRadio/noRadio, kind:'yesno' }
    */
   function collectYesNoQuestions(modal) {
     var questions = [];
@@ -435,14 +661,13 @@
     var seen = [];
 
     function alreadyHave(label) {
-      var n = norm(label);
+      var n = norm(cleanLabel(label));
       for (var i = 0; i < seen.length; i++) {
         if (seen[i] === n) return true;
       }
       return false;
     }
 
-    // Fieldsets / question rows
     var groups = modal.querySelectorAll(
       'fieldset, [role="group"], [class*="question"], [class*="Question"], [class*="screening"], li, .form-group, .row, div'
     );
@@ -452,15 +677,28 @@
       var radios = group.querySelectorAll('input[type="radio"]');
       if (radios.length < 2) continue;
 
-      // Prefer legend / label text excluding Yes/No-only noise
+      // Prefer deepest group: skip if a child group already owns these radios
+      var nestedWithRadios = false;
+      for (var c = 0; c < group.children.length; c++) {
+        var child = group.children[c];
+        if (child.querySelectorAll && child.querySelectorAll('input[type="radio"]').length >= 2) {
+          // child is a tighter question container — skip this outer wrapper when it has many radios
+          if (radios.length > child.querySelectorAll('input[type="radio"]').length) {
+            nestedWithRadios = true;
+            break;
+          }
+        }
+      }
+      // Still process; label extraction below handles noise
+
       var labelEl =
-        group.querySelector('legend, .question-text, [class*="label"], label:not([for])') || null;
+        group.querySelector('legend, .question-text, [class*="question-text"], [class*="label"], label:not([for])') ||
+        null;
       var labelText = '';
       if (labelEl) {
         labelText = cleanLabel(labelEl.textContent || '');
       }
       if (!labelText || /^yes$|^no$/i.test(labelText) || labelText.length < 8) {
-        // Use group text but strip trailing Yes/No options (incl. glued YesNo)
         labelText = cleanLabel(
           String(group.textContent || '')
             .replace(/\s+/g, ' ')
@@ -469,60 +707,82 @@
         );
       }
       labelText = cleanLabel(labelText);
-      // Keep short-ish question labels
       if (!labelText || labelText.length < 8 || labelText.length > 220) continue;
-      if (!/\?|employed|located|experience|industry|are you|do you|have you|qualified|acca|\bca\b/i.test(labelText)) {
-        // Still accept if it looks like a screening prompt
-        if (!/currently|uae|manufacturing|work|notice|remuner|salary|contract/i.test(labelText)) continue;
+      if (
+        !/\?|employed|located|experience|industry|are you|do you|have you|qualified|acca|\bca\b|b\.?\s*com|erp|software/i.test(
+          labelText
+        )
+      ) {
+        if (!/currently|uae|manufacturing|work|notice|remuner|salary|contract|degree|bachelor/i.test(labelText)) {
+          continue;
+        }
       }
       if (alreadyHave(labelText)) continue;
 
       var yesRadio = null;
       var noRadio = null;
+      var optionCount = 0;
       for (var r = 0; r < radios.length; r++) {
         var radio = radios[r];
-        var rLab = getLabelFor(radio, modal) || radio.value || '';
-        if (/^(yes|y|true|1)$/i.test(rLab.trim()) || /\byes\b/i.test(rLab)) yesRadio = radio;
-        else if (/^(no|n|false|0)$/i.test(rLab.trim()) || /\bno\b/i.test(rLab)) noRadio = radio;
+        var rLab = optionTextForRadio(radio, modal);
+        var cls = classifyYesNoOption(rLab, radio.value);
+        if (cls === 'Yes') {
+          yesRadio = radio;
+          optionCount++;
+        } else if (cls === 'No') {
+          noRadio = radio;
+          optionCount++;
+        }
       }
-      if (!yesRadio && !noRadio) continue;
-
-      seen.push(norm(labelText));
-      questions.push({
-        label: labelText,
-        root: group,
-        yesRadio: yesRadio,
-        noRadio: noRadio
-      });
+      // Pure Yes/No pair
+      if (yesRadio && noRadio && radios.length <= 4) {
+        seen.push(norm(cleanLabel(labelText)));
+        questions.push({
+          label: labelText,
+          root: group,
+          yesRadio: yesRadio,
+          noRadio: noRadio,
+          kind: 'yesno'
+        });
+        continue;
+      }
+      // Not yes/no — leave for multi-option collector
     }
 
-    // Also: clickable Yes/No labels without radios (buttons / spans)
+    // Clickable Yes/No without radios (buttons / spans / role=radio)
     if (!questions.length) {
       var textBlocks = modal.querySelectorAll('p, label, div, li, span, h3, h4');
       for (var t = 0; t < textBlocks.length; t++) {
         var block = textBlocks[t];
         if (!visible(block)) continue;
-        var bt = (block.textContent || '').replace(/\s+/g, ' ').trim();
+        var bt = cleanLabel(block.textContent || '');
         if (bt.length < 12 || bt.length > 180) continue;
-        if (!/\?$|are you|do you|have you|currently|experience in/i.test(bt)) continue;
+        if (!/\?$|are you|do you|have you|currently|experience in|qualified|b\.?\s*com|erp/i.test(bt)) continue;
         if (alreadyHave(bt)) continue;
         var container = block.closest('div, li, fieldset, section') || block.parentElement;
         if (!container) continue;
         var yesEl = null;
         var noEl = null;
-        var opts = container.querySelectorAll('button, label, span, a, [role="radio"], [role="button"]');
+        var opts = container.querySelectorAll(
+          'button, label, span, a, [role="radio"], [role="button"], input[type="radio"]'
+        );
         for (var o = 0; o < opts.length; o++) {
-          var ot = buttonText(opts[o]);
-          if (/^yes$/i.test(ot.trim())) yesEl = opts[o];
-          if (/^no$/i.test(ot.trim())) noEl = opts[o];
+          var ot =
+            opts[o].tagName === 'INPUT'
+              ? optionTextForRadio(opts[o], modal)
+              : buttonText(opts[o]);
+          var c2 = classifyYesNoOption(ot, opts[o].value);
+          if (c2 === 'Yes') yesEl = opts[o];
+          if (c2 === 'No') noEl = opts[o];
         }
         if (yesEl || noEl) {
-          seen.push(norm(bt));
+          seen.push(norm(cleanLabel(bt)));
           questions.push({
             label: bt,
             root: container,
             yesRadio: yesEl,
-            noRadio: noEl
+            noRadio: noEl,
+            kind: 'yesno'
           });
         }
       }
@@ -531,22 +791,177 @@
     return questions;
   }
 
-  function clickYesNo(question, wantYes) {
-    var target = wantYes ? question.yesRadio : question.noRadio;
+  /**
+   * Multi-option screening (e.g. "More than 10 years") — radios or clickable chips.
+   */
+  function collectMultiOptionQuestions(modal) {
+    var out = [];
+    if (!modal) return out;
+    var seen = {};
+
+    var groups = modal.querySelectorAll(
+      'fieldset, [role="group"], [role="radiogroup"], [class*="question"], [class*="Question"], li, .form-group, div'
+    );
+    for (var g = 0; g < groups.length; g++) {
+      var group = groups[g];
+      if (!visible(group)) continue;
+      var radios = Array.prototype.slice.call(group.querySelectorAll('input[type="radio"]'));
+      var clickables = [];
+      if (radios.length >= 2) {
+        clickables = radios;
+      } else {
+        var chips = group.querySelectorAll(
+          '[role="radio"], button, label[class*="option"], [class*="chip"], [class*="Option"]'
+        );
+        for (var i = 0; i < chips.length; i++) {
+          var ch = chips[i];
+          var ct = buttonText(ch);
+          if (ct && ct.length > 0 && ct.length < 80 && !/^submit/i.test(ct)) clickables.push(ch);
+        }
+        if (clickables.length < 2) continue;
+      }
+
+      var yesNoPair = 0;
+      var options = [];
+      for (var r = 0; r < clickables.length; r++) {
+        var el = clickables[r];
+        var lab =
+          el.tagName === 'INPUT' ? optionTextForRadio(el, modal) : buttonText(el);
+        var cls = classifyYesNoOption(lab, el.value);
+        if (cls) yesNoPair++;
+        options.push({ el: el, label: lab || String(el.value || '') });
+      }
+      // Skip pure Yes/No — handled elsewhere
+      if (yesNoPair >= 2 && options.length <= 3) continue;
+      if (options.length < 2) continue;
+
+      var labelEl =
+        group.querySelector('legend, .question-text, [class*="question-text"], [class*="label"]') || null;
+      var labelText = labelEl ? cleanLabel(labelEl.textContent || '') : '';
+      if (!labelText || labelText.length < 8) {
+        labelText = cleanLabel(
+          String(group.textContent || '')
+            .replace(/\s+/g, ' ')
+            .slice(0, 300)
+        );
+        // Strip option texts from label
+        for (var o = 0; o < options.length; o++) {
+          if (options[o].label) {
+            labelText = labelText.replace(options[o].label, ' ');
+          }
+        }
+        labelText = cleanLabel(labelText);
+      }
+      if (!labelText || labelText.length < 8 || labelText.length > 220) continue;
+      var key = norm(labelText);
+      if (seen[key]) continue;
+      seen[key] = true;
+      out.push({ label: labelText, root: group, options: options, kind: 'multi' });
+    }
+    return out;
+  }
+
+  function resolveMultiOptionAnswer(profile, questionLabel, options) {
+    profile = profile || {};
+    var cleaned = cleanLabel(questionLabel);
+    var lab = norm(cleaned);
+    var want =
+      answerFromCustom(profile, cleaned) ||
+      answerFromCustom(profile, questionLabel) ||
+      '';
+
+    if (isPostQualYearsQuestion(lab) || /how many years|years of relevant/i.test(lab)) {
+      want =
+        want ||
+        answerFromCustom(
+          profile,
+          'How many years of relevant post-qualification experience do you have in Finance & Accounts?'
+        ) ||
+        answerFromCustom(profile, 'post_qualification_experience_band') ||
+        'More than 10 years';
+    }
+
+    // OACPA / letters: never invent
+    if (isOacpaOrLettersQuestion(lab)) {
+      want =
+        answerFromCustom(profile, cleaned) ||
+        answerFromCustom(profile, 'oacpa_attested') ||
+        answerFromCustom(profile, 'experience_letters_available') ||
+        '';
+      if (!String(want).trim()) return { answer: null, known: false, reason: 'leave_empty_shell' };
+    }
+
+    if (!String(want).trim()) return { answer: null, known: false, reason: 'unmapped' };
+
+    var wantN = norm(want);
+    var best = null;
+    var bestScore = 0;
+    for (var i = 0; i < (options || []).length; i++) {
+      var opt = options[i];
+      var on = norm(opt.label || opt.el && opt.el.value);
+      if (!on) continue;
+      var score = 0;
+      if (on === wantN) score = 100;
+      else if (on.indexOf(wantN) !== -1 || wantN.indexOf(on) !== -1) score = 80;
+      else if (/more than 10|10\+|over 10|11\+/i.test(want) && /more than 10|10\+|over 10|11\+/i.test(on)) {
+        score = 90;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = opt;
+      }
+    }
+    if (best && bestScore >= 70) {
+      return { answer: best.label || want, known: true, reason: 'multi_option', el: best.el };
+    }
+    return { answer: null, known: false, reason: 'option_mismatch', want: want };
+  }
+
+  function clickControl(target, root) {
     if (!target) return false;
     try {
-      if (target.tagName === 'INPUT' && String(target.type).toLowerCase() === 'radio') {
-        target.click();
-        target.checked = true;
-        target.dispatchEvent(new Event('input', { bubbles: true }));
-        target.dispatchEvent(new Event('change', { bubbles: true }));
-      } else {
-        target.click();
+      var label = findLabelForInput(target, root);
+      // Prefer clicking the visible label (NaukriGulf often listens on label)
+      if (label && label !== target) {
+        realClick(label);
+      }
+      realClick(target);
+      if (target.tagName === 'INPUT') {
+        var type = String(target.type || '').toLowerCase();
+        if (type === 'radio' || type === 'checkbox') {
+          try {
+            target.checked = true;
+          } catch (_eChk) {
+            /* ignore */
+          }
+          fireInputChange(target);
+          // If still not checked, click again via label
+          if (!target.checked && label) {
+            realClick(label);
+            try {
+              target.checked = true;
+            } catch (_e2) {
+              /* ignore */
+            }
+            fireInputChange(target);
+          }
+        }
       }
       return true;
     } catch (_e) {
       return false;
     }
+  }
+
+  function clickYesNo(question, wantYes) {
+    var target = wantYes ? question.yesRadio : question.noRadio;
+    if (!target) return false;
+    return clickControl(target, question.root);
+  }
+
+  function clickMultiOption(resolved) {
+    if (!resolved || !resolved.el) return false;
+    return clickControl(resolved.el, null);
   }
 
   function findSubmitAndApply(modal) {
@@ -695,11 +1110,14 @@
   function answerModalQuestions(modal, profile, runMode) {
     var textFill = fillModalFields(modal, profile);
     var questions = collectYesNoQuestions(modal);
+    var multi = collectMultiOptionQuestions(modal);
     var filled = textFill.filled || 0;
     var unmatched = [];
     var answered = (textFill.details || []).map(function (d) {
       return { label: d.label, answer: d.value, reason: 'modal_text' };
     });
+
+    var answeredLabels = {};
 
     for (var i = 0; i < questions.length; i++) {
       var q = questions[i];
@@ -709,19 +1127,53 @@
         if (clickYesNo(q, wantYes)) {
           filled++;
           answered.push({ label: q.label, answer: resolved.answer, reason: resolved.reason });
+          answeredLabels[norm(cleanLabel(q.label))] = true;
         } else {
           unmatched.push(q.label);
         }
+      } else if (resolved.reason === 'leave_empty_shell') {
+        // Intentionally skip — do not invent OACPA / letters answers
+        answeredLabels[norm(cleanLabel(q.label))] = true;
       } else {
         unmatched.push(q.label);
       }
+    }
+
+    for (var m = 0; m < multi.length; m++) {
+      var mq = multi[m];
+      var mk = norm(cleanLabel(mq.label));
+      if (answeredLabels[mk]) continue;
+      // Skip if this looks like a yes/no we already handled
+      var ynOpts = 0;
+      for (var oi = 0; oi < (mq.options || []).length; oi++) {
+        if (classifyYesNoOption(mq.options[oi].label, mq.options[oi].el && mq.options[oi].el.value)) {
+          ynOpts++;
+        }
+      }
+      if (ynOpts >= 2 && (mq.options || []).length <= 3) continue;
+
+      var mResolved = resolveMultiOptionAnswer(profile, mq.label, mq.options);
+      if (mResolved.answer && mResolved.el) {
+        if (clickMultiOption(mResolved)) {
+          filled++;
+          answered.push({ label: mq.label, answer: mResolved.answer, reason: mResolved.reason });
+          answeredLabels[mk] = true;
+        } else {
+          unmatched.push(mq.label);
+        }
+      } else if (mResolved.reason === 'leave_empty_shell') {
+        answeredLabels[mk] = true;
+      } else if (isPostQualYearsQuestion(mq.label) || /how many years/i.test(mq.label)) {
+        unmatched.push(mq.label);
+      }
+      // Other multi-option unknowns: do not flood unmatched unless required-looking
     }
 
     return {
       filled: filled,
       unmatchedLabels: unmatched,
       answered: answered,
-      questionCount: questions.length
+      questionCount: questions.length + multi.length
     };
   }
 
@@ -986,7 +1438,15 @@
     cleanLabel: cleanLabel,
     stripOptionNoise: stripOptionNoise,
     resolveYesNoAnswer: resolveYesNoAnswer,
+    resolveMultiOptionAnswer: resolveMultiOptionAnswer,
     collectYesNoQuestions: collectYesNoQuestions,
+    collectMultiOptionQuestions: collectMultiOptionQuestions,
+    optionTextForRadio: optionTextForRadio,
+    classifyYesNoOption: classifyYesNoOption,
+    clickYesNo: clickYesNo,
+    clickControl: clickControl,
+    isCaOnlyQuestion: isCaOnlyQuestion,
+    isCaOrAccaQuestion: isCaOrAccaQuestion,
     fillModalFields: fillModalFields,
     answerModalQuestions: answerModalQuestions
   };
