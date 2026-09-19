@@ -153,7 +153,7 @@ Do **not** learn:
 - Autofill writes (`isTrusted === false`).
 - Empty / placeholder / label-echo values.
 - Noise (`test`, `asdf`, `xxx`, `qwerty`, `n/a`, `tbd`, `...`).
-- Voluntary self-identification / EEO, consent checkboxes, passwords, file inputs.
+- Voluntary self-identification / EEO (except gender/sex selects, which are learnable), consent checkboxes (policy-ticked, not learned), passwords, file inputs.
 - Temporary wipes (fill then clear before debounce).
 
 Confidence / status:

@@ -225,7 +225,7 @@ function run(page, options) {
     suite.ok(clicks > 0, 'the radio is chosen with a real click so framework state updates');
   })();
 
-  /* Consent and voluntary self-identification stay with the human. */
+  /* Consent is ticked so Next can proceed; other EEO stays with the human. */
   await (async function reportsWithoutInventing() {
     const page = createPage(
       `
@@ -246,22 +246,23 @@ function run(page, options) {
     const result = await run(page);
     const doc = page.document;
 
-    suite.ok(!doc.getElementById('agree').checked, 'consent checkbox is never ticked automatically');
-    suite.equal(doc.getElementById('gender').value, '', 'voluntary self-identification is left blank');
+    suite.ok(doc.getElementById('agree').checked, 'consent checkbox is ticked automatically');
+    suite.equal(doc.getElementById('em').value, 'zahid@example.com', 'email filled from profile');
+    suite.equal(doc.getElementById('gender').value, '', 'gender left blank when profile has no gender');
     suite.ok(
-      result.skipped.some(function (s) {
+      !(result.skipped || []).some(function (s) {
         return s.reason === 'consent_checkbox';
       }),
-      'consent checkbox is reported as needing the applicant'
+      'consent checkbox is not reported as skipped'
     );
     suite.ok(
-      result.skipped.some(function (s) {
+      (result.skipped || []).some(function (s) {
         return s.reason === 'voluntary_self_identification';
       }),
       'EEO field is reported as skipped by policy'
     );
     suite.ok(
-      result.missingRequired.indexOf('How did you hear about us?') !== -1,
+      (result.missingRequired || []).indexOf('How did you hear about us?') !== -1,
       'unanswerable required field is named in missingRequired'
     );
   })();

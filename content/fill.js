@@ -23,9 +23,16 @@
   const DIVERSITY_RE =
     /diversity|equal opportunity|\beeo\b|race|ethnicity|gender identity|\bveteran\b|disability|sexual orientation|hispanic|latino|\blgbt|decline to (self-)?identify|voluntary self.?identif|self.?identification/i;
 
-  /** Agreements a human must make for themselves. */
+  /**
+   * Proceed/consent checkboxes required to continue (Hilton-style and global).
+   * Matched by label keywords — ticked during Auto Fill / Ready / Submit.
+   */
   const CONSENT_RE =
-    /\b(i agree|i accept|i consent|i acknowledge|i certify|i confirm|terms|privacy policy|data protection|gdpr|declaration)\b/i;
+    /\b(i understand and agree|i agree|i accept|i consent|i acknowledge|i certify|i confirm|agree|consent|privacy notice|applicant privacy|privacy policy|electronic signature|e-?sign|terms(?:\s+and\s+conditions)?|acknowledge|data protection|gdpr|declaration)\b/i;
+
+  /** CV / Resume import CTAs — prefer these before normal field fill. */
+  const CV_IMPORT_RE =
+    /\b((auto\s*)?fill\s*(with|from)\s*(cv|resume|curriculum)|import\s*(from\s*)?(cv|resume)|autofill\s*(from\s*)?(cv|resume|my\s*resume)|use\s*(my\s*)?(cv|resume)|parse\s*(cv|resume)|upload\s*(and\s*)?(auto\s*)?fill(\s*(from|with))?\s*(cv|resume)?|fill\s*from\s*(cv|resume))\b/i;
 
   /** Gender / sex questions (including voluntary "Gender Identity"). */
   const GENDER_FIELD_RE = /\b(gender(\s*identity)?|sex)\b/i;
@@ -52,6 +59,73 @@
     if (isGenderField(label) && profileHasGender(profile)) return false;
     return true;
   }
+
+  /** Gender must be select/radio/combobox — never typed into a free-text box. */
+  function isGenderChoiceControl(el, descriptor) {
+    if (!el) return false;
+    const ct = controlTypeOf(el, descriptor || {});
+    if (ct === 'select' || ct === 'multiselect' || ct === 'radio' || ct === 'combobox') return true;
+    const type = String((descriptor && descriptor.type) || el.type || '').toLowerCase();
+    if (type === 'radio') return true;
+    if (el.tagName === 'SELECT') return true;
+    if (isComboboxInput(el)) return true;
+    return false;
+  }
+
+  function isConsentCheckbox(el, label) {
+    const type = String((el && el.type) || '').toLowerCase();
+    if (type !== 'checkbox') return false;
+    return CONSENT_RE.test(String(label || ''));
+  }
+
+  /**
+   * Prefer site "Fill with CV / Import from Resume" before normal autofill.
+   * Waits briefly so imported values can settle, then the field loop fills gaps.
+   */
+  async function tryClickCvImport(options) {
+    options = options || {};
+    const syn = global.FillApplySynonyms;
+    const nodes = queryAll(
+      'button, a[role="button"], [role="button"], a.button, input[type="button"], input[type="submit"], label'
+    );
+    let best = null;
+    let bestText = '';
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      if (el.disabled) continue;
+      if (!isVisible(el)) continue;
+      const text = (
+        (syn && syn.buttonText ? syn.buttonText(el) : textOf(el)) +
+        ' ' +
+        (el.getAttribute('aria-label') || '') +
+        ' ' +
+        (el.value || '')
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!text || text.length > 120) continue;
+      if (/\b(submit application|apply now)\b/i.test(text) && !CV_IMPORT_RE.test(text)) continue;
+      if (CV_IMPORT_RE.test(text)) {
+        best = el;
+        bestText = text.slice(0, 80);
+        break;
+      }
+    }
+    if (!best) return { clicked: false, text: '' };
+    if (global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
+      global.FillApplyFocusHud.mark(best, { scroll: true });
+    }
+    realClick(best);
+    const waitMs = options.cvImportWaitMs != null ? options.cvImportWaitMs : 1800;
+    const D = dom();
+    if (D && D.waitForQuiet) {
+      await D.waitForQuiet({ timeoutMs: waitMs, quietMs: 400 });
+    } else {
+      await sleep(waitMs);
+    }
+    return { clicked: true, text: bestText };
+  }
+
 
   /** Options that look like phone dial codes: "+966", "+966 Saudi Arabia". */
   function optionsLookLikeDialCodes(options) {
@@ -1241,7 +1315,7 @@
       }
     }
 
-    const fields = collectFields();
+    let fields = collectFields();
 
     if (!fields.length) {
       // A step whose only control is the resume upload is still work we can do.
@@ -1336,6 +1410,15 @@
       }
     }
 
+    // Prefer CV/Resume import CTAs before filling remaining gaps.
+    let cvImport = { clicked: false, text: '' };
+    if (!options.skipCvImport) {
+      cvImport = await tryClickCvImport(options);
+      if (cvImport.clicked) {
+        fields = collectFields();
+      }
+    }
+
     for (let i = 0; i < fields.length; i++) {
       const el = fields[i];
       const descriptor = D && D.describeField ? D.describeField(el) : legacyDescriptor(el);
@@ -1347,11 +1430,54 @@
       }
 
       const type = String(descriptor.type || '').toLowerCase();
-      if (type === 'checkbox' && CONSENT_RE.test(label)) {
-        // Agreements are the applicant's to make — report, never tick.
+
+      // Gender is select/radio/combobox only — never free-text.
+      if (isGenderField(label) && !isGenderChoiceControl(el, descriptor)) {
+        skipped.push({ label: label, reason: 'gender_requires_select', required: descriptor.required });
+        unmatched += 1;
+        pushUnknown(descriptor, el, 'gender_requires_select');
+        highlight(el, 'unmatched');
+        details.push(
+          Object.assign(unmatchedDetail(descriptor, 'gender_requires_select'), {
+            controlType: controlTypeOf(el, descriptor),
+            action: 'DO_NOT_FILL',
+            canonicalKey: 'gender'
+          })
+        );
+        continue;
+      }
+
+      if (type === 'checkbox' && isConsentCheckbox(el, label)) {
+        // Hilton-style and global: tick consent so Ready/Submit can press Next.
         if (!el.checked) {
-          skipped.push({ label: label, reason: 'consent_checkbox', required: descriptor.required });
-          if (descriptor.required) missingRequired.push(label || 'consent checkbox');
+          const ok = setNativeValue(el, 'Yes', { key: 'consent', profile: profile });
+          if (ok !== false && el.checked) {
+            filled += 1;
+            markAutofilled(el, 'Yes');
+            highlight(el, 'filled');
+            details.push(
+              Object.assign(filledDetail(descriptor, { key: 'consent', value: 'Yes', source: 'consentPolicy' }), {
+                controlType: 'checkbox',
+                knowledgeType: 'boolean',
+                action: 'FILLED',
+                canonicalKey: 'consent'
+              })
+            );
+          } else {
+            skipped.push({ label: label, reason: 'consent_checkbox_failed', required: descriptor.required });
+            if (descriptor.required) missingRequired.push(label || 'consent checkbox');
+          }
+        } else {
+          markAutofilled(el, 'Yes');
+          details.push(
+            Object.assign(filledDetail(descriptor, { key: 'consent', value: 'Yes', source: 'consentPolicy' }), {
+              controlType: 'checkbox',
+              knowledgeType: 'boolean',
+              action: 'FILLED',
+              canonicalKey: 'consent',
+              already: true
+            })
+          );
         }
         continue;
       }
@@ -1512,6 +1638,8 @@
       filled: filled,
       unmatched: unmatched,
       total: fields.length,
+      cvImportClicked: !!(cvImport && cvImport.clicked),
+      cvImportText: (cvImport && cvImport.text) || '',
       details: details,
       skipped: skipped,
       missingRequired: dedupe(missingRequired),
@@ -1735,6 +1863,11 @@
 
   global.__fillApply = {
     isGenderField: isGenderField,
+    isGenderChoiceControl: isGenderChoiceControl,
+    isConsentCheckbox: isConsentCheckbox,
+    tryClickCvImport: tryClickCvImport,
+    CONSENT_RE: CONSENT_RE,
+    CV_IMPORT_RE: CV_IMPORT_RE,
     shouldSkipDiversity: shouldSkipDiversity,
     optionsLookLikeDialCodes: optionsLookLikeDialCodes,
     descriptorLooksLikePhoneCountry: descriptorLooksLikePhoneCountry,

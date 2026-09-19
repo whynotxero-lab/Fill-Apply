@@ -104,17 +104,32 @@
     if (autofilled && previous != null && String(previous) !== String(value)) kind = 'correct';
     var loc = hostInfo();
     var fieldType = C && C.inferFieldType ? C.inferFieldType(el, { type: el.type, label: label }) : 'text';
+    var controlType = C && C.detectControlType ? C.detectControlType(el, { type: el.type, label: label }) : '';
+    // Persist Key / Type / Value using the DOM control type when it is more specific
+    // (select / radio / boolean) so gender never lands as free text in the dictionary.
+    if (controlType === 'select' || controlType === 'multiselect' || controlType === 'radio') {
+      fieldType = controlType === 'radio' ? 'select' : controlType;
+    } else if (controlType === 'checkbox') {
+      fieldType = 'boolean';
+    }
     Learn.learn({
       label: label,
       value: value,
       fieldType: fieldType,
+      controlType: controlType || fieldType,
       kind: kind,
       host: loc.host,
       url: loc.url,
       previousValue: previous || '',
       autofilled: autofilled && kind === 'correct',
       name: el.getAttribute && el.getAttribute('name'),
-      placeholder: el.getAttribute && el.getAttribute('placeholder')
+      placeholder: el.getAttribute && el.getAttribute('placeholder'),
+      id: el.id || '',
+      options: el.tagName === 'SELECT' && el.options
+        ? Array.prototype.map.call(el.options, function (o) {
+            return { value: o.value, text: (o.textContent || '').trim() };
+          })
+        : []
     });
   }
 

@@ -174,7 +174,9 @@ The engine owns attaching whenever it is given documents, which is what makes it
 | Field | Behaviour |
 |-------|-----------|
 | Voluntary self-identification / EEO | Skipped, reported as `voluntary_self_identification` |
-| Consent and agreement checkboxes | Never ticked; reported as `consent_checkbox`, and named in `missingRequired` when required |
+| Consent and agreement checkboxes | Ticked when label matches agree/consent/privacy notice/electronic signature/terms/acknowledge so Next can proceed; email still comes from profile |
+| Gender / sex | Select, radio, or combobox only — never typed into a free-text box (`gender_requires_select`) |
+| CV / Resume import CTA | Prefer “Fill with CV / Import from Resume / Autofill from resume” before normal field fill |
 | Required fields with no profile answer | Named in `missingRequired`, which drives the missing-fields popup |
 
 ## Cross-frame injection
@@ -216,7 +218,8 @@ node scripts/browser-e2e.js   # real Chrome, needs a display
 | `smoke-fill-engine.js` | Labels, control types, async dropdowns, answer resolution, never-invented policy |
 | `smoke-value-format.js` | Phone, postal, date, url, number and text shaping, and select spellings |
 | `smoke-documents.js` | Preloaded document attach, picker suppression, accept mismatch, existing uploads, multi-step |
-| `smoke-profile-fill.js` | Full Zahid profile across text, select, radio, checkbox, buckets, education levels, demonyms; blanks, consent and EEO left alone |
+| `smoke-profile-fill.js` | Full Zahid profile across text, select, radio, checkbox, buckets, education levels, demonyms; consent ticked, other EEO left alone |
+| `smoke-hilton-consent-cv-learn.js` | Hilton-style consent+email+Next, gender select-only, CV-import-first, learn-on-human-input |
 | `smoke-jobpool-status.js` | JobPool `status` mapping — only `submitted` means Applied |
 | `smoke-run-modes.js` | Fallback fill / ready / submit: Continue and Submit only in the matching mode |
 | `smoke-backend-jobpool.js` | Local `jobPoolStatus`, live POST `/applied/:id`, cancelled fallback |

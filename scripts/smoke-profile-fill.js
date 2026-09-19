@@ -73,8 +73,8 @@ function run(page, profile, options) {
   suite.equal(profile.nationality, 'Pakistan', 'nationality is stored');
   suite.equal(profile.highestEducation, "Master's Degree", 'highest education is a level, not a sentence');
   suite.equal(profile.yearsExperience, '15', 'years of experience is a number a bucket can hold');
-  suite.equal(profile.school, 'Virtual University of Pakistan', 'school is stored separately from the education paragraph');
-  suite.equal(profile.degree, 'MBA Executive', 'degree is stored separately');
+  suite.equal(profile.school, 'Virtual University of Pakistan (VUP)', 'school is stored separately from the education paragraph');
+  suite.equal(profile.degree, 'MBA Executive — Finance', 'degree is stored separately');
   suite.equal(profile.fieldOfStudy, 'Finance', 'field of study is stored');
   suite.equal(profile.graduationYear, '2018', 'graduation year is stored');
   suite.equal(profile.currentTitle.indexOf('Financial Planning') !== -1, true, 'current title is stored');
@@ -268,7 +268,7 @@ function run(page, profile, options) {
     const doc = form.document;
 
     suite.ok(result.ok, 'the full form run completes');
-    suite.equal(doc.getElementById('fn').value, 'Chaudhary Zahid', 'first name filled');
+    suite.equal(doc.getElementById('fn').value, 'Chaudhary', 'first name filled');
     suite.equal(doc.getElementById('ln').value, 'Ali', 'last name filled');
     suite.equal(doc.getElementById('em').value, 'czahidali@gmail.com', 'email filled');
     suite.equal(doc.getElementById('cc').value, '+966', 'phone country code selected');
@@ -282,8 +282,8 @@ function run(page, profile, options) {
     suite.equal(doc.getElementById('np').value, 'Onspot', 'immediate availability finds Teamtailor Onspot');
     suite.ok(doc.getElementById('title').value.indexOf('Financial Planning') !== -1, 'current title filled');
     suite.ok(doc.getElementById('comp').value.indexOf('SIXT') !== -1, 'current employer filled');
-    suite.equal(doc.getElementById('school').value, 'Virtual University of Pakistan', 'school filled from the split education fields');
-    suite.equal(doc.getElementById('deg').value, 'MBA Executive', 'degree filled');
+    suite.equal(doc.getElementById('school').value, 'Virtual University of Pakistan (VUP)', 'school filled from the split education fields');
+    suite.equal(doc.getElementById('deg').value, 'MBA Executive — Finance', 'degree filled');
     suite.equal(doc.getElementById('fos').value, 'Finance', 'field of study filled');
     suite.equal(doc.getElementById('gy').value, '2018', 'graduation year filled');
     suite.ok(doc.getElementById('rel').checked, 'willing-to-relocate checkbox ticked for Yes');
@@ -293,7 +293,7 @@ function run(page, profile, options) {
     suite.ok(doc.querySelector('input[name="emp"][value="no"]').checked, 'currently-employed radio selected No');
     suite.ok(doc.getElementById('why').value.length > 80, 'cover letter filled');
     suite.equal(doc.getElementById('sal').value, '', 'blank salary is left blank, not invented');
-    suite.ok(!doc.getElementById('consent').checked, 'consent checkbox is never ticked');
+    suite.ok(doc.getElementById('consent').checked, 'consent checkbox is ticked so Next can proceed');
     suite.equal(doc.getElementById('race').value, '', 'EEO select is left on the decline option');
     suite.ok(
       (result.skipped || []).some(function (s) {
@@ -302,10 +302,16 @@ function run(page, profile, options) {
       'the EEO field is reported as skipped'
     );
     suite.ok(
-      (result.skipped || []).some(function (s) {
+      !(result.skipped || []).some(function (s) {
         return s && s.reason === 'consent_checkbox';
       }),
-      'the consent checkbox is reported as skipped'
+      'consent checkbox is no longer skipped — it is ticked'
+    );
+    suite.ok(
+      (result.details || []).some(function (d) {
+        return d && d.canonicalKey === 'consent' && d.action === 'FILLED';
+      }),
+      'consent appears in filled details'
     );
   })();
 
