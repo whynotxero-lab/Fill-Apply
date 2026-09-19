@@ -47,7 +47,17 @@
     running: 'running',
     paused: 'paused',
     done: 'done',
-    error: 'error'
+    error: 'error',
+    // Reliability sprint phases (surfaced when runner sends phase)
+    DETECTING: 'DETECTING',
+    FILLING: 'FILLING',
+    WAITING_FOR_DEPENDENT_FIELDS: 'WAITING_FOR_DEPENDENT_FIELDS',
+    VALIDATING: 'VALIDATING',
+    MISSING_INFORMATION: 'MISSING_INFORMATION',
+    BLOCKED: 'BLOCKED',
+    READY: 'READY',
+    SUBMITTING: 'SUBMITTING',
+    COMPLETE: 'COMPLETE'
   };
 
   var SLOTS = [
@@ -394,8 +404,26 @@
       statusEl.textContent = message || labelFor(currentState);
       statusEl.className = 'status ' + currentState;
     }
-    if (state === STATUS.running) setBusy(true);
-    if (state === STATUS.idle || state === STATUS.done || state === STATUS.error || state === STATUS.paused) {
+    if (
+      state === STATUS.running ||
+      state === STATUS.DETECTING ||
+      state === STATUS.FILLING ||
+      state === STATUS.WAITING_FOR_DEPENDENT_FIELDS ||
+      state === STATUS.VALIDATING ||
+      state === STATUS.SUBMITTING
+    ) {
+      setBusy(true);
+    }
+    if (
+      state === STATUS.idle ||
+      state === STATUS.done ||
+      state === STATUS.error ||
+      state === STATUS.paused ||
+      state === STATUS.READY ||
+      state === STATUS.COMPLETE ||
+      state === STATUS.BLOCKED ||
+      state === STATUS.MISSING_INFORMATION
+    ) {
       setBusy(false);
     }
   }
@@ -405,6 +433,15 @@
     if (state === STATUS.paused) return 'Paused — action needed';
     if (state === STATUS.done) return 'Done';
     if (state === STATUS.error) return 'Error';
+    if (state === STATUS.DETECTING) return 'Detecting…';
+    if (state === STATUS.FILLING) return 'Filling…';
+    if (state === STATUS.WAITING_FOR_DEPENDENT_FIELDS) return 'Waiting for dependent fields…';
+    if (state === STATUS.VALIDATING) return 'Validating…';
+    if (state === STATUS.MISSING_INFORMATION) return 'Missing information';
+    if (state === STATUS.BLOCKED) return 'Blocked';
+    if (state === STATUS.READY) return 'Ready';
+    if (state === STATUS.SUBMITTING) return 'Submitting…';
+    if (state === STATUS.COMPLETE) return 'Complete';
     return 'Idle — current tab';
   }
 
@@ -638,7 +675,14 @@
       chrome.runtime.onMessage.addListener(function (message) {
         if (!message || !message.type) return;
         if (message.type === 'FILL_APPLY_PAGE_PANEL_STATUS' || message.type === 'FILL_APPLY_FILL_ONCE_STATUS') {
-          setStatus(message.state || currentState, message.message || message.error || '');
+          var msg = message.message || message.error || '';
+          if (message.phase && String(msg).indexOf(message.phase) === -1) {
+            msg = message.phase + (msg ? ' — ' + msg : '');
+          }
+          // Prefer explicit phase as visual state when it is a known STATUS key
+          var st = message.state || currentState;
+          if (message.phase && STATUS[message.phase]) st = message.phase;
+          setStatus(st, msg);
           if (message.result) applyResult(message);
         }
       });

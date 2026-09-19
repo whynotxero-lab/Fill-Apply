@@ -18,12 +18,26 @@
   }
 
 
+  const RUN_PHASES = {
+    DETECTING: 'DETECTING',
+    FILLING: 'FILLING',
+    WAITING_FOR_DEPENDENT_FIELDS: 'WAITING_FOR_DEPENDENT_FIELDS',
+    VALIDATING: 'VALIDATING',
+    MISSING_INFORMATION: 'MISSING_INFORMATION',
+    BLOCKED: 'BLOCKED',
+    READY: 'READY',
+    SUBMITTING: 'SUBMITTING',
+    COMPLETE: 'COMPLETE'
+  };
+
   const INJECT_FILES = [
     'lib/dom-deep.js',
     'lib/format.js',
     'lib/synonyms.js',
     'lib/pace.js',
     'lib/field-map.js',
+    'lib/control-adapter.js',
+    'lib/ats-faq-seed.js',
     'lib/knowledge-canonical.js',
     'lib/knowledge-store.js',
     'lib/knowledge-resolver.js',
@@ -1486,16 +1500,35 @@
   async function fillTabWithApplyStart(tabId, profile, documents, runMode, config, job, opts) {
     opts = opts || {};
     let currentTabId = tabId;
-    function progress(state, message) {
+    function progress(state, message, phase) {
+      const mappedPhase = phase || mapStateToPhase(state, message);
       notifyPagePanel(currentTabId != null ? currentTabId : tabId, {
         state: state || 'running',
-        message: message || ''
+        message: message || '',
+        phase: mappedPhase
       });
       if (typeof opts.onProgress === 'function') {
         try {
-          opts.onProgress(state, message);
+          opts.onProgress(state, message, mappedPhase);
         } catch (_e) {}
       }
+    }
+
+    function mapStateToPhase(state, message) {
+      const s = String(state || '');
+      const m = String(message || '');
+      if (s === 'done') return RUN_PHASES.COMPLETE;
+      if (s === 'paused' || /missing|blocker|blocked/i.test(m)) {
+        if (/\bdocument\b|\bfile\b|\bupload\b|\bresume\b|\bcv\b/i.test(m)) return RUN_PHASES.BLOCKED;
+        return RUN_PHASES.MISSING_INFORMATION;
+      }
+      if (s === 'error') return RUN_PHASES.BLOCKED;
+      if (/submit/i.test(m)) return RUN_PHASES.SUBMITTING;
+      if (/depend/i.test(m)) return RUN_PHASES.WAITING_FOR_DEPENDENT_FIELDS;
+      if (/detect|inspect|open/i.test(m)) return RUN_PHASES.DETECTING;
+      if (/fill/i.test(m)) return RUN_PHASES.FILLING;
+      if (/valid|ready/i.test(m)) return RUN_PHASES.READY;
+      return RUN_PHASES.FILLING;
     }
 
     let preHandoffUrl = '';
@@ -2751,6 +2784,7 @@
   }
 
   global.FillApplyRunner = {
+    RUN_PHASES: RUN_PHASES,
     start: startRunner,
     stop: stopRunner,
     resume: resumeRunner,

@@ -1,0 +1,27 @@
+<form id="app">
+  <label>Experience level</label>
+  <div class="select2-container">
+    <button type="button" class="select2-selection" aria-haspopup="listbox" aria-expanded="false">Select level</button>
+    <ul class="select2-results" role="listbox" hidden>
+      <li role="option" class="select2-result">Junior</li>
+      <li role="option" class="select2-result">Manager</li>
+      <li role="option" class="select2-result">Director</li>
+    </ul>
+  </div>
+</form>
+<script>
+(function () {
+  var btn = document.querySelector('.select2-selection');
+  var list = document.querySelector('.select2-results');
+  btn.addEventListener('click', function () {
+    list.hidden = !list.hidden;
+    btn.setAttribute('aria-expanded', list.hidden ? 'false' : 'true');
+  });
+  list.addEventListener('click', function (e) {
+    var opt = e.target.closest('[role="option"]');
+    if (!opt) return;
+    btn.textContent = opt.textContent.trim();
+    list.hidden = true;
+  });
+})();
+</script>

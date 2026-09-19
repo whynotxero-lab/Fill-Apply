@@ -1,0 +1,41 @@
+<form id="app">
+  <label for="fn">First name *</label>
+  <input id="fn" name="first_name" type="text" required />
+  <label for="ln">Last name *</label>
+  <input id="ln" name="last_name" type="text" required />
+  <label for="em">Email *</label>
+  <input id="em" name="email" type="email" required />
+  <label for="yoe">Years of experience</label>
+  <input id="yoe" name="years" type="number" />
+  <fieldset>
+    <legend>Authorized to work? *</legend>
+    <label><input type="radio" name="auth" value="Yes" /> Yes</label>
+    <label><input type="radio" name="auth" value="No" /> No</label>
+  </fieldset>
+  <label for="country">Country of residence</label>
+  <select id="country" name="country">
+    <option value="">Select…</option>
+    <option value="SA">Saudi Arabia</option>
+    <option value="PK">Pakistan</option>
+  </select>
+  <label for="has_cert">Have professional certifications?</label>
+  <select id="has_cert" name="has_cert">
+    <option value="">Select…</option>
+    <option value="Yes">Yes</option>
+    <option value="No">No</option>
+  </select>
+  <div id="cert_detail" hidden>
+    <label for="certs">Which certifications?</label>
+    <input id="certs" name="certs" type="text" />
+  </div>
+  <label><input type="checkbox" name="terms" id="terms" /> I agree to the privacy policy</label>
+</form>
+<script>
+(function () {
+  var sel = document.getElementById('has_cert');
+  var dep = document.getElementById('cert_detail');
+  sel.addEventListener('change', function () {
+    dep.hidden = sel.value !== 'Yes';
+  });
+})();
+</script>

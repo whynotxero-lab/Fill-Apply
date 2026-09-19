@@ -1,0 +1,21 @@
+<form id="app" data-step="1">
+  <div class="step" data-step="1">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required />
+    <button type="button" id="next1">Next</button>
+  </div>
+  <div class="step" data-step="2" hidden>
+    <label for="phone">Phone</label>
+    <input id="phone" name="phone" type="tel" required />
+    <button type="button" id="submit">Submit application</button>
+  </div>
+</form>
+<script>
+(function () {
+  document.getElementById('next1').addEventListener('click', function () {
+    document.querySelector('[data-step="1"]').hidden = true;
+    document.querySelector('[data-step="2"]').hidden = false;
+    document.getElementById('app').setAttribute('data-step', '2');
+  });
+})();
+</script>

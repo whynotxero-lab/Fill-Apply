@@ -157,7 +157,9 @@ function makeImportPage() {
   [
     'lib/storage.js',
     'lib/profile.js',
-    'lib/knowledge-canonical.js',
+    'lib/control-adapter.js',
+  'lib/ats-faq-seed.js',
+  'lib/knowledge-canonical.js',
     'lib/knowledge-store.js',
     'lib/knowledge-resolver.js',
     'lib/field-map.js',

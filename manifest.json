@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.19.5",
+  "version": "1.20.0",
   "description": "Job-application autofill: on-page Fill/Ready/Submit, adaptive knowledge, profile import/export, ATS helpers.",
   "permissions": [
     "storage",

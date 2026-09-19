@@ -1,0 +1,21 @@
+<form id="app">
+  <label for="relocate">Willing to relocate?</label>
+  <select id="relocate" name="relocate">
+    <option value="">Select…</option>
+    <option value="Yes">Yes</option>
+    <option value="No">No</option>
+  </select>
+  <div id="dep" hidden>
+    <label for="where">Preferred relocation city</label>
+    <input id="where" name="relocate_city" type="text" />
+  </div>
+</form>
+<script>
+(function () {
+  var sel = document.getElementById('relocate');
+  var dep = document.getElementById('dep');
+  sel.addEventListener('change', function () {
+    dep.hidden = sel.value !== 'Yes';
+  });
+})();
+</script>

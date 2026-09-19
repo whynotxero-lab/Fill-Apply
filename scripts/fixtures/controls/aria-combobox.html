@@ -1,0 +1,39 @@
+<form id="app">
+  <label id="city-label">City</label>
+  <div>
+    <input id="city" role="combobox" aria-labelledby="city-label" aria-autocomplete="list" aria-expanded="false" aria-controls="city-list" />
+    <ul id="city-list" role="listbox" hidden>
+      <li role="option" data-value="Riyadh">Riyadh</li>
+      <li role="option" data-value="Jeddah">Jeddah</li>
+      <li role="option" data-value="Dammam">Dammam</li>
+    </ul>
+  </div>
+</form>
+<script>
+  // Minimal combobox behaviour for jsdom fixtures
+  (function () {
+    var input = document.getElementById('city');
+    var list = document.getElementById('city-list');
+    if (!input || !list) return;
+    input.addEventListener('focus', function () {
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    });
+    input.addEventListener('input', function () {
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      var q = (input.value || '').toLowerCase();
+      Array.prototype.forEach.call(list.querySelectorAll('[role="option"]'), function (opt) {
+        opt.hidden = q && opt.textContent.toLowerCase().indexOf(q) === -1;
+      });
+    });
+    list.addEventListener('click', function (e) {
+      var opt = e.target.closest('[role="option"]');
+      if (!opt) return;
+      input.value = opt.textContent.trim();
+      list.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  })();
+</script>

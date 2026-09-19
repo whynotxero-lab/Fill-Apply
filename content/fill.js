@@ -406,10 +406,52 @@
   }
 
   /**
-   * Write a value into any control type. Checkboxes and radios go through a real
-   * click so framework state updates; everything else uses the native setter.
+   * Write a value into any control type. Prefer FillApplyControlAdapter
+   * (adapt → fill → verify). Checkboxes/radios use real clicks; selects never
+   * free-text; type=date never gets a human-readable date.
    */
   function setNativeValue(el, value, context) {
+    context = context || {};
+    const A = global.FillApplyControlAdapter;
+    if (A && typeof A.applyToControl === 'function') {
+      const ct = controlTypeOf(el, context.descriptor || {});
+      const typeAttr = String((el && el.type) || '').toLowerCase();
+      // Adapter owns closed/choice/numeric/file controls. Plain text/email/tel/url
+      // stay on format.js sanitizeForInput (DOB placeholders, phone shaping, etc.).
+      // Combobox/autocomplete/custom-select need async pickFromDropdown.
+      const adapterOwned =
+        ct === 'checkbox' ||
+        ct === 'checkbox-group' ||
+        ct === 'radio' ||
+        ct === 'button-group' ||
+        ct === 'select' ||
+        ct === 'multiselect' ||
+        ct === 'number' ||
+        ct === 'file' ||
+        ((ct === 'date' || ct === 'datetime') &&
+          (typeAttr === 'date' || typeAttr === 'datetime-local' || typeAttr === 'month' || typeAttr === 'week'));
+      if (adapterOwned) {
+        const result = A.applyToControl(el, value, {
+          descriptor: context.descriptor || {},
+          label: context.label || '',
+          hasPhoneCountryField: !!context.hasPhoneCountryField,
+          consent: context.key === 'consent',
+          documents: context.documents || (context.profile && context.profile.documents) || null,
+          el: el
+        });
+        if (result.blocker) return false;
+        if (result.deferAsync) {
+          /* fall through for text-like typing only */
+        } else if (result.ok) {
+          return true;
+        } else if (result.reason === 'file_not_configured') {
+          return false;
+        }
+        // no_matching_option: fall through so select/radio bucket + variant matching can run
+        // If adapter could not verify, still try legacy below.
+      }
+    }
+
     const D = dom();
     const tag = el.tagName;
     const type = String(el.type || '').toLowerCase();
@@ -421,10 +463,13 @@
         el.checked = want;
         fireChange(el);
       }
-      return true;
+      return el.checked === want;
     }
 
-    if (type === 'radio') return selectRadioInGroup(el, value, kindOf(el, context));
+    if (type === 'radio') {
+      const ok = selectRadioInGroup(el, value, kindOf(el, context));
+      return !!ok;
+    }
 
     var sanitized = sanitizeForInput(el, value, context);
     if (sanitized.skip) return false;
@@ -432,18 +477,16 @@
 
     if (tag === 'SELECT') {
       if (matchSelectOption(el, finalValue)) return true;
-      // Selects spell countries and states either way round: a profile saying
-      // "United Arab Emirates" has to find an option labelled "AE".
       const variants = selectVariants(finalValue, sanitized.kind);
       for (let v = 0; v < variants.length; v++) {
         if (matchSelectOption(el, variants[v])) return true;
       }
-      // Buckets and levels: "15" belongs in "10+ years", "Master's / MBA" in
-      // "Master's Degree". Neither is reachable by comparing strings.
       if (selectByOptionMatch(el, finalValue, sanitized.kind)) return true;
-      // Never free-text into a <select> — incompatible options → DO NOT FILL
       return false;
     }
+
+    // Never assign .value on checkbox/radio/file (adapter / branches above handle them)
+    if (type === 'file') return false;
 
     if (D && D.setValue) {
       D.setValue(el, finalValue);
@@ -519,6 +562,15 @@
 
   /** Pick the radio in `el`'s group whose label or value matches `value`. */
   function selectRadioInGroup(el, value, kind) {
+    const A = global.FillApplyControlAdapter;
+    if (A && typeof A.fill === 'function' && typeof A.adaptAnswer === 'function') {
+      const adapted = A.adaptAnswer('radio', value, {});
+      if (adapted.ok) {
+        const filled = A.fill(el, adapted, {});
+        if (filled && filled.ok && filled.verified !== false) return true;
+        if (filled && filled.ok) return !!filled.verified;
+      }
+    }
     const want = String(value).toLowerCase().trim();
     const group = radioGroupFor(el);
     if (!group.length) return false;
@@ -526,11 +578,16 @@
     let best = null;
     let bestScore = 0;
     group.forEach(function (radio) {
-      const label = getLabelText(radio).toLowerCase().trim();
+      // Prefer per-option label (fixes shared fieldset legend Yes/No bugs)
+      let label = '';
+      if (A && typeof A.ownRadioLabel === 'function') {
+        label = String(A.ownRadioLabel(radio) || '').toLowerCase().trim();
+      }
+      if (!label) label = getLabelText(radio).toLowerCase().trim();
       const raw = String(radio.value || '').toLowerCase().trim();
       let score = 0;
       if (raw === want || label === want) score = 100;
-      else if (label.indexOf(want) !== -1 || want.indexOf(label) !== -1) score = 70;
+      else if (label.indexOf(want) !== -1 || (want.indexOf(label) !== -1 && label.length > 1)) score = 70;
       else if (raw.indexOf(want) !== -1) score = 60;
       else if (/^(yes|y)$/i.test(want) && /^(yes|y|true)$/i.test(raw || label)) score = 85;
       else if (/^(no|n)$/i.test(want) && /^(no|n|false)$/i.test(raw || label) && !/not/i.test(label)) {
@@ -543,8 +600,6 @@
     });
 
     if (!best || bestScore < 60) {
-      // Radio groups carry buckets and levels as often as selects do:
-      // "0-2 / 3-5 / 6-9 / 10+" is the same question either way.
       best = radioByOptionMatch(group, value, kind);
       if (!best) return false;
     }
@@ -553,7 +608,8 @@
       best.checked = true;
       fireChange(best);
     }
-    return true;
+    // Verify checked===true (shared-label bugs often leave the wrong control unchecked)
+    return best.checked === true;
   }
 
   function radioByOptionMatch(group, value, kind) {
@@ -752,6 +808,14 @@
   }
 
   function controlTypeOf(el, descriptor) {
+    const A = global.FillApplyControlAdapter;
+    if (A && typeof A.detectControl === 'function') {
+      try {
+        return A.detectControl(el, descriptor || {});
+      } catch (_e) {
+        /* fall through */
+      }
+    }
     const C = global.FillApplyKnowledgeCanonical;
     if (C && typeof C.detectControlType === 'function') {
       return C.detectControlType(el, descriptor || {});
@@ -759,6 +823,7 @@
     const type = String((descriptor && descriptor.type) || (el && el.type) || '').toLowerCase();
     if (el && el.tagName === 'SELECT') return el.multiple ? 'multiselect' : 'select';
     if (type === 'checkbox' || type === 'radio') return type;
+    if (type === 'file') return 'file';
     if (isComboboxInput(el)) return 'combobox';
     return type || 'text';
   }
@@ -1770,6 +1835,7 @@
         profile: profile,
         hasPhoneCountryField: hasPhoneCountryField,
         label: descriptor.label || label || '',
+        descriptor: descriptor,
         formats:
           (answer.record && answer.record.formats) ||
           (answer.formats) ||
@@ -1812,6 +1878,71 @@
       if (options.pauseBetweenFieldsMs) await sleep(options.pauseBetweenFieldsMs);
     }
 
+    // Dependent fields: after fills that reveal follow-ups, wait + re-scan once.
+    let phase = 'VALIDATING';
+    let dependentPasses = 0;
+    const maxDependentPasses = options.maxDependentPasses != null ? options.maxDependentPasses : 2;
+    while (dependentPasses < maxDependentPasses) {
+      phase = 'WAITING_FOR_DEPENDENT_FIELDS';
+      if (options.onPhase) {
+        try {
+          options.onPhase(phase, { pass: dependentPasses + 1 });
+        } catch (_p) {
+          /* ignore */
+        }
+      }
+      await sleep(options.dependentWaitMs != null ? options.dependentWaitMs : 350);
+      const nextFields = collectFields();
+      const prevIds = {};
+      fields.forEach(function (f, idx) {
+        prevIds[f.id || f.name || 'i' + idx] = true;
+      });
+      const newcomers = nextFields.filter(function (f, idx) {
+        const id = f.id || f.name || 'i' + idx;
+        return !prevIds[id] && !f.getAttribute(FILLED_ATTR);
+      });
+      if (!newcomers.length) break;
+      dependentPasses += 1;
+      phase = 'FILLING';
+      fields = nextFields;
+      for (let di = 0; di < newcomers.length; di++) {
+        const el = newcomers[di];
+        const descriptor = D && D.describeField ? D.describeField(el) : legacyDescriptor(el);
+        if (shouldSkipDiversity(el, descriptor.label || '', profile)) continue;
+        const answer = answerFor(profile, descriptor, map);
+        const gate = gateFill(el, descriptor, answer);
+        if (!answer.value || !gate.ok) {
+          unmatched += 1;
+          pushUnknown(descriptor, el, gate.reason || 'unknown');
+          continue;
+        }
+        const fillValue = gate.value != null ? gate.value : answer.value;
+        const setOk = setNativeValue(el, fillValue, {
+          key: answer.key,
+          profile: profile,
+          hasPhoneCountryField: hasPhoneCountryField,
+          label: descriptor.label || '',
+          descriptor: descriptor
+        });
+        if (setOk === false) {
+          unmatched += 1;
+          pushUnknown(descriptor, el, 'value_rejected');
+          continue;
+        }
+        filled += 1;
+        markAutofilled(el, fillValue);
+        highlight(el, 'filled');
+        details.push(
+          Object.assign(filledDetail(descriptor, Object.assign({}, answer, { value: fillValue })), {
+            controlType: gate.controlType,
+            action: 'FILLED',
+            dependentPass: dependentPasses
+          })
+        );
+      }
+    }
+    phase = missingRequired.length ? 'MISSING_INFORMATION' : 'VALIDATING';
+
     const customFilled = await fillCustomDropdowns(profile, map, options);
     filled += customFilled.filter(function (c) {
       return !c.already;
@@ -1847,11 +1978,32 @@
       unknownLabels.push(lab);
     });
 
+    const blockers = [];
+    if (filesAttached && filesAttached.needsManual) {
+      blockers.push({
+        type: 'file',
+        message: (filesAttached.errors && filesAttached.errors[0]) || 'Document upload needs manual action'
+      });
+    }
+    unknownFields.forEach(function (u) {
+      if (u && u.required && u.reason === 'file_not_configured') {
+        blockers.push({ type: 'file', message: u.label || 'Required file', reason: u.reason });
+      }
+    });
+    const runPhase = blockers.length
+      ? 'BLOCKED'
+      : missingRequired.length
+        ? 'MISSING_INFORMATION'
+        : 'READY';
+
     return {
       ok: true,
       filled: filled,
       unmatched: unmatched,
       total: fields.length,
+      phase: runPhase,
+      dependentPasses: dependentPasses,
+      blockers: blockers,
       cvImportClicked: !!(cvImport && cvImport.clicked),
       cvImportText: (cvImport && cvImport.text) || '',
       details: details,
@@ -2104,6 +2256,8 @@
     isComboboxInput: isComboboxInput,
     sanitizeForInput: sanitizeForInput,
     setNativeValue: setNativeValue,
+    controlTypeOf: controlTypeOf,
+    gateFill: gateFill,
     numericAmount: function (s) {
       if (global.FillApplyProfile && global.FillApplyProfile.numericAmount) {
         return global.FillApplyProfile.numericAmount(s);

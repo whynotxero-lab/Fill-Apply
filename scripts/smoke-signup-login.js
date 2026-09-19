@@ -239,7 +239,9 @@ const PROFILE_NO_PW = {
   // 6) Knowledge learn rejects password labels
   await (async function neverLearnPassword() {
     const page = createPage('<html><body></body></html>', [
-      'lib/knowledge-canonical.js',
+      'lib/control-adapter.js',
+  'lib/ats-faq-seed.js',
+  'lib/knowledge-canonical.js',
       'lib/knowledge-store.js',
       'lib/knowledge-learn.js'
     ]);

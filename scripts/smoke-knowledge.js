@@ -12,6 +12,8 @@ const LIBS = [
   'lib/format.js',
   'lib/synonyms.js',
   'lib/field-map.js',
+  'lib/control-adapter.js',
+  'lib/ats-faq-seed.js',
   'lib/knowledge-canonical.js',
   'lib/knowledge-store.js',
   'lib/knowledge-resolver.js',
