@@ -1,0 +1,3363 @@
+{
+  "format": "fill-apply-profile",
+  "schemaVersion": 1,
+  "exportedAt": "2026-09-19T14:26:54.532607Z",
+  "meta": {
+    "profileName": "Zahid Fixture",
+    "preferredProfileId": "zahid",
+    "activate": true,
+    "appVersion": "1.19.4",
+    "source": "trial-history-strong-profile-2026-09-19",
+    "note": "Redacted smoke fixture \u2014 no passwords; for tests only"
+  },
+  "profile": {
+    "salutation": "Mr.",
+    "firstName": "Chaudhary",
+    "middleName": "",
+    "lastName": "Zahid Ali",
+    "preferredName": "Chaudhry Zahid Ali",
+    "fullName": "Chaudhary Zahid Ali",
+    "headline": "CMA, ACCA \u2014 Strategic Finance & FP&A Professional",
+    "email": "czahidali.accacma@gmail.com",
+    "phone": "504131857",
+    "phoneCountry": "+966",
+    "dateOfBirth": "1979-04-06",
+    "location": "Riyadh, Saudi Arabia",
+    "street": "",
+    "city": "Riyadh",
+    "state": "Riyadh",
+    "country": "Saudi Arabia",
+    "zip": "12791",
+    "postcode": "",
+    "nationality": "Pakistan",
+    "gender": "Male",
+    "noticePeriod": "Available immediately",
+    "availableFrom": "Available immediately",
+    "willingToRelocate": "Yes",
+    "remotePreference": "Onsite for KSA, otherwise Remote",
+    "referralSource": "Job board",
+    "driversLicense": "",
+    "linkedin": "https://www.linkedin.com/in/chaudhryzahidali",
+    "portfolio": "",
+    "website": "",
+    "github": "",
+    "resumeUrl": "",
+    "coverUrl": "",
+    "currentTitle": "Financial Planning, Analysis & Reporting Manager",
+    "currentCompany": "SIXT, Samara Land Transportation Services Co. Ltd.",
+    "yearsExperience": "15",
+    "highestEducation": "Master's Degree",
+    "school": "Virtual University of Pakistan (VUP)",
+    "degree": "MBA Executive \u2014 Finance",
+    "fieldOfStudy": "Finance",
+    "graduationYear": "2018",
+    "gpa": "3.75",
+    "certifications": [
+      {
+        "name": "Certified Management Accountant (CMA)",
+        "issuer": "IMA, USA",
+        "year": "2015"
+      },
+      {
+        "name": "ACCA",
+        "issuer": "United Kingdom",
+        "year": "2005"
+      }
+    ],
+    "skills": [
+      "FP&A",
+      "Budgeting",
+      "Forecasting",
+      "Financial Modeling",
+      "Scenario Analysis",
+      "Feasibility Studies",
+      "Business Valuation",
+      "Capital Investment Appraisal",
+      "Working Capital",
+      "Management Reporting",
+      "KPI Dashboards",
+      "Power BI",
+      "DAX",
+      "Excel",
+      "VBA",
+      "SQL",
+      "Python",
+      "Oracle",
+      "SAP",
+      "Sage",
+      "IFRS",
+      "Internal Controls",
+      "VAT",
+      "Zakat",
+      "Corporate Tax",
+      "E-Invoicing",
+      "ZATCA",
+      "Business Partnering"
+    ],
+    "languages": "English",
+    "references": "Available on request",
+    "currentSalary": "",
+    "expectedSalary": "",
+    "salaryCurrency": "SAR",
+    "authorizedToWork": "Yes",
+    "requiresSponsorship": "No",
+    "resumeSummary": "CMA and ACCA-qualified Strategic Finance, FP&A and Business Performance professional with 15+ years across Saudi Arabia and the MENA region. Specializes in multi-year planning, budgeting, forecasting, management reporting, capital appraisal, and digital finance transformation across large-scale retail, F&B franchising, transportation and mobility, fuel and energy, consulting, and Big Four audit environments. Recognized for shortening reporting cycles, strengthening forecast discipline, and turning complex financial and operational data into clear executive decision support.",
+    "workHistory": "SIXT, Samara Land Transportation Services Co. Ltd. | Khobar, Saudi Arabia\nFinancial Planning, Analysis & Reporting Manager | Oct 2024 \u2013 Sep 2025\n- Led FP&A, reporting, modeling and decision support for planning, investments and business performance.\n- Built forecasts, KPI dashboards and scenarios; delivered ROI/ROCE appraisals and cost/working-capital reviews.\n\nIndependent Financial Advisory & FP&A Consulting | Islamabad, Pakistan\nFP&A Consultant / Financial Planning, Analysis & Reporting Advisor | Dec 2021 \u2013 Jun 2024\n- Multi-year strategic plans, valuations, feasibility studies, budgets/forecasts and Power BI dashboards for multi-industry clients.\n- Improved profitability and reporting through process automation, scenario planning and cost initiatives.\n\nPanda Group, Head Office | Saudi Arabia\nManager, Planning, Reporting & Operational Finance | Nov 2017 \u2013 Nov 2021\n- Cut Group reporting time by 4 weeks via VBA models, automated workflows and visualization.\n- Owned multi-year plans, budgets, rolling forecasts and capital appraisals (NPV/IRR/ROI); mentored finance teams.\n\nAlamar Foods Company (Master Franchiser of Domino's Pizza) | Riyadh, Saudi Arabia\nGroup Reporting Manager | Nov 2015 \u2013 Nov 2017\n- Led group reporting, budgeting and forecasting across KSA and MENAP.\n- Reduced the monthly reporting lag from 10 weeks to under 6 weeks through automation and standardization.\n\nUnited Fuel Company (in partnership with PETRONAS) | Riyadh, Saudi Arabia\nHead of Accounting & Finance / Fractional CFO | Jun 2014 \u2013 Oct 2015\n- Built the finance function from the ground up: policies, controls, reporting, budgeting, cash flow and compliance.\n- Implemented Sage ERP; partnered with PETRONAS directors and the Group CFO on planning and operational decisions.\n\nAzizia Panda United, Head Office | Riyadh, Saudi Arabia\nAssistant Manager, Planning & Reporting | Feb 2010 \u2013 Jun 2014\n- Budget reviews, variance analysis, executive summaries and management reporting for leadership.\n- Improved reporting accuracy and efficiency through VBA, financial modeling and reporting automation.\n\nPricewaterhouseCoopers (PwC) | Islamabad, Pakistan\nSupervising Senior, Audit & Assurance | Mar 2006 \u2013 Dec 2009\n- Led audits across financial statements, accounting records, controls and compliance.\n- Supervised audit teams, reviewed workpapers, identified issues and coordinated client communication.",
+    "education": [
+      {
+        "school": "Virtual University of Pakistan (VUP)",
+        "degree": "MBA Executive \u2014 Finance",
+        "fieldOfStudy": "Finance",
+        "startYear": "",
+        "endYear": "2018",
+        "gpa": "3.75",
+        "notes": "CGPA 3.75"
+      },
+      {
+        "school": "University of the Punjab, Lahore",
+        "degree": "Bachelor of Commerce (B.Com)",
+        "fieldOfStudy": "Commerce",
+        "startYear": "",
+        "endYear": "2001",
+        "gpa": "",
+        "notes": ""
+      }
+    ],
+    "coverLetter": "I am writing to express my interest in a strategic finance / FP&A leadership role where rigorous planning, clear management reporting and commercial partnership drive better decisions. As a CMA and ACCA-qualified professional with 15+ years across Saudi Arabia and the MENA region \u2014 in retail, F&B franchising, mobility, fuel and energy, consulting and Big Four audit \u2014 I bring proven strength in budgeting, forecasting, capital appraisal and reporting automation. I have cut group reporting cycles by four weeks, reduced a monthly reporting lag from ten weeks to under six, and built a finance function from the ground up in partnership with PETRONAS directors and a Group CFO. I am based in Saudi Arabia and available to start immediately. I would welcome the opportunity to discuss how my experience aligns with your team's priorities.",
+    "experienceEntries": [
+      {
+        "title": "Financial Planning, Analysis & Reporting Manager",
+        "company": "SIXT, Samara Land Transportation Services Co. Ltd.",
+        "location": "Khobar, Saudi Arabia",
+        "start": "2024-10",
+        "end": "2025-09",
+        "current": false,
+        "description": "Led FP&A, reporting, modeling and decision support for planning, investments and business performance. Built forecasts, KPI dashboards and scenarios; delivered ROI, ROCE and cost analysis; strengthened executive visibility through benchmarking and finance-operations alignment."
+      },
+      {
+        "title": "FP&A Consultant / Financial Planning, Analysis & Reporting Advisor",
+        "company": "Independent Financial Advisory & FP&A Consulting",
+        "location": "Islamabad, Pakistan",
+        "start": "2021-12",
+        "end": "2024-06",
+        "current": false,
+        "description": "Delivered FP&A, reporting, modeling and advisory support across multiple client industries, including a multi-year strategic plan for a higher education institution, business valuations and feasibility analysis, and Power BI dashboards."
+      },
+      {
+        "title": "Manager, Planning, Reporting & Operational Finance",
+        "company": "Panda Group, Head Office",
+        "location": "Saudi Arabia",
+        "start": "2017-11",
+        "end": "2021-11",
+        "current": false,
+        "description": "Managed planning, reporting, operational finance and performance analysis for a major regional retail group. Reduced reporting time by four weeks through automated workflows and VBA models; owned capital investment evaluations and multi-year business plans."
+      },
+      {
+        "title": "Group Reporting Manager",
+        "company": "Alamar Foods Company \u2014 Master Franchiser of Domino's Pizza",
+        "location": "Riyadh, Saudi Arabia",
+        "start": "2015-11",
+        "end": "2017-11",
+        "current": false,
+        "description": "Led group reporting, budgeting, forecasting and performance analytics across KSA and MENAP. Brought the monthly reporting lag down from ten weeks to under six through streamlining, automation and visualization."
+      },
+      {
+        "title": "Head of Accounting & Finance / Fractional CFO",
+        "company": "United Fuel Company \u2014 in partnership with PETRONAS",
+        "location": "Riyadh, Saudi Arabia",
+        "start": "2014-06",
+        "end": "2015-10",
+        "current": false,
+        "description": "Established the finance function across accounting, controls, reporting, budgeting, cash flow and compliance. Implemented Sage ERP and supported PETRONAS directors and the Group CFO on planning and operational decisions."
+      },
+      {
+        "title": "Assistant Manager, Planning & Reporting",
+        "company": "Azizia Panda United, Head Office",
+        "location": "Riyadh, Saudi Arabia",
+        "start": "2010-02",
+        "end": "2014-06",
+        "current": false,
+        "description": "Supported planning, reporting, budgeting, analysis, KPIs and performance monitoring; improved reporting accuracy and efficiency through VBA, financial modeling and automation."
+      },
+      {
+        "title": "Supervising Senior, Audit & Assurance",
+        "company": "PricewaterhouseCoopers (PwC)",
+        "location": "Islamabad, Pakistan",
+        "start": "2006-03",
+        "end": "2009-12",
+        "current": false,
+        "description": "Led audits covering financial statements, accounting records, controls and compliance; supervised audit teams, reviewed workpapers and coordinated client communication."
+      }
+    ],
+    "educationEntries": [
+      {
+        "school": "Virtual University of Pakistan",
+        "degree": "MBA Executive",
+        "fieldOfStudy": "Finance",
+        "start": "",
+        "end": "2018",
+        "grade": "CGPA 3.75",
+        "location": "Pakistan"
+      },
+      {
+        "school": "University of the Punjab, Lahore",
+        "degree": "Bachelor of Commerce (B.Com)",
+        "fieldOfStudy": "Commerce",
+        "start": "",
+        "end": "2001",
+        "grade": "",
+        "location": "Lahore, Pakistan"
+      }
+    ],
+    "customQA": [
+      {
+        "question": "Salutation",
+        "answer": "Mr."
+      },
+      {
+        "question": "Years of experience",
+        "answer": "15+"
+      },
+      {
+        "question": "Highest education",
+        "answer": "Master's Degree"
+      },
+      {
+        "question": "Field of study",
+        "answer": "Finance"
+      },
+      {
+        "question": "Current job title",
+        "answer": "Financial Planning, Analysis & Reporting Manager"
+      },
+      {
+        "question": "Current employer",
+        "answer": "SIXT, Samara Land Transportation Services Co. Ltd."
+      },
+      {
+        "question": "Notice period",
+        "answer": "I can start immediately"
+      },
+      {
+        "question": "Authorized to work",
+        "answer": "Yes"
+      },
+      {
+        "question": "Work authorization",
+        "answer": "Yes"
+      },
+      {
+        "question": "Requires sponsorship",
+        "answer": "Yes"
+      },
+      {
+        "question": "Sponsorship",
+        "answer": "Yes"
+      },
+      {
+        "question": "Citizenship",
+        "answer": "Pakistan"
+      },
+      {
+        "question": "Gender",
+        "answer": "Male"
+      },
+      {
+        "question": "Located in Saudi Arabia",
+        "answer": "Yes"
+      },
+      {
+        "question": "Located in KSA",
+        "answer": "Yes"
+      },
+      {
+        "question": "Located in UAE",
+        "answer": "No"
+      },
+      {
+        "question": "Based in Riyadh",
+        "answer": "Yes"
+      },
+      {
+        "question": "Primary work location",
+        "answer": "Riyadh, Saudi Arabia"
+      },
+      {
+        "question": "Willing to relocate",
+        "answer": "Yes"
+      },
+      {
+        "question": "Willing to work EST",
+        "answer": "Yes"
+      },
+      {
+        "question": "Over 18",
+        "answer": "Yes"
+      },
+      {
+        "question": "Currently employed",
+        "answer": "No"
+      },
+      {
+        "question": "Resume style",
+        "answer": "Focused & Impactful"
+      },
+      {
+        "question": "Conflict of interest",
+        "answer": "No"
+      },
+      {
+        "question": "PIF",
+        "answer": "No"
+      },
+      {
+        "question": "Previously worked at company",
+        "answer": "No"
+      },
+      {
+        "question": "Relative at company",
+        "answer": "No"
+      },
+      {
+        "question": "OFAC",
+        "answer": "No"
+      },
+      {
+        "question": "Marketing consent",
+        "answer": "No"
+      },
+      {
+        "question": "Educational certificate",
+        "answer": "No"
+      },
+      {
+        "question": "LinkedIn",
+        "answer": "https://www.linkedin.com/in/chaudhryzahidali"
+      },
+      {
+        "question": "Social media",
+        "answer": "https://www.linkedin.com/in/chaudhryzahidali"
+      },
+      {
+        "question": "How did you hear about us",
+        "answer": "Job board"
+      },
+      {
+        "question": "Expected salary",
+        "answer": ""
+      },
+      {
+        "question": "Current salary",
+        "answer": ""
+      },
+      {
+        "question": "Date of birth",
+        "answer": ""
+      },
+      {
+        "question": "Driving license",
+        "answer": ""
+      },
+      {
+        "question": "Largest team size",
+        "answer": ""
+      }
+    ],
+    "customAnswers": {
+      "Salutation": "Mr.",
+      "salutation": "Mr.",
+      "Years of experience": "15+",
+      "yearsExperience": "15",
+      "Highest education": "Master's Degree",
+      "highestEducation": "Master's Degree",
+      "Field of study": "Finance",
+      "fieldOfStudy": "Finance",
+      "School / university": "Virtual University of Pakistan",
+      "Degree": "MBA Executive",
+      "Graduation year": "2018",
+      "GPA": "3.75",
+      "Certifications": "CMA (IMA, USA) 2015; ACCA (UK) 2005",
+      "Professional qualification": "CMA (IMA, USA); ACCA (UK)",
+      "Current job title": "Financial Planning, Analysis & Reporting Manager",
+      "currentTitle": "Financial Planning, Analysis & Reporting Manager",
+      "Current employer": "SIXT, Samara Land Transportation Services Co. Ltd.",
+      "currentCompany": "SIXT, Samara Land Transportation Services Co. Ltd.",
+      "Notice period": "I can start immediately",
+      "noticePeriod": "I can start immediately",
+      "Authorized to work": "Yes",
+      "Work authorization": "Yes",
+      "Requires sponsorship": "Yes",
+      "Sponsorship": "Yes",
+      "Citizenship": "Pakistan",
+      "nationality": "Pakistan",
+      "Gender": "Male",
+      "Located in Saudi Arabia": "Yes",
+      "Located in KSA": "Yes",
+      "Located in Saudi Arabia / KSA": "Yes",
+      "locatedKSA": "Yes",
+      "Located in UAE": "No",
+      "Based in Riyadh": "Yes",
+      "basedInRiyadh": "Yes",
+      "Primary work location": "Riyadh, Saudi Arabia",
+      "Willing to relocate": "Yes",
+      "willingToRelocate": "Yes",
+      "Willing to work EST": "Yes",
+      "Over 18": "Yes",
+      "over18": "Yes",
+      "Currently employed": "No",
+      "employed": "No",
+      "Resume style": "Focused & Impactful",
+      "resumeStyle": "Focused & Impactful",
+      "Conflict of interest": "No",
+      "conflictOfInterest": "No",
+      "PIF": "No",
+      "Previously worked at company": "No",
+      "previouslyEmployed": "No",
+      "priorEmployer": "No",
+      "Relative at company": "No",
+      "relative": "No",
+      "OFAC": "No",
+      "Marketing consent": "No",
+      "marketingConsent": "No",
+      "Educational certificate": "No",
+      "educationalCertificate": "No",
+      "\u0634\u0647\u0627\u062f\u0629 \u062a\u0631\u0628\u0648\u064a\u0629": "No",
+      "LinkedIn": "https://www.linkedin.com/in/chaudhryzahidali",
+      "Social media": "https://www.linkedin.com/in/chaudhryzahidali",
+      "How did you hear about us": "Job board",
+      "referralSource": "Job board",
+      "Industry": "Finance \u2014 FP&A across retail, F&B franchising, transportation, fuel and energy",
+      "industry": "Finance \u2014 FP&A across retail, F&B franchising, transportation, fuel and energy",
+      "Languages": "English",
+      "References": "Available on request",
+      "Previously recruited/hired": "Yes \u2014 built the finance function at United Fuel Company and led, mentored and developed finance and audit teams at Panda Group, Alamar Foods and PwC",
+      "previouslyRecruited": "Yes \u2014 built the finance function at United Fuel Company and led, mentored and developed finance and audit teams at Panda Group, Alamar Foods and PwC",
+      "Computer tools / operational data": "Advanced \u2014 Excel, Power BI, DAX, VBA, SQL and Python, with Oracle, SAP and Sage ERP experience; I work independently with large operational datasets and build the reporting around them",
+      "computerToolsRating": "Advanced \u2014 Excel, Power BI, DAX, VBA, SQL and Python, with Oracle, SAP and Sage ERP experience; I work independently with large operational datasets and build the reporting around them",
+      "Why should we hire you": "I turn complex financial and operational data into decisions leadership can act on. I cut Group reporting time by four weeks at Panda Group, brought Alamar Foods' monthly reporting lag down from ten weeks to under six, and built the finance function at United Fuel Company from the ground up with PETRONAS directors and the Group CFO. CMA and ACCA qualified, 15+ years in KSA and MENA, and fluent in the systems finance teams actually run on: Excel, Power BI, VBA, SQL, Oracle, SAP and Sage.",
+      "whyHire": "I turn complex financial and operational data into decisions leadership can act on. I cut Group reporting time by four weeks at Panda Group, brought Alamar Foods' monthly reporting lag down from ten weeks to under six, and built the finance function at United Fuel Company from the ground up with PETRONAS directors and the Group CFO. CMA and ACCA qualified, 15+ years in KSA and MENA, and fluent in the systems finance teams actually run on: Excel, Power BI, VBA, SQL, Oracle, SAP and Sage.",
+      "whyJoin": "I want to own planning and reporting for a business where finance is expected to shape the decision, not just report it afterwards \u2014 the work I did partnering with PETRONAS directors, the Panda Group leadership and the SIXT executive team.",
+      "first 6 months": "Map the current planning and reporting cycle end to end, cut the manual steps that stretch the close, rebuild the management pack around the KPIs leadership actually decides on, and put a rolling forecast and scenario model in place that the business trusts.",
+      "Expected salary": "",
+      "expectedSalary": "",
+      "Current salary": "",
+      "currentSalary": "",
+      "Current monthly salary": "",
+      "Date of birth": "",
+      "Driving license": "",
+      "drivingLicense": "",
+      "Own car": "",
+      "Largest team size": "",
+      "largestTeamSize": "",
+      "gender": "Male",
+      "gender_identity": "Male",
+      "phone_country": "+966",
+      "phone_country_code": "Saudi Arabia (+966)",
+      "country_code": "+966",
+      "linkedin": "https://www.linkedin.com/in/chaudhryzahidali",
+      "years_experience": "15",
+      "professional_summary": "CMA and ACCA-qualified Strategic Finance, FP&A, and Business Performance professional with 15+ years across Saudi Arabia and the MENA region. Boardroom-relevant blend of commercial finance, governance, capital discipline, analytics, business partnering, reporting automation, and digital finance transformation across retail, F&B franchising, mobility, fuel & energy, consulting, and Big Four audit.",
+      "headline": "CMA, ACCA \u2014 Strategic Finance & FP&A Professional",
+      "location": "Riyadh",
+      "city": "Riyadh",
+      "country": "Saudi Arabia",
+      "highest_education": "Masters",
+      "mba": "MBA Executive \u2014 Finance, Virtual University of Pakistan, 2018, CGPA 3.75",
+      "bcom": "B.Com, University of the Punjab, Lahore, 2001",
+      "cma": "Yes",
+      "acca": "Yes",
+      "tools": "Excel, Power BI, DAX, VBA, SQL, Python, Oracle, SAP, Sage",
+      "title": "Mr.",
+      "name_title": "Mr.",
+      "relatives_employed": "No",
+      "Do you have any relatives employed at this or any of our company locations?": "No",
+      "former_team_member": "No",
+      "Are you a former Team Member?": "No",
+      "work_auth_no_permit": "Yes",
+      "If you are hired, can you provide proof that you are authorized to work in the country within which this position resides, without having to obtain a working permit?": "Yes",
+      "supervising_experience": "Yes",
+      "Do you have prior experience with leading or supervising teams?": "Yes",
+      "finance_accounting_qualifications": "Yes",
+      "Do you hold any finance and/or Accounting qualifications?": "Yes",
+      "address_country": "Saudi Arabia",
+      "province": "Riyadh",
+      "state": "Riyadh",
+      "address_line_1": "",
+      "address_line_2": "",
+      "postal_code": "12791",
+      "zip": "12791",
+      "date_of_birth": "1979-04-06",
+      "available_from": "Available immediately",
+      "work_authorization": "Work Visa",
+      "salary_current": "",
+      "salary_expected": "",
+      "remote_preference": "Onsite for KSA, otherwise Remote",
+      "marital_status": "Married",
+      "secondary_email": "czahidali@gmail.com",
+      "alternate_phone": "",
+      "work_status": "Iqama",
+      "requires_sponsorship": "No",
+      "iqama_number": "",
+      "iqama_expiry": "",
+      "work_authorization_detail": "Work Visa",
+      "currently_employed": "No",
+      "notice_period_days": "0",
+      "travel_willingness": "Up to 50%",
+      "salary_currency": "SAR",
+      "open_to_bonus": "Yes",
+      "conflict_of_interest": "No",
+      "non_compete": "No",
+      "background_check_ok": "Yes",
+      "drivers_license": "Yes",
+      "own_transport": "Yes",
+      "arabic_proficiency": "Conversational",
+      "english_proficiency": "Native / Professional Working",
+      "weekend_shifts_ok": "Yes",
+      "how_heard": "LinkedIn",
+      "preferred_locations": "Jeddah, Riyadh, anywhere in KSA",
+      "preferred_job_functions": "FP&A, Commercial Finance, Finance Leadership",
+      "website": "",
+      "willing_to_travel": "Yes",
+      "overtime_ok": "Yes",
+      "disability_voluntary": "No",
+      "veteran_status": "I am not a veteran",
+      "ethnicity_voluntary": "Pakistani",
+      "reference_1_name": "Hisham Gadalla",
+      "reference_1_title": "",
+      "reference_1_company": "",
+      "reference_1_email": "",
+      "reference_1_phone": "",
+      "reference_2_name": "Khurram Khan",
+      "reference_2_title": "",
+      "reference_2_company": "",
+      "reference_2_email": "",
+      "reference_2_phone": "",
+      "cover_letter": "I am writing to express my interest in a strategic finance / FP&A leadership role where rigorous planning, clear management reporting and commercial partnership drive better decisions. As a CMA and ACCA-qualified professional with 15+ years across Saudi Arabia and the MENA region \u2014 in retail, F&B franchising, mobility, fuel and energy, consulting and Big Four audit \u2014 I bring proven strength in budgeting, forecasting, capital appraisal and reporting automation. I have cut group reporting cycles by four weeks, reduced a monthly reporting lag from ten weeks to under six, and built a finance function from the ground up in partnership with PETRONAS directors and a Group CFO. I am based in Saudi Arabia and available to start immediately. I would welcome the opportunity to discuss how my experience aligns with your team's priorities.",
+      "linkedin_consent": "Yes",
+      "privacy_consent": "Yes",
+      "marketing_consent": "No",
+      "legally_eligible": "Yes",
+      "age_18_plus": "Yes",
+      "conviction": "No",
+      "current_salary": "3000",
+      "current_monthly_salary": "",
+      "salary_current_sar": "",
+      "salary_current_aed": "",
+      "What is your current monthly salary?": "",
+      "candidate_or_client": "Candidate",
+      "apply_method": "Apply with CV",
+      "sector": "Accounting & Finance",
+      "sub_sector": "Financial Planning & Analysis",
+      "current_job_title": "Financial Planning, Analysis & Reporting Manager",
+      "experience_level": "Director",
+      "available_to_start": "Available immediately",
+      "city_or_town": "Riyadh",
+      "country_of_residence": "Saudi Arabia",
+      "What city or town do you live in?": "Riyadh",
+      "What country do you live in?": "Saudi Arabia",
+      "For which country do you hold nationality?": "Pakistan",
+      "Which sector do you work in?": "Accounting & Finance",
+      "Which sub-sector do you work in?": "Financial Planning & Analysis",
+      "Current Job Title": "Financial Planning, Analysis & Reporting Manager",
+      "Experience Level": "Director",
+      "Please let us know when you are available to start": "Available immediately",
+      "How would you like to apply?": "Apply with CV",
+      "Please select the option that best fits you": "Candidate",
+      "middle_east_working_visa": "Yes",
+      "Do you currently have a working visa for the Middle East?": "Yes",
+      "working_visa_middle_east": "Yes",
+      "email": "czahidali.accacma@gmail.com",
+      "retype_email": "czahidali.accacma@gmail.com",
+      "confirm_email": "czahidali.accacma@gmail.com",
+      "first_name": "Chaudhary",
+      "last_name": "Zahid Ali",
+      "country_region_code": "Saudi Arabia (+966)",
+      "phone": "504131857",
+      "phone_number": "504131857",
+      "country_region_of_residence": "Saudi Arabia",
+      "how_did_you_hear": "Job Board",
+      "How did you hear about this position?": "Job Board",
+      "previous_alfuttaim_employee": "No",
+      "Are you a previous Al-Futtaim Group employee?": "No",
+      "currently_employed_alfuttaim": "No",
+      "Are you currently employed with any Al-Futtaim Group company": "No",
+      "family_members_alfuttaim": "No",
+      "Do you have any family members in the Al-Futtaim Group?": "No",
+      "alfuttaim_schools_alumni": "Not Applicable",
+      "Are you a member of the Al Futtaim Schools alumni?": "Not Applicable",
+      "terms_of_use_accepted": "Yes",
+      "privacy_accepted": "Yes",
+      "accept_data_privacy": "Yes",
+      "dob": "1979-04-06",
+      "Date of Birth": "04/06/1979",
+      "What is your current monthly salary (In Job Location Currency)?": "",
+      "What is your expected salary (In Job Location Currency)?": "",
+      "expected_salary": "",
+      "resume_filename": "Zahid_CV.docx",
+      "cv_filename": "Zahid_CV.docx",
+      "What is your current work authorization status?": "Iqama",
+      "work_status_preference": "Iqama (use Iqama if both Iqama and Residence Permit shown)",
+      "Will you now or in the future require sponsorship for employment visa status?": "No",
+      "iqama_fill_manual": "Yes \u2014 applicant fills iqama number and expiry themselves",
+      "Are you legally eligible to work in this country?": "Yes",
+      "Are you currently employed?": "No",
+      "notice_period": "Immediately available",
+      "What is your preferred work arrangement?": "Onsite for KSA, otherwise Remote",
+      "Are you willing to travel for this role?": "Up to 50%",
+      "What are your preferred work locations?": "Jeddah, Riyadh, anywhere in KSA",
+      "What is your expected salary?": "",
+      "salary_self_fill": "Yes \u2014 applicant fills current/expected salary themselves",
+      "how_heard_any": "LinkedIn / Company Website / Referral / Job Board / Recruiter / Other",
+      "how_heard_flexible": "LinkedIn / Company Website / Referral / Job Board / Recruiter / Other",
+      "terms_privacy_accepted": "Yes",
+      "portfolio": "",
+      "github": "",
+      "github_na": "N/A",
+      "resume_url": "",
+      "cover_url": "",
+      "resume_autofill": "Yes",
+      "cover_autofill": "Yes",
+      "phone_full": "+966504131857",
+      "phone_complete": "+966504131857",
+      "phone_with_country": "+966504131857",
+      "Phone": "+966504131857",
+      "ignite_salary": "3000 SAR",
+      "salary_display": "3000 SAR",
+      "salary_text": "3000 SAR",
+      "current_salary_text": "3000 SAR",
+      "available_immediately": "Available immediately",
+      "What is your notice Period?": "Immediately available",
+      "current_remuneration": "0 AED / SAR (Currently available for immediate joining)",
+      "What is your current Remuneration?": "0 AED / SAR (Currently available for immediate joining)",
+      "qualified_ca_or_acca": "Yes",
+      "Are you a qualified CA or ACCA?": "Yes",
+      "acca_qualified": "Yes",
+      "contracting_finance_experience": "Over 15 years of overall finance leadership experience across MENA, including external audit of contracting/construction firms during Big Four (PwC) tenure, as well as project finance, cost control, feasibility, and financial management across multi-industry environments.",
+      "How many years of relevant experience do you have in finance/accounting within the contracting industry?": "Over 15 years of overall finance leadership experience across MENA, including external audit of contracting/construction firms during Big Four (PwC) tenure, as well as project finance, cost control, feasibility, and financial management across multi-industry environments.",
+      "bcom_or_mcom": "Yes",
+      "Do you hold a Bachelor\u2019s Degree in Commerce (B.Com) or M.Com qualification?": "Yes",
+      "qualified_ca": "No",
+      "Are you a qualified Chartered Accountant (CA)?": "No",
+      "Are you ACCA qualified?": "Yes",
+      "oacpa_attested": "",
+      "Is your relevant degree/certificate attested/approved by the Oman Association of Chartered Public Accountants (OACPA), as applicable?": "",
+      "post_qualification_experience_band": "More than 10 years",
+      "How many years of relevant post-qualification experience do you have in Finance & Accounts?": "More than 10 years",
+      "experience_letters_available": "",
+      "Do you have valid experience letters/certificates supporting your relevant post-qualification experience?": "",
+      "erp_experience": "Yes",
+      "Do you have practical experience working with ERP/accounting software?": "Yes",
+      "ca_icai": "No",
+      "highest_commerce_degree": "B.Com + MBA Finance",
+      "First name": "Chaudhary",
+      "Last name": "Zahid Ali",
+      "full_name": "Chaudhary Zahid Ali",
+      "dob_iso": "1979-04-06",
+      "dob_mm_dd_yyyy": "04/06/1979",
+      "dob_dd_mm_yyyy": "06/04/1979",
+      "dob_dd_mmm_yyyy": "06 Apr 1979",
+      "Highest Education Level": "Masters",
+      "education_level": "Masters",
+      "qic_conflict_of_interest": "No",
+      "worked_for_pif_or_affiliate": "",
+      "Are you currently or have you ever worked directly for PIF or one of its affiliated companies?": "",
+      "social_media_profiles": "https://www.linkedin.com/in/chaudhryzahidali",
+      "Do you have any social media accounts": "https://www.linkedin.com/in/chaudhryzahidali",
+      "current_location": "Riyadh",
+      "Current Location": "Riyadh",
+      "Nationality Field": "Pakistan",
+      "years_of_relevant_experience": "15",
+      "Years of relevant experience": "15",
+      "working_for_qiddiya": "No",
+      "Are you currently involved or working directly for Qiddiya": "No",
+      "qiddiya_privacy_ack": "Yes",
+      "criminal_conviction": "No",
+      "I hereby confirm that I have never had any criminal conviction": "No",
+      "never_had_criminal_conviction": "Yes",
+      "Given Name": "Chaudhary",
+      "Surname": "Zahid Ali",
+      "Family Name": "Zahid Ali",
+      "Name": "Chaudhary Zahid Ali",
+      "Email Address": "czahidali.accacma@gmail.com",
+      "email_secondary": "czahidali@gmail.com",
+      "Phone Number": "504131857",
+      "Country/Region Code": "Saudi Arabia (+966)",
+      "Gender Identity": "Male",
+      "Nationality": "Pakistan",
+      "nationality_adjective": "Pakistani",
+      "Location": "Riyadh",
+      "Country/Region of Residence": "Saudi Arabia",
+      "apply_with_cv": "Yes",
+      "available_from_date_mp": "09/25/2026",
+      "willing_to_relocate": "Yes",
+      "cma_qualified": "Yes"
+    },
+    "summary": "CMA and ACCA-qualified Strategic Finance, FP&A, and Business Performance professional with 15+ years across Saudi Arabia and the MENA region, helping leadership teams improve financial visibility, strengthen performance management, and make informed business decisions. Boardroom-relevant blend of commercial finance, governance, capital discipline, analytics, business partnering, reporting automation, and digital finance transformation across retail, F&B franchising, mobility, fuel & energy, consulting, and Big Four audit.",
+    "experience": [
+      {
+        "title": "Financial Planning, Analysis & Reporting Manager",
+        "company": "SIXT, Samara Land Transportation Services Co. Ltd.",
+        "location": "Khobar, Saudi Arabia",
+        "startDate": "2024-10",
+        "endDate": "2025-09",
+        "current": false,
+        "highlights": [
+          "Lead FP&A, reporting, modeling, and decision support for planning, investments, and business performance",
+          "Build forecasts, KPI dashboards, and scenarios supporting leadership decisions",
+          "Provide financial appraisal, ROI, ROCE, cost, and performance analysis for projects and investments"
+        ]
+      },
+      {
+        "title": "FP&A Consultant / Financial Planning, Analysis & Reporting Advisor",
+        "company": "Independent Financial Advisory & FP&A Consulting",
+        "location": "Islamabad, Pakistan",
+        "startDate": "2021-12",
+        "endDate": "2024-06",
+        "current": false,
+        "highlights": [
+          "Delivered FP&A, reporting, modeling, and advisory across multiple client industries",
+          "Developed multi-year strategic financial plan for a higher education institution",
+          "Performed business valuation and feasibility analysis for F&B and service clients"
+        ]
+      },
+      {
+        "title": "Manager, Planning, Reporting & Operational Finance",
+        "company": "Panda Group, Head Office",
+        "location": "Saudi Arabia",
+        "startDate": "2017-11",
+        "endDate": "2021-11",
+        "current": false,
+        "highlights": [
+          "Managed planning, reporting, and operational finance for a major regional retail group",
+          "Reduced reporting time by 4 weeks through automated workflows, VBA models, and visualization",
+          "Managed capital investment evaluations and multi-year planning / rolling forecasts"
+        ]
+      },
+      {
+        "title": "Group Reporting Manager",
+        "company": "Alamar Foods Company \u2014 Master Franchiser of Domino's Pizza",
+        "location": "Riyadh, Saudi Arabia",
+        "startDate": "2015-11",
+        "endDate": "2017-11",
+        "current": false,
+        "highlights": [
+          "Led group reporting, budgeting, forecasting across KSA and MENAP",
+          "Reduced reporting preparation by ~4 weeks; cut monthly lag from ~10 weeks toward mid-September close",
+          "Strengthened group management reporting via P&L, BS, KPIs, and dashboards"
+        ]
+      },
+      {
+        "title": "Head of Accounting & Finance / Fractional CFO",
+        "company": "United Fuel Company \u2014 in partnership with PETRONAS",
+        "location": "Riyadh, Saudi Arabia",
+        "startDate": "2014-06",
+        "endDate": "2015-10",
+        "current": false,
+        "highlights": [
+          "Established finance function across accounting, controls, reporting, budgeting, cash flow, and compliance",
+          "Implemented Sage ERP and finance frameworks",
+          "Supported PETRONAS directors and Group CFO on planning and resource allocation"
+        ]
+      },
+      {
+        "title": "Assistant Manager, Planning & Reporting",
+        "company": "Azizia Panda United, Head Office",
+        "location": "Riyadh, Saudi Arabia",
+        "startDate": "2010-02",
+        "endDate": "2014-06",
+        "current": false,
+        "highlights": [
+          "Supported planning, reporting, budgeting, KPIs, and performance monitoring",
+          "Improved financial visibility and efficiency through VBA, modeling, and reporting automation"
+        ]
+      },
+      {
+        "title": "Supervising Senior, Audit & Assurance",
+        "company": "PricewaterhouseCoopers (PwC)",
+        "location": "Islamabad, Pakistan",
+        "startDate": "2006-03",
+        "endDate": "2009-12",
+        "current": false,
+        "highlights": [
+          "Delivered audit and assurance across reporting, controls, compliance, and risk",
+          "Supervised audit teams, reviewed workpapers, coordinated client communication"
+        ]
+      }
+    ],
+    "postalCode": "12791",
+    "workAuthorization": "",
+    "salaryCurrent": "",
+    "salaryExpected": "",
+    "addressLine1": "",
+    "addressLine2": "",
+    "province": "Riyadh",
+    "title": "Mr.",
+    "applicationQuestions": {
+      "relatives_employed": {
+        "question": "Do you have any relatives employed at this or any of our company locations?",
+        "answer": "No",
+        "type": "boolean"
+      },
+      "former_team_member": {
+        "question": "Are you a former Team Member?",
+        "answer": "No",
+        "type": "boolean"
+      },
+      "work_auth_no_permit": {
+        "question": "If you are hired, can you provide proof that you are authorized to work without a working permit?",
+        "answer": "Yes",
+        "type": "boolean"
+      },
+      "supervising_experience": {
+        "question": "Do you have prior experience with leading or supervising teams?",
+        "answer": "Yes",
+        "type": "boolean"
+      },
+      "finance_accounting_qualifications": {
+        "question": "Do you hold any finance and/or Accounting qualifications?",
+        "answer": "Yes",
+        "type": "boolean"
+      },
+      "qualified_ca_or_acca": {
+        "question": "Are you a qualified CA or ACCA?",
+        "answer": "Yes",
+        "type": "boolean"
+      },
+      "qualified_ca": {
+        "question": "Are you a qualified Chartered Accountant (CA)?",
+        "answer": "No",
+        "type": "boolean"
+      },
+      "bcom_or_mcom": {
+        "question": "Do you hold a Bachelor\u2019s Degree in Commerce (B.Com) or M.Com qualification?",
+        "answer": "Yes",
+        "type": "boolean"
+      },
+      "middle_east_working_visa": {
+        "question": "Do you currently have a working visa for the Middle East?",
+        "answer": "Yes",
+        "type": "boolean"
+      },
+      "conflict_of_interest": {
+        "question": "Do you have any conflict of interest?",
+        "answer": "No",
+        "type": "boolean"
+      },
+      "working_for_qiddiya": {
+        "question": "Are you currently involved or working directly for Qiddiya?",
+        "answer": "No",
+        "type": "boolean"
+      },
+      "erp_experience": {
+        "question": "Do you have practical experience working with ERP/accounting software?",
+        "answer": "Yes",
+        "type": "boolean"
+      }
+    },
+    "addressCountry": "Saudi Arabia",
+    "workAuthorizationDetail": "Work Visa",
+    "iqamaNumber": "",
+    "iqamaExpiry": "",
+    "workStatus": "Iqama",
+    "maritalStatus": "Married",
+    "secondaryEmail": "",
+    "alternatePhone": "",
+    "travelWillingness": "",
+    "currentlyEmployed": "",
+    "noticePeriodDays": "",
+    "conflictOfInterest": "",
+    "nonCompete": "",
+    "backgroundCheckOk": "",
+    "ownTransport": "",
+    "arabicProficiency": "",
+    "englishProficiency": "",
+    "weekendShiftsOk": "",
+    "howHeard": "",
+    "preferredLocations": "",
+    "reference1Name": "",
+    "reference1Title": "",
+    "reference1Company": "",
+    "reference1Email": "",
+    "reference1Phone": "",
+    "reference2Name": "",
+    "reference2Title": "",
+    "reference2Company": "",
+    "reference2Email": "",
+    "reference2Phone": "",
+    "portfolioUrl": "",
+    "preferredJobFunctions": "FP&A, Commercial Finance, Finance Leadership",
+    "salaryCurrentSAR": "",
+    "salaryCurrentAED": "",
+    "middleEastWorkingVisa": "Yes",
+    "phoneCountryCode": "+966",
+    "phoneFull": "+966504131857",
+    "phoneE164": "+966504131857",
+    "emailSecondary": "czahidali@gmail.com"
+  },
+  "knowledge": {
+    "version": 1,
+    "records": [
+      {
+        "canonical_key": "gender",
+        "key": "gender",
+        "field_type": "select",
+        "type": "select",
+        "value": "Male",
+        "aliases": [
+          "Gender",
+          "Gender Identity",
+          "Male/Female",
+          "Sex"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select",
+        "options": [
+          "Male",
+          "Female",
+          "Non-binary",
+          "Prefer not to say",
+          "Decline to self-identify"
+        ]
+      },
+      {
+        "canonical_key": "phone_country",
+        "key": "phone_country",
+        "field_type": "select",
+        "type": "select",
+        "value": "+966",
+        "aliases": [
+          "+966",
+          "Country",
+          "Country code",
+          "Dialing code",
+          "Phone Country",
+          "Saudi Arabia"
+        ],
+        "confidence": "confirmed",
+        "source": "portfolio_import",
+        "status": "active",
+        "control": "select"
+      },
+      {
+        "canonical_key": "phone",
+        "key": "phone",
+        "field_type": "string",
+        "type": "string",
+        "value": "504131857",
+        "aliases": [
+          "Contact Number",
+          "Mobile",
+          "Mobile Number",
+          "Phone",
+          "Phone Number",
+          "Phone Number (local)",
+          "Telephone"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "email",
+        "key": "email",
+        "field_type": "email",
+        "type": "email",
+        "value": "czahidali.accacma@gmail.com",
+        "aliases": [
+          "E-mail",
+          "Email",
+          "Email Address"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "email"
+      },
+      {
+        "canonical_key": "full_name",
+        "key": "full_name",
+        "field_type": "string",
+        "type": "string",
+        "value": "Chaudhary Zahid Ali",
+        "aliases": [
+          "Full Name",
+          "Legal Name",
+          "Name",
+          "Your Name"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "first_name",
+        "key": "first_name",
+        "field_type": "string",
+        "type": "string",
+        "value": "Chaudhary",
+        "aliases": [
+          "First Name",
+          "First name",
+          "Given Name"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "last_name",
+        "key": "last_name",
+        "field_type": "string",
+        "type": "string",
+        "value": "Zahid Ali",
+        "aliases": [
+          "Family Name",
+          "Last Name",
+          "Last name",
+          "Surname"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "city",
+        "key": "city",
+        "field_type": "string",
+        "type": "string",
+        "value": "Riyadh",
+        "aliases": [
+          "City",
+          "City *",
+          "Current City",
+          "Current Location",
+          "Location",
+          "Location (City)",
+          "Town",
+          "What city or town do you live in?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text",
+        "question": "What city or town do you live in?"
+      },
+      {
+        "canonical_key": "country",
+        "key": "country",
+        "field_type": "select",
+        "type": "select",
+        "value": "Saudi Arabia",
+        "aliases": [
+          "Country",
+          "Country of Residence",
+          "Country/Region of Residence",
+          "Location Country",
+          "What country do you live in?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select",
+        "question": "What country do you live in?"
+      },
+      {
+        "canonical_key": "linkedin",
+        "key": "linkedin",
+        "field_type": "url",
+        "type": "url",
+        "value": "https://www.linkedin.com/in/chaudhryzahidali",
+        "aliases": [
+          "LinkedIn",
+          "LinkedIn Profile",
+          "LinkedIn URL",
+          "social media"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "url"
+      },
+      {
+        "canonical_key": "years_experience",
+        "key": "years_experience",
+        "field_type": "number",
+        "type": "number",
+        "value": 15,
+        "aliases": [
+          "How many years of experience",
+          "Total Experience",
+          "Years of Experience",
+          "Years of relevant experience"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "number"
+      },
+      {
+        "canonical_key": "highest_education",
+        "key": "highest_education",
+        "field_type": "select",
+        "type": "select",
+        "value": "Masters",
+        "aliases": [
+          "Education Level",
+          "Highest Education",
+          "Highest Education Level",
+          "Highest degree"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select",
+        "options": [
+          "Highschool",
+          "Diploma",
+          "Bachelor Degree",
+          "Masters",
+          "PhD",
+          "Other",
+          "Master's Degree"
+        ]
+      },
+      {
+        "canonical_key": "title",
+        "key": "title",
+        "field_type": "select",
+        "type": "select",
+        "value": "Mr.",
+        "aliases": [
+          "Doctor",
+          "Dr",
+          "Miss",
+          "Mr",
+          "Mr.",
+          "Mrs",
+          "Mrs.",
+          "Ms",
+          "Ms.",
+          "Name title",
+          "Prefix",
+          "Salutation",
+          "Title"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select",
+        "options": [
+          "Mr.",
+          "Mrs.",
+          "Ms.",
+          "Miss",
+          "Dr."
+        ]
+      },
+      {
+        "canonical_key": "relatives_employed",
+        "key": "relatives_employed",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "No",
+        "aliases": [
+          "Do you have any relatives employed at this or any of our company locations?",
+          "Family employed",
+          "Relatives at company",
+          "Relatives employed",
+          "relatives employed"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you have any relatives employed at this or any of our company locations?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "former_team_member",
+        "key": "former_team_member",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "No",
+        "aliases": [
+          "Are you a former Team Member?",
+          "Former Team Member",
+          "Former employee",
+          "Previously employed",
+          "Rehire",
+          "former Team Member"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you a former Team Member?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "work_auth_no_permit",
+        "key": "work_auth_no_permit",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Authorized to work",
+          "Authorized to work without permit",
+          "Eligible to work",
+          "If you are hired, can you provide proof that you are authorized to work in the country within which this position resides, without having to obtain a working permit?",
+          "Proof of authorization",
+          "Work authorization",
+          "Work permit",
+          "Working permit",
+          "authorized to work",
+          "without having to obtain a working permit"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "If you are hired, can you provide proof that you are authorized to work in the country within which this position resides, without having to obtain a working permit?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "supervising_experience",
+        "key": "supervising_experience",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Do you have prior experience with leading or supervising teams?",
+          "Leadership experience",
+          "Led teams",
+          "Prior experience leading or supervising",
+          "Supervising experience",
+          "Team lead",
+          "leading or supervising teams"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you have prior experience with leading or supervising teams?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "finance_accounting_qualifications",
+        "key": "finance_accounting_qualifications",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "ACCA",
+          "Accounting qualifications",
+          "CMA",
+          "CPA",
+          "Do you hold any finance and/or Accounting qualifications?",
+          "Finance qualifications",
+          "Professional qualifications",
+          "finance and/or Accounting qualifications"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you hold any finance and/or Accounting qualifications?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "address_country",
+        "key": "address_country",
+        "field_type": "select",
+        "type": "select",
+        "value": "Saudi Arabia",
+        "aliases": [
+          "Address Country",
+          "Country",
+          "Country *",
+          "Home Country"
+        ],
+        "confidence": "confirmed",
+        "source": "user_provided_2026-09-19",
+        "status": "active",
+        "control": "select"
+      },
+      {
+        "canonical_key": "address_line_1",
+        "key": "address_line_1",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Address",
+          "Address 1",
+          "Address Line 1",
+          "Home Address",
+          "Please enter your home address.",
+          "Street Address"
+        ],
+        "confidence": "shell",
+        "source": "client_qa_2026-09-19",
+        "status": "active",
+        "control": "text",
+        "question": "Please enter your home address."
+      },
+      {
+        "canonical_key": "address_line_2",
+        "key": "address_line_2",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Address Line 2",
+          "Apt",
+          "Street Address 2",
+          "Suite",
+          "Unit"
+        ],
+        "confidence": "shell",
+        "source": "client_qa_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "province",
+        "key": "province",
+        "field_type": "select",
+        "type": "select",
+        "value": "Riyadh",
+        "aliases": [
+          "Province",
+          "Region",
+          "State",
+          "State/Province"
+        ],
+        "confidence": "confirmed",
+        "source": "client_qa_2026-09-19",
+        "status": "active",
+        "control": "select"
+      },
+      {
+        "canonical_key": "postal_code",
+        "key": "postal_code",
+        "field_type": "string",
+        "type": "string",
+        "value": "12791",
+        "aliases": [
+          "Postal / ZIP",
+          "Postal Code",
+          "Postcode",
+          "ZIP",
+          "Zip Code"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "date_of_birth",
+        "key": "date_of_birth",
+        "field_type": "date",
+        "type": "date",
+        "value": "1979-04-06",
+        "aliases": [
+          "Birth Date",
+          "Birthday",
+          "DOB",
+          "Date of Birth",
+          "What is your date of birth?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "date",
+        "question": "Date of Birth",
+        "formats": {
+          "iso": "1979-04-06",
+          "mm_dd_yyyy": "04/06/1979",
+          "dd_mm_yyyy": "06/04/1979"
+        }
+      },
+      {
+        "canonical_key": "available_from",
+        "key": "available_from",
+        "field_type": "string",
+        "type": "string",
+        "value": "Available immediately",
+        "aliases": [
+          "Available From",
+          "Earliest Start Date",
+          "Start Date",
+          "When can you start",
+          "When can you start?",
+          "available to start"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text",
+        "question": "When can you start?"
+      },
+      {
+        "canonical_key": "work_authorization_detail",
+        "key": "work_authorization_detail",
+        "field_type": "string",
+        "type": "string",
+        "value": "Work Visa",
+        "aliases": [
+          "Iqama",
+          "Iqama Status",
+          "Visa Status",
+          "Visa Type",
+          "Work Authorization",
+          "Work Authorization Detail",
+          "Work Visa"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "salary_current",
+        "key": "salary_current",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Amount",
+          "Current Compensation",
+          "Current Salary",
+          "Current monthly salary",
+          "Expected Salary",
+          "Present Salary",
+          "Salary Amount",
+          "What is your current monthly salary?",
+          "What is your current or last drawn salary?"
+        ],
+        "confidence": "shell",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text",
+        "question": "What is your current monthly salary?"
+      },
+      {
+        "canonical_key": "salary_expected",
+        "key": "salary_expected",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Compensation Expectation",
+          "Desired Salary",
+          "Expected Salary",
+          "Salary Expectation",
+          "What is your expected salary?"
+        ],
+        "confidence": "shell",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text",
+        "question": "What is your expected salary?"
+      },
+      {
+        "canonical_key": "remote_preference",
+        "key": "remote_preference",
+        "field_type": "select",
+        "type": "select",
+        "value": "Onsite for KSA, otherwise Remote",
+        "aliases": [
+          "Remote / Hybrid / Onsite",
+          "Remote Preference",
+          "What is your preferred work arrangement?",
+          "Work Arrangement",
+          "Work Mode"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select",
+        "options": [
+          "Onsite",
+          "Hybrid",
+          "Remote",
+          "Flexible",
+          "Onsite for KSA, otherwise Remote"
+        ],
+        "question": "What is your preferred work arrangement?"
+      },
+      {
+        "canonical_key": "requires_sponsorship",
+        "key": "requires_sponsorship",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "No",
+        "aliases": [
+          "Need sponsorship",
+          "Requires Sponsorship",
+          "Sponsorship",
+          "Visa Sponsorship",
+          "Will you now or in the future require sponsorship for employment visa status?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ],
+        "question": "Will you now or in the future require sponsorship for employment visa status?"
+      },
+      {
+        "canonical_key": "middle_name",
+        "key": "middle_name",
+        "field_type": "string",
+        "type": "string",
+        "value": "Zahid",
+        "aliases": [
+          "Middle Name",
+          "Middle Initial"
+        ],
+        "confidence": "confirmed",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "nationality",
+        "key": "nationality",
+        "field_type": "select",
+        "type": "select",
+        "value": "Pakistan",
+        "aliases": [
+          "Citizenship",
+          "Country of Citizenship",
+          "For which country do you hold nationality?",
+          "Nationality",
+          "Nationality Field"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select",
+        "question": "For which country do you hold nationality?"
+      },
+      {
+        "canonical_key": "willing_to_relocate",
+        "key": "willing_to_relocate",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Willing to Relocate",
+          "Relocate",
+          "Open to relocation"
+        ],
+        "confidence": "confirmed",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "notice_period",
+        "key": "notice_period",
+        "field_type": "string",
+        "type": "string",
+        "value": "Immediately available",
+        "aliases": [
+          "Availability",
+          "Notice Period",
+          "What is your notice Period?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text",
+        "question": "What is your notice Period?"
+      },
+      {
+        "canonical_key": "marital_status",
+        "key": "marital_status",
+        "field_type": "select",
+        "type": "select",
+        "value": "Married",
+        "aliases": [
+          "Civil Status",
+          "Marital Status",
+          "What is your marital status?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "What is your marital status?",
+        "control": "select",
+        "options": [
+          "Single",
+          "Married",
+          "Divorced",
+          "Widowed",
+          "Prefer not to say"
+        ]
+      },
+      {
+        "canonical_key": "secondary_email",
+        "key": "secondary_email",
+        "field_type": "string",
+        "type": "string",
+        "value": "czahidali@gmail.com",
+        "aliases": [
+          "Secondary Email",
+          "Alternate Email"
+        ],
+        "confidence": "confirmed",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "email"
+      },
+      {
+        "canonical_key": "alternate_phone",
+        "key": "alternate_phone",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Alternate Phone",
+          "Secondary Phone",
+          "Home Phone"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "phone"
+      },
+      {
+        "canonical_key": "work_status",
+        "key": "work_status",
+        "field_type": "select",
+        "type": "select",
+        "value": "Iqama",
+        "aliases": [
+          "Employment Authorization Status",
+          "Iqama",
+          "Iqama Status",
+          "Residence Permit",
+          "Visa Status",
+          "What is your current work authorization status?",
+          "Work Status"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "What is your current work authorization status?",
+        "control": "select",
+        "options": [
+          "Citizen",
+          "Iqama",
+          "Residence Permit",
+          "Dependent",
+          "Visitor Visa",
+          "Other"
+        ]
+      },
+      {
+        "canonical_key": "iqama_number",
+        "key": "iqama_number",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Iqama No",
+          "Iqama Number",
+          "National ID",
+          "Residence Permit Number"
+        ],
+        "confidence": "shell",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "iqama_expiry",
+        "key": "iqama_expiry",
+        "field_type": "date",
+        "type": "date",
+        "value": "",
+        "aliases": [
+          "Iqama Expiry",
+          "Iqama Expiry Date",
+          "Residence Permit Expiry"
+        ],
+        "confidence": "shell",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "date"
+      },
+      {
+        "canonical_key": "currently_employed",
+        "key": "currently_employed",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "No",
+        "aliases": [
+          "Are you currently employed",
+          "Are you currently employed?",
+          "Currently Employed"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you currently employed?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "notice_period_days",
+        "key": "notice_period_days",
+        "field_type": "string",
+        "type": "string",
+        "value": "0",
+        "aliases": [
+          "Notice Period (days)",
+          "Notice in weeks"
+        ],
+        "confidence": "confirmed",
+        "source": "client_qa_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "travel_willingness",
+        "key": "travel_willingness",
+        "field_type": "select",
+        "type": "select",
+        "value": "Up to 50%",
+        "aliases": [
+          "Are you willing to travel for this role?",
+          "Travel %",
+          "Travel Percentage",
+          "Willing to Travel"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you willing to travel for this role?",
+        "control": "select",
+        "options": [
+          "None",
+          "Up to 10%",
+          "Up to 25%",
+          "Up to 50%",
+          "Over 50%"
+        ]
+      },
+      {
+        "canonical_key": "salary_currency",
+        "key": "salary_currency",
+        "field_type": "select",
+        "type": "select",
+        "value": "SAR",
+        "aliases": [
+          "Currency",
+          "Current salary currency",
+          "Salary Currency"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select",
+        "options": [
+          "SAR",
+          "AED",
+          "USD",
+          "PKR",
+          "EUR",
+          "GBP"
+        ]
+      },
+      {
+        "canonical_key": "open_to_bonus",
+        "key": "open_to_bonus",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Are you open to a bonus or commission structure?",
+          "Commission",
+          "Commission Structure",
+          "Open to Bonus",
+          "bonus",
+          "commission"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you open to a bonus or commission structure?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "conflict_of_interest",
+        "key": "conflict_of_interest",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "No",
+        "aliases": [
+          "Conflict of Interest",
+          "Do you have any conflict of interest or other employment to disclose?",
+          "Other Employment",
+          "actual, potential, or perceived conflict",
+          "conflict of interest"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you have any conflict of interest or other employment to disclose?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "non_compete",
+        "key": "non_compete",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "No",
+        "aliases": [
+          "Are you subject to a non-compete or other restriction that affects your start date?",
+          "Non-Compete",
+          "Restrictive Covenant",
+          "non-compete"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you subject to a non-compete or other restriction that affects your start date?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "background_check_ok",
+        "key": "background_check_ok",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Are you comfortable undergoing a background check?",
+          "Background Check",
+          "Consent to Background Check",
+          "background check"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you comfortable undergoing a background check?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "drivers_license",
+        "key": "drivers_license",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Do you have a driver's license",
+          "Do you have a valid driver's license?",
+          "Driver's License",
+          "Driving Licence"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you have a valid driver's license?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "own_transport",
+        "key": "own_transport",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Do you have your own transport?",
+          "Own Transport",
+          "Own Vehicle",
+          "Reliable Transportation"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you have your own transport?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "arabic_proficiency",
+        "key": "arabic_proficiency",
+        "field_type": "select",
+        "type": "select",
+        "value": "Conversational",
+        "aliases": [
+          "Arabic",
+          "Arabic Proficiency",
+          "Language - Arabic",
+          "What is your Arabic proficiency?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "What is your Arabic proficiency?",
+        "control": "select",
+        "options": [
+          "None",
+          "Basic",
+          "Conversational",
+          "Fluent",
+          "Native"
+        ]
+      },
+      {
+        "canonical_key": "english_proficiency",
+        "key": "english_proficiency",
+        "field_type": "select",
+        "type": "select",
+        "value": "Native / Professional Working",
+        "aliases": [
+          "English",
+          "English Proficiency",
+          "Language - English",
+          "What is your English proficiency?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "What is your English proficiency?",
+        "control": "select",
+        "options": [
+          "Basic",
+          "Conversational",
+          "Fluent",
+          "Native",
+          "Professional Working",
+          "Native / Professional Working"
+        ]
+      },
+      {
+        "canonical_key": "weekend_shifts_ok",
+        "key": "weekend_shifts_ok",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Are you willing to work shifts or weekends if needed?",
+          "Shifts",
+          "Weekend Work",
+          "Willing to work weekends",
+          "shifts",
+          "weekends"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you willing to work shifts or weekends if needed?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "how_heard",
+        "key": "how_heard",
+        "field_type": "select",
+        "type": "select",
+        "value": "LinkedIn",
+        "aliases": [
+          "Application Source",
+          "How did you hear",
+          "How did you hear about this role?",
+          "Source"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "How did you hear about this role?",
+        "control": "select",
+        "options": [
+          "LinkedIn",
+          "Company Website",
+          "Referral",
+          "Job Board",
+          "Recruiter",
+          "Other"
+        ]
+      },
+      {
+        "canonical_key": "preferred_locations",
+        "key": "preferred_locations",
+        "field_type": "string",
+        "type": "string",
+        "value": "Jeddah, Riyadh, anywhere in KSA",
+        "aliases": [
+          "Location Preference",
+          "Preferred Location",
+          "Preferred Locations",
+          "What are your preferred work locations?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "What are your preferred work locations?",
+        "control": "text"
+      },
+      {
+        "canonical_key": "preferred_job_functions",
+        "key": "preferred_job_functions",
+        "field_type": "string",
+        "type": "string",
+        "value": "FP&A, Commercial Finance, Finance Leadership",
+        "aliases": [
+          "Preferred Job Function",
+          "Desired Role",
+          "Job Category"
+        ],
+        "confidence": "confirmed",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "website",
+        "key": "website",
+        "field_type": "url",
+        "type": "url",
+        "value": "",
+        "aliases": [
+          "Personal Website",
+          "Portfolio",
+          "Website"
+        ],
+        "confidence": "shell",
+        "source": "client_qa_2026-09-19",
+        "status": "active",
+        "control": "url"
+      },
+      {
+        "canonical_key": "willing_to_travel",
+        "key": "willing_to_travel",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Are you willing to travel?",
+          "Willing to Travel"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you willing to travel?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "overtime_ok",
+        "key": "overtime_ok",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Are you willing to work overtime when required?",
+          "Overtime",
+          "Willing to work overtime",
+          "overtime"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you willing to work overtime when required?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "disability_voluntary",
+        "key": "disability_voluntary",
+        "field_type": "select",
+        "type": "select",
+        "value": "No",
+        "aliases": [
+          "Disability",
+          "Disability Status",
+          "Do you have a disability? (voluntary)"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you have a disability? (voluntary)",
+        "control": "select",
+        "options": [
+          "Yes",
+          "No",
+          "Prefer not to say"
+        ]
+      },
+      {
+        "canonical_key": "veteran_status",
+        "key": "veteran_status",
+        "field_type": "select",
+        "type": "select",
+        "value": "I am not a veteran",
+        "aliases": [
+          "Military Status",
+          "Veteran Status",
+          "What is your veteran status? (voluntary)"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "What is your veteran status? (voluntary)",
+        "control": "select",
+        "options": [
+          "I am not a veteran",
+          "I am a veteran",
+          "Prefer not to say"
+        ]
+      },
+      {
+        "canonical_key": "ethnicity_voluntary",
+        "key": "ethnicity_voluntary",
+        "field_type": "select",
+        "type": "select",
+        "value": "Pakistani",
+        "aliases": [
+          "Ethnicity",
+          "Race",
+          "Race/Ethnicity",
+          "What is your ethnicity? (voluntary)"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "What is your ethnicity? (voluntary)",
+        "control": "select",
+        "options": [
+          "Prefer not to say"
+        ]
+      },
+      {
+        "canonical_key": "reference_1_name",
+        "key": "reference_1_name",
+        "field_type": "string",
+        "type": "string",
+        "value": "Hisham Gadalla",
+        "aliases": [
+          "Referee Name",
+          "Reference 1 Name"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "reference_1_title",
+        "key": "reference_1_title",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Reference 1 Title"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "reference_1_company",
+        "key": "reference_1_company",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Reference 1 Company"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "reference_1_email",
+        "key": "reference_1_email",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Reference 1 Email"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "email"
+      },
+      {
+        "canonical_key": "reference_1_phone",
+        "key": "reference_1_phone",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Reference 1 Phone"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "phone"
+      },
+      {
+        "canonical_key": "reference_2_name",
+        "key": "reference_2_name",
+        "field_type": "string",
+        "type": "string",
+        "value": "Khurram Khan",
+        "aliases": [
+          "Reference 2 Name"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "reference_2_title",
+        "key": "reference_2_title",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Reference 2 Title"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "reference_2_company",
+        "key": "reference_2_company",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Reference 2 Company"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "reference_2_email",
+        "key": "reference_2_email",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Reference 2 Email"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "email"
+      },
+      {
+        "canonical_key": "reference_2_phone",
+        "key": "reference_2_phone",
+        "field_type": "string",
+        "type": "string",
+        "value": "",
+        "aliases": [
+          "Reference 2 Phone"
+        ],
+        "confidence": "shell",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "phone"
+      },
+      {
+        "canonical_key": "cover_letter",
+        "key": "cover_letter",
+        "field_type": "textarea",
+        "type": "textarea",
+        "value": "I am writing to express my interest in a strategic finance / FP&A leadership role where rigorous planning, clear management reporting and commercial partnership drive better decisions. As a CMA and ACCA-qualified professional with 15+ years across Saudi Arabia and the MENA region \u2014 in retail, F&B franchising, mobility, fuel and energy, consulting and Big Four audit \u2014 I bring proven strength in budgeting, forecasting, capital appraisal and reporting automation. I have cut group reporting cycles by four weeks, reduced a monthly reporting lag from ten weeks to under six, and built a finance function from the ground up in partnership with PETRONAS directors and a Group CFO. I am based in Saudi Arabia and available to start immediately. I would welcome the opportunity to discuss how my experience aligns with your team's priorities.",
+        "aliases": [
+          "Cover Letter",
+          "Cover Letter Text"
+        ],
+        "confidence": "confirmed",
+        "source": "ats_dictionary_shells_2026-09-19",
+        "status": "active",
+        "control": "textarea"
+      },
+      {
+        "canonical_key": "linkedin_consent",
+        "key": "linkedin_consent",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Import from LinkedIn",
+          "LinkedIn Consent"
+        ],
+        "confidence": "confirmed",
+        "source": "client_qa_2026-09-19",
+        "status": "active",
+        "control": "checkbox",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "privacy_consent",
+        "key": "privacy_consent",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Consent",
+          "I agree",
+          "I agree to the privacy policy",
+          "Privacy",
+          "Privacy Policy",
+          "Terms",
+          "Terms and Conditions",
+          "Terms of Use",
+          "data privacy"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "I agree to the privacy policy",
+        "control": "checkbox",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "marketing_consent",
+        "key": "marketing_consent",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "No",
+        "aliases": [
+          "Keep me informed",
+          "Marketing Consent"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "checkbox",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "legally_eligible",
+        "key": "legally_eligible",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Are you legally eligible to work in this country?",
+          "Eligible to work",
+          "Legally Eligible",
+          "legally eligible to work"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you legally eligible to work in this country?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "age_18_plus",
+        "key": "age_18_plus",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "18 years or older",
+          "Are you 18 years of age or older?",
+          "Over 18"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you 18 years of age or older?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "conviction",
+        "key": "conviction",
+        "field_type": "boolean",
+        "type": "boolean",
+        "value": "No",
+        "aliases": [
+          "Criminal Conviction",
+          "Have you been convicted",
+          "Have you been convicted of a crime? (where legally permitted to ask)",
+          "criminal conviction"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Have you been convicted of a crime? (where legally permitted to ask)",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "salary_current_aed",
+        "key": "salary_current_aed",
+        "type": "string",
+        "field_type": "string",
+        "value": "2900",
+        "aliases": [
+          "Current salary AED",
+          "Monthly salary AED"
+        ],
+        "confidence": "confirmed",
+        "source": "michael_page_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "salary_current_sar",
+        "key": "salary_current_sar",
+        "type": "string",
+        "field_type": "string",
+        "value": "3000",
+        "aliases": [
+          "Current salary SAR",
+          "Monthly salary SAR"
+        ],
+        "confidence": "confirmed",
+        "source": "michael_page_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "candidate_or_client",
+        "key": "candidate_or_client",
+        "type": "radio",
+        "field_type": "radio",
+        "value": "Candidate",
+        "aliases": [
+          "Candidate",
+          "Client",
+          "Please select the option that best fits you"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Please select the option that best fits you",
+        "control": "radio",
+        "options": [
+          "Client",
+          "Candidate"
+        ]
+      },
+      {
+        "canonical_key": "apply_with_cv",
+        "key": "apply_with_cv",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Apply with CV",
+          "Apply with Resume",
+          "How would you like to apply?"
+        ],
+        "confidence": "confirmed",
+        "source": "michael_page_2026-09-19",
+        "status": "active",
+        "question": "How would you like to apply?",
+        "control": "radio",
+        "options": [
+          "Apply with CV",
+          "Apply with LinkedIn"
+        ]
+      },
+      {
+        "canonical_key": "sector",
+        "key": "sector",
+        "type": "select",
+        "field_type": "select",
+        "value": "Accounting & Finance",
+        "aliases": [
+          "Industry Sector",
+          "Sector",
+          "Which sector do you work in?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Which sector do you work in?",
+        "control": "select"
+      },
+      {
+        "canonical_key": "sub_sector",
+        "key": "sub_sector",
+        "type": "select",
+        "field_type": "select",
+        "value": "Financial Planning & Analysis",
+        "aliases": [
+          "Sub-sector",
+          "Subsector",
+          "Which sub-sector do you work in?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Which sub-sector do you work in?",
+        "control": "select"
+      },
+      {
+        "canonical_key": "current_job_title",
+        "key": "current_job_title",
+        "type": "string",
+        "field_type": "string",
+        "value": "Financial Planning, Analysis & Reporting Manager",
+        "aliases": [
+          "Current Job Title",
+          "Current Title",
+          "Current role",
+          "Job Title",
+          "Position",
+          "Title"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "text"
+      },
+      {
+        "canonical_key": "experience_level",
+        "key": "experience_level",
+        "type": "select",
+        "field_type": "select",
+        "value": "Director",
+        "aliases": [
+          "Experience Level",
+          "Level",
+          "Seniority"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select",
+        "options": [
+          "Entry Level",
+          "Team Member",
+          "Team Leader",
+          "Manager/Associate",
+          "Senior Manager/Senior Associate",
+          "Director",
+          "Head of Department",
+          "Board Level"
+        ]
+      },
+      {
+        "canonical_key": "available_from_text",
+        "key": "available_from_text",
+        "type": "string",
+        "field_type": "string",
+        "value": "09/25/2026",
+        "aliases": [
+          "Available to start",
+          "Please let us know when you are available to start",
+          "When can you start",
+          "Please let us know when you are available to start*"
+        ],
+        "confidence": "confirmed",
+        "source": "michael_page_2026-09-19",
+        "status": "active",
+        "question": "Please let us know when you are available to start*",
+        "control": "text"
+      },
+      {
+        "canonical_key": "middle_east_working_visa",
+        "key": "middle_east_working_visa",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Do you currently have a working visa for the Middle East?",
+          "Middle East visa",
+          "Working visa",
+          "Working visa for the Middle East",
+          "working visa for the Middle East"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you currently have a working visa for the Middle East?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "retype_email",
+        "key": "retype_email",
+        "type": "email",
+        "field_type": "email",
+        "value": "czahidali.accacma@gmail.com",
+        "aliases": [
+          "Confirm Email",
+          "Re-enter Email",
+          "Retype Email",
+          "Retype Email Address"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "email"
+      },
+      {
+        "canonical_key": "phone_country_code",
+        "key": "phone_country_code",
+        "type": "select",
+        "field_type": "select",
+        "value": "Saudi Arabia (+966)",
+        "aliases": [
+          "Country Code",
+          "Country/Region Code",
+          "Dialing Code",
+          "Phone Country"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "control": "select"
+      },
+      {
+        "canonical_key": "country_of_residence",
+        "key": "country_of_residence",
+        "type": "select",
+        "field_type": "select",
+        "value": "Saudi Arabia",
+        "aliases": [
+          "Country/Region of Residence",
+          "Country of Residence",
+          "Residence Country"
+        ],
+        "confidence": "confirmed",
+        "source": "alfuttaim_signup_2026-09-19",
+        "status": "active",
+        "control": "select"
+      },
+      {
+        "canonical_key": "current_monthly_salary_job_currency",
+        "key": "current_monthly_salary_job_currency",
+        "type": "string",
+        "field_type": "string",
+        "value": "",
+        "aliases": [
+          "Current monthly salary",
+          "What is your current monthly salary (In Job Location Currency)?"
+        ],
+        "confidence": "shell",
+        "source": "alfuttaim_signup_2026-09-19",
+        "status": "active",
+        "question": "What is your current monthly salary (In Job Location Currency)?",
+        "control": "text"
+      },
+      {
+        "canonical_key": "expected_salary_job_currency",
+        "key": "expected_salary_job_currency",
+        "type": "string",
+        "field_type": "string",
+        "value": "",
+        "aliases": [
+          "Expected salary",
+          "What is your expected salary (In Job Location Currency)?"
+        ],
+        "confidence": "shell",
+        "source": "alfuttaim_signup_2026-09-19",
+        "status": "active",
+        "question": "What is your expected salary (In Job Location Currency)?",
+        "control": "text"
+      },
+      {
+        "canonical_key": "how_did_you_hear",
+        "key": "how_did_you_hear",
+        "type": "select",
+        "field_type": "select",
+        "value": "Job Board",
+        "aliases": [
+          "Application Source",
+          "Hear about us",
+          "How did you hear about this position?"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "How did you hear about this position?",
+        "control": "select",
+        "options": [
+          "Job Board",
+          "Company Website",
+          "Referral",
+          "LinkedIn",
+          "Other"
+        ]
+      },
+      {
+        "canonical_key": "previous_alfuttaim_employee",
+        "key": "previous_alfuttaim_employee",
+        "type": "select",
+        "field_type": "select",
+        "value": "No",
+        "aliases": [
+          "Are you a previous Al-Futtaim Group employee?",
+          "Previous Al-Futtaim employee",
+          "previous Al-Futtaim"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you a previous Al-Futtaim Group employee?",
+        "control": "select",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "currently_employed_alfuttaim",
+        "key": "currently_employed_alfuttaim",
+        "type": "select",
+        "field_type": "select",
+        "value": "No",
+        "aliases": [
+          "Are you currently employed with any Al-Futtaim Group company",
+          "Current Al-Futtaim employee",
+          "employed with any Al-Futtaim"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you currently employed with any Al-Futtaim Group company",
+        "control": "select",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "family_members_alfuttaim",
+        "key": "family_members_alfuttaim",
+        "type": "select",
+        "field_type": "select",
+        "value": "No",
+        "aliases": [
+          "Do you have any family members in the Al-Futtaim Group?",
+          "Relatives at Al-Futtaim",
+          "family members in the Al-Futtaim"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Do you have any family members in the Al-Futtaim Group?",
+        "control": "select",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "alfuttaim_schools_alumni",
+        "key": "alfuttaim_schools_alumni",
+        "type": "select",
+        "field_type": "select",
+        "value": "Not Applicable",
+        "aliases": [
+          "Al Futtaim Schools alumni",
+          "Are you a member of the Al Futtaim Schools alumni?",
+          "Are you a member of the Al Futtaim Schools alumni? If yes, kindly select the school name you went to and if no, please select \u201cNot applicable\u201d"
+        ],
+        "confidence": "confirmed",
+        "source": "trial_history_consolidate_2026-09-19",
+        "status": "active",
+        "question": "Are you a member of the Al Futtaim Schools alumni? If yes, kindly select the school name you went to and if no, please select \u201cNot applicable\u201d",
+        "control": "select",
+        "options": [
+          "Not Applicable"
+        ]
+      },
+      {
+        "canonical_key": "terms_privacy_accepted",
+        "key": "terms_privacy_accepted",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Terms of Use",
+          "Data privacy",
+          "Accept privacy",
+          "Read and accept the data privacy statement",
+          "Terms of Use: Read and accept the data privacy statement."
+        ],
+        "confidence": "confirmed",
+        "source": "alfuttaim_signup_2026-09-19",
+        "status": "active",
+        "question": "Terms of Use: Read and accept the data privacy statement.",
+        "control": "checkbox",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "job_notifications",
+        "key": "job_notifications",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "",
+        "aliases": [
+          "Receive new job posting notifications",
+          "Job notifications"
+        ],
+        "confidence": "shell",
+        "source": "alfuttaim_signup_2026-09-19",
+        "status": "active",
+        "control": "checkbox"
+      },
+      {
+        "canonical_key": "career_opportunities_optin",
+        "key": "career_opportunities_optin",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "",
+        "aliases": [
+          "Hear more about career opportunities"
+        ],
+        "confidence": "shell",
+        "source": "alfuttaim_signup_2026-09-19",
+        "status": "active",
+        "control": "checkbox"
+      },
+      {
+        "canonical_key": "resume_filename",
+        "key": "resume_filename",
+        "type": "string",
+        "field_type": "string",
+        "value": "Zahid_CV.docx",
+        "aliases": [
+          "Resume",
+          "CV",
+          "Resume/CV",
+          "Upload a CV"
+        ],
+        "confidence": "confirmed",
+        "source": "alfuttaim_signup_2026-09-19",
+        "status": "active",
+        "control": "file"
+      },
+      {
+        "canonical_key": "github",
+        "key": "github",
+        "type": "url",
+        "field_type": "url",
+        "value": "",
+        "aliases": [
+          "GitHub"
+        ],
+        "confidence": "shell",
+        "source": "client_qa_2026-09-19",
+        "status": "active",
+        "control": "url"
+      },
+      {
+        "canonical_key": "phone_full",
+        "key": "phone_full",
+        "type": "string",
+        "field_type": "string",
+        "value": "+966504131857",
+        "aliases": [
+          "Contact Number",
+          "Full Phone",
+          "Mobile",
+          "Phone",
+          "Phone Number",
+          "Phone with country code",
+          "Telephone"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "control": "text"
+      },
+      {
+        "canonical_key": "salary_text",
+        "key": "salary_text",
+        "type": "string",
+        "field_type": "string",
+        "value": "3000 SAR",
+        "aliases": [
+          "Compensation",
+          "Current Salary",
+          "Expected Salary",
+          "Salary"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "control": "text"
+      },
+      {
+        "canonical_key": "location",
+        "key": "location",
+        "type": "string",
+        "field_type": "string",
+        "value": "Riyadh",
+        "aliases": [
+          "Location",
+          "City",
+          "Current Location"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "ignite_2026-09-19",
+        "control": "text"
+      },
+      {
+        "canonical_key": "availability",
+        "key": "availability",
+        "type": "string",
+        "field_type": "string",
+        "value": "Available immediately",
+        "aliases": [
+          "Availability",
+          "Available",
+          "Notice Period"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "ignite_2026-09-19",
+        "control": "text"
+      },
+      {
+        "canonical_key": "current_remuneration",
+        "key": "current_remuneration",
+        "type": "string",
+        "field_type": "string",
+        "value": "0 AED / SAR (Currently available for immediate joining)",
+        "aliases": [
+          "Current Remuneration",
+          "Current Salary",
+          "Remuneration",
+          "What is your current Remuneration?"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "What is your current Remuneration?",
+        "control": "text"
+      },
+      {
+        "canonical_key": "qualified_ca_or_acca",
+        "key": "qualified_ca_or_acca",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "ACCA",
+          "Are you a qualified CA or ACCA?",
+          "CA",
+          "CA or ACCA",
+          "Chartered Accountant",
+          "qualified ACCA",
+          "qualified CA",
+          "qualified CA or ACCA"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "Are you a qualified CA or ACCA?",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "contracting_finance_experience",
+        "key": "contracting_finance_experience",
+        "type": "textarea",
+        "field_type": "textarea",
+        "value": "Over 15 years of overall finance leadership experience across MENA, including external audit of contracting/construction firms during Big Four (PwC) tenure, as well as project finance, cost control, feasibility, and financial management across multi-industry environments.",
+        "aliases": [
+          "How many years of relevant experience do you have in finance/accounting within the contracting industry?",
+          "contracting industry",
+          "finance/accounting within the contracting",
+          "relevant experience",
+          "years of relevant experience"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "How many years of relevant experience do you have in finance/accounting within the contracting industry?",
+        "control": "textarea"
+      },
+      {
+        "canonical_key": "bcom_or_mcom",
+        "key": "bcom_or_mcom",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "control": "radio",
+        "aliases": [
+          "B.Com",
+          "Bachelor of Commerce",
+          "Bachelor's Degree in Commerce",
+          "Bachelor\u2019s Degree in Commerce",
+          "Do you hold a Bachelor\u2019s Degree in Commerce (B.Com) or M.Com qualification?",
+          "M.Com"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "Do you hold a Bachelor\u2019s Degree in Commerce (B.Com) or M.Com qualification?",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "qualified_ca",
+        "key": "qualified_ca",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "No",
+        "control": "radio",
+        "aliases": [
+          "Are you a qualified Chartered Accountant (CA)?",
+          "qualified CA",
+          "qualified Chartered Accountant",
+          "qualified Chartered Accountant (CA)"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "Are you a qualified Chartered Accountant (CA)?",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "acca_qualified",
+        "key": "acca_qualified",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "control": "radio",
+        "aliases": [
+          "ACCA",
+          "Association of Chartered Certified Accountants"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "portfolio_ng_2026-09-19",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "oacpa_attested",
+        "key": "oacpa_attested",
+        "type": "select",
+        "field_type": "select",
+        "value": "",
+        "control": "radio",
+        "aliases": [
+          "Is your relevant degree/certificate attested/approved by the Oman Association of Chartered Public Accountants (OACPA), as applicable?",
+          "OACPA",
+          "attested/approved by the Oman Association"
+        ],
+        "confidence": "shell",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "Is your relevant degree/certificate attested/approved by the Oman Association of Chartered Public Accountants (OACPA), as applicable?",
+        "options": [
+          "Yes",
+          "No",
+          "In Process"
+        ]
+      },
+      {
+        "canonical_key": "post_qualification_experience_band",
+        "key": "post_qualification_experience_band",
+        "type": "select",
+        "field_type": "select",
+        "value": "More than 10 years",
+        "control": "radio",
+        "aliases": [
+          "How many years of relevant post-qualification experience do you have in Finance & Accounts?",
+          "post-qualification experience",
+          "years of relevant post-qualification"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "How many years of relevant post-qualification experience do you have in Finance & Accounts?",
+        "options": [
+          "8\u201310 years",
+          "More than 10 years"
+        ]
+      },
+      {
+        "canonical_key": "experience_letters_available",
+        "key": "experience_letters_available",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "",
+        "control": "radio",
+        "aliases": [
+          "Do you have valid experience letters/certificates supporting your relevant post-qualification experience?",
+          "experience certificates",
+          "experience letters"
+        ],
+        "confidence": "shell",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "Do you have valid experience letters/certificates supporting your relevant post-qualification experience?",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "erp_experience",
+        "key": "erp_experience",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "control": "radio",
+        "aliases": [
+          "Do you have practical experience working with ERP/accounting software?",
+          "ERP",
+          "ERP/accounting software",
+          "Oracle",
+          "SAP",
+          "Sage"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "question": "Do you have practical experience working with ERP/accounting software?",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "worked_for_pif_or_affiliate",
+        "key": "worked_for_pif_or_affiliate",
+        "type": "select",
+        "field_type": "select",
+        "value": "",
+        "aliases": [
+          "PIF",
+          "affiliated companies",
+          "worked directly for PIF"
+        ],
+        "confidence": "shell",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No",
+          "I don't know"
+        ]
+      },
+      {
+        "canonical_key": "social_media_profiles",
+        "key": "social_media_profiles",
+        "type": "url",
+        "field_type": "url",
+        "value": "https://www.linkedin.com/in/chaudhryzahidali",
+        "aliases": [
+          "social media",
+          "LinkedIn",
+          "Twitter",
+          "Facebook",
+          "TikTok",
+          "YouTube"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "qiddiya_name_dob_2026-09-19",
+        "control": "textarea"
+      },
+      {
+        "canonical_key": "current_location",
+        "key": "current_location",
+        "type": "string",
+        "field_type": "string",
+        "value": "Riyadh",
+        "aliases": [
+          "Current Location",
+          "Location",
+          "City"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "qiddiya_name_dob_2026-09-19",
+        "control": "text"
+      },
+      {
+        "canonical_key": "working_for_qiddiya",
+        "key": "working_for_qiddiya",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "No",
+        "aliases": [
+          "consultant",
+          "delivery partner",
+          "working directly for Qiddiya"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "never_had_criminal_conviction",
+        "key": "never_had_criminal_conviction",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "awaiting trial",
+          "criminal conviction",
+          "never had any criminal conviction"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "control": "radio",
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "canonical_key": "qiddiya_privacy_ack",
+        "key": "qiddiya_privacy_ack",
+        "type": "boolean",
+        "field_type": "boolean",
+        "value": "Yes",
+        "aliases": [
+          "Privacy Notice",
+          "consent to the use of my personal data"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "qiddiya_name_dob_2026-09-19",
+        "control": "checkbox"
+      },
+      {
+        "canonical_key": "email_secondary",
+        "key": "email_secondary",
+        "type": "email",
+        "field_type": "email",
+        "value": "czahidali@gmail.com",
+        "aliases": [
+          "Secondary Email",
+          "Alternate Email"
+        ],
+        "confidence": "confirmed",
+        "status": "active",
+        "source": "trial_history_consolidate_2026-09-19",
+        "control": "email"
+      }
+    ]
+  }
+}

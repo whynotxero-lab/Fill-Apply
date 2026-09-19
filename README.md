@@ -26,6 +26,18 @@ Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh
 
 Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
+## v1.19.5 — Strengthen trial ATS dictionary (generic fill)
+
+Trial history → built-in catalog / field-map aliases so generic fill is stronger across ATS (Michael Page, NaukriGulf, Al-Futtaim/SF, Ignite, Qiddiya/Workable, Hilton, …) — not one-off adapters only:
+
+- **CA or ACCA?** → `qualified_ca_or_acca` (Yes) vs **qualified Chartered Accountant (CA)?** → `qualified_ca` (No); **B.Com/M.Com**, **ERP**, **ME working visa**, **Experience Level** (Director), **Highest Education** (Masters), conflict / Qiddiya, **Candidate vs Client**, **current remuneration**, **Al-Futtaim** Nos / alumni.
+- **Import Profile** restores all knowledge records into IndexedDB (including empty alias shells via `includeEmpty`).
+- Mock remains the default packaged profile; no Zahid PII / passwords in the store package. Smoke uses `scripts/fixtures/zahid-profile-redacted.json`.
+
+## v1.19.4 — Chrome Web Store description length
+
+Manifest `description` shortened to fit Chrome Web Store’s 132-character limit.
+
 ## v1.19.3 — Name split + DOB format conversion (Workable / Qiddiya)
 
 - **Name split:** First=`Chaudhary`, Last=`Zahid Ali` (never Last=`Ali` alone). `nameParts()` + field-map Given/Surname/Family; catalog `first_name` / `last_name`.
