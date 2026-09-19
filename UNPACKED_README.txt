@@ -1,18 +1,17 @@
-Fill & Apply v1.18.7 — Load unpacked
+Fill & Apply v1.19.0 — Load unpacked
 
 1. Chrome → chrome://extensions
 2. Enable Developer mode
-3. Load unpacked → select this folder (Fill-Apply-1.18.7-clean)
+3. Load unpacked → select this folder (Fill-Apply-1.19.0-clean)
 4. Options → Import Profile → choose private zahid-profile.json
    (deliverables/zahid-profile.json or private-profiles copy)
 
-Notes (common signup/login) — v1.18.7:
-- When profile has email + password field, Auto Fill fills Email / Retype Email
-  and Password / Retype Password on career register/login forms (never invents).
-- Prefer Sign in when page says "Already a registered user? Please sign in".
-- Al-Futtaim / SuccessFactors (afuturewithus.com): CV upload, Title Mr,
-  Nationality Pakistani, Saudi residence, +966 phone, Job Board, AF Nos,
-  alumni Not Applicable, tick Terms/privacy. DOB + job-currency salary stay
-  empty → Complete Missing Info / pause if required.
-- If profile password is missing → same human-gate auth-wall pause as before.
-- Passwords are never learned into adaptive knowledge from the page.
+Notes (tabs / popups / Settings UI) — v1.19.0:
+- Apply that opens a NEW TAB (NaukriGulf, Michael Page, boards): runner adopts
+  that tab and continues Auto Fill / Ready / Submit there.
+- Michael Page: deep/shadow Apply CTA (not Save Job); same-page Apply
+  modal/drawer detection continues fill inside the popup.
+- Options: Source selection, Backend/runner knobs, per-ATS caps, and Application
+  reports UI are hidden (defaults still work). Profiles keep Select/Import/
+  Export/Create/Delete; default active profile is Mock.
+- Adaptive knowledge: Export JSON + Import merge/replace (no passwords; no invent).

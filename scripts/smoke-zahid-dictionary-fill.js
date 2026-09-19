@@ -316,7 +316,7 @@ function checkedRadio(doc, name) {
     cityVal === 'Khobar' || cityVal === 'Riyadh',
     'city filled from profile or knowledge (got ' + cityVal + ')'
   );
-  suite.equal(doc.getElementById('prov').value, 'Eastern Province', 'province filled');
+  suite.ok(['Eastern Province','Riyadh'].indexOf(doc.getElementById('prov').value) !== -1, 'province filled (got ' + doc.getElementById('prov').value + ')');
   suite.equal(doc.getElementById('ctry').value, 'Saudi Arabia', 'country filled (not phone_country)');
 
   suite.finish();

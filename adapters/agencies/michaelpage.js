@@ -211,12 +211,55 @@
     return out;
   }
 
+  function queryClickablesDeep(doc) {
+    doc = doc || document;
+    var sel =
+      'button, a, input[type="button"], input[type="submit"], [role="button"], label, div[role="radio"], [role="option"], span[onclick]';
+    if (global.FillApplyDom && typeof global.FillApplyDom.queryAll === 'function') {
+      try {
+        return global.FillApplyDom.queryAll(sel, doc) || [];
+      } catch (_e) {
+        /* fall through */
+      }
+    }
+    try {
+      return Array.prototype.slice.call(doc.querySelectorAll(sel));
+    } catch (_e2) {
+      return [];
+    }
+  }
+
+  function findApplicationModalRoot(doc) {
+    doc = doc || document;
+    var Syn = global.FillApplySynonyms;
+    if (Syn && typeof Syn.findApplicationModalRoot === 'function') {
+      return Syn.findApplicationModalRoot(doc);
+    }
+    var sels = [
+      '[role="dialog"]',
+      '[aria-modal="true"]',
+      '.ReactModal__Content',
+      '.modal.show',
+      '.modal[open]',
+      '[class*="drawer" i]',
+      '[class*="overlay" i][class*="apply" i]'
+    ];
+    for (var i = 0; i < sels.length; i++) {
+      try {
+        var nodes = doc.querySelectorAll(sels[i]);
+        for (var j = 0; j < nodes.length; j++) {
+          if (visible(nodes[j])) return nodes[j];
+        }
+      } catch (_e) {}
+    }
+    return null;
+  }
+
   function findClickableByText(doc, patterns, opts) {
     opts = opts || {};
     doc = doc || document;
-    var nodes = doc.querySelectorAll(
-      'button, a, input[type="button"], input[type="submit"], [role="button"], label, div[role="radio"], [role="option"], span[onclick]'
-    );
+    var scope = opts.root || doc;
+    var nodes = queryClickablesDeep(scope);
     var best = null;
     var bestScore = 0;
     for (var i = 0; i < nodes.length; i++) {
@@ -231,6 +274,8 @@
         if (!re.test(t) && !re.test(n)) continue;
         var score = 50 + Math.min(40, 80 - n.length);
         if (opts.preferExact && re.test(t) && t.length < 28) score += 20;
+        // Prefer Apply over Save Job / Share (exclude already filters most)
+        if (/^apply$/i.test(t.trim()) || /^apply now$/i.test(t.trim())) score += 25;
         if (score > bestScore) {
           bestScore = score;
           best = el;
@@ -532,11 +577,17 @@
     // Job Apply: only on job detail — never when wizard copy/fields/Next present
     // (final step "Apply Now" must not be treated as job-detail Apply).
     var nextBtn = findNextOrContinue(doc);
-    if (!nextBtn && !looksLikeWizardStep(doc)) {
+    if (!nextBtn && !looksLikeWizardStep(doc) && !findApplicationModalRoot(doc)) {
       var apply = clickJobApply(doc);
       if (apply.clicked) {
         steps.push({ step: 'apply', text: apply.text || apply.reason });
         await sleep(600);
+        // Same-page modal/drawer Apply — wait briefly for popup form
+        var waited = 0;
+        while (waited < 2500 && !findApplicationModalRoot(doc) && !looksLikeWizardStep(doc) && !pageHasApplicationFields(doc)) {
+          await sleep(200);
+          waited += 200;
+        }
       }
     }
     var cv = clickApplyWithCv(doc);
@@ -727,8 +778,11 @@
       steps = [];
     }
 
-    // If we only opened a gate and the form is not here yet, hand off for re-detect.
-    if (steps.length && doc && !pageHasApplicationFields(doc)) {
+    // Modal/drawer opened on same page → continue fill in this pass
+    var modalRoot = doc ? findApplicationModalRoot(doc) : null;
+    if (modalRoot && pageHasApplicationFields(modalRoot)) {
+      // fall through to fallback fill with enriched profile
+    } else if (steps.length && doc && !pageHasApplicationFields(doc) && !looksLikeWizardStep(doc)) {
       return {
         ok: true,
         adapterId: 'michaelpage',
@@ -742,7 +796,8 @@
         submitted: false,
         runMode: runMode,
         michaelPageSteps: steps,
-        message: 'Michael Page gate clicked — re-detect after wizard load',
+        modalOpened: !!modalRoot,
+        message: 'Michael Page gate clicked — re-detect after wizard/modal load',
         error: null
       };
     }
@@ -799,10 +854,12 @@
     clickApplyWithCv: clickApplyWithCv,
     clickJobApply: clickJobApply,
     findJobApplyCta: findJobApplyCta,
+    findApplicationModalRoot: findApplicationModalRoot,
     findNextOrContinue: findNextOrContinue,
     findFinalSubmitCta: findFinalSubmitCta,
     looksLikeWizardStep: looksLikeWizardStep,
     findClickableByText: findClickableByText,
+    queryClickablesDeep: queryClickablesDeep,
     isNavOnlyMode: isNavOnlyMode,
     resolveRunMode: resolveRunMode,
     fill: fill

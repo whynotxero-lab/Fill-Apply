@@ -71,10 +71,10 @@ function makePage() {
     const active = list.filter(function (p) { return p.id === activeId; })[0];
     suite.ok(active, 'active profile exists');
     suite.ok(
-      P.isZahidName ? P.isZahidName(active.name) : /zahid/i.test(active.name),
-      'fresh init activates Zahid (not Mock)'
+      P.isMockName ? P.isMockName(active.name) : /^mock$/i.test(active.name),
+      'fresh init activates Mock (not Zahid-only)'
     );
-    suite.ok(activeId !== 'mock' && !/^mock$/i.test(active.name), 'extension does not open with Mock as default');
+    suite.ok(activeId === 'mock' || /^mock$/i.test(active.name), 'extension opens with Mock as default active');
   })();
 
   await (async function createResetActivatesZahidKeepsMock() {

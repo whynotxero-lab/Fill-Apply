@@ -13,6 +13,9 @@
   var enabledEl = document.getElementById('knowledgeLearningEnabled');
   var btnRefresh = document.getElementById('btnKnowledgeRefresh');
   var btnAdd = document.getElementById('btnKnowledgeAdd');
+  var btnExport = document.getElementById('btnKnowledgeExport');
+  var btnImport = document.getElementById('btnKnowledgeImport');
+  var importFile = document.getElementById('importKnowledgeFile');
 
   if (!listEl) return;
 
@@ -231,9 +234,90 @@
     }
   }
 
+  function downloadJson(filename, obj) {
+    var blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 500);
+  }
+
+  async function exportKnowledge() {
+    var S = store();
+    if (!S || !S.exportSnapshot) {
+      setStatus('Knowledge store not loaded', 'err');
+      return;
+    }
+    try {
+      var snap = await S.exportSnapshot();
+      var stamp = new Date().toISOString().slice(0, 10);
+      downloadJson('fill-apply-knowledge-' + stamp + '.json', snap);
+      setStatus('Exported ' + (snap.records || []).length + ' facts (secrets excluded)', 'ok');
+    } catch (e) {
+      setStatus('Export failed: ' + (e && e.message ? e.message : e), 'err');
+    }
+  }
+
+  async function importKnowledgeFromFile(file) {
+    var S = store();
+    if (!S) return;
+    if (!file) return;
+    var mode = 'merge';
+    try {
+      var choice = window.prompt(
+        'Import mode: type "merge" (default, upsert by key) or "replace" (clear then import)',
+        'merge'
+      );
+      if (choice == null) return;
+      if (String(choice).trim().toLowerCase() === 'replace') mode = 'replace';
+    } catch (_e) {
+      mode = 'merge';
+    }
+    try {
+      var text = await file.text();
+      var snap = JSON.parse(text);
+      if (!snap || typeof snap !== 'object') throw new Error('Invalid JSON');
+      var result;
+      if (typeof S.importKnowledgeBundle === 'function') {
+        result = await S.importKnowledgeBundle(snap, { mode: mode });
+      } else {
+        result = S.importSnapshot(snap);
+      }
+      setStatus(
+        'Imported ' +
+          (result.imported || 0) +
+          ' (' +
+          mode +
+          '); skipped ' +
+          (result.skipped || 0),
+        'ok'
+      );
+      await load();
+    } catch (e) {
+      setStatus('Import failed: ' + (e && e.message ? e.message : e), 'err');
+    }
+  }
+
   if (btnRefresh) btnRefresh.addEventListener('click', load);
   if (btnAdd) btnAdd.addEventListener('click', addFact);
   if (filterEl) filterEl.addEventListener('input', render);
+  if (btnExport) btnExport.addEventListener('click', exportKnowledge);
+  if (btnImport && importFile) {
+    btnImport.addEventListener('click', function () {
+      importFile.value = '';
+      importFile.click();
+    });
+    importFile.addEventListener('change', function () {
+      var f = importFile.files && importFile.files[0];
+      if (f) importKnowledgeFromFile(f);
+    });
+  }
   if (enabledEl) {
     enabledEl.addEventListener('change', function () {
       var S = store();

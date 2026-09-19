@@ -671,6 +671,107 @@
     }
   }
 
+  /**
+   * Pure helper (testable): choose the best tab opened by Apply / external handoff.
+   * Prefers chrome openerTabId match, then newest http(s) tab not in knownIds.
+   */
+  function pickApplyHandoffTab(tabs, openerTabId, knownIds) {
+    knownIds = knownIds || {};
+    var list = tabs || [];
+    var candidates = [];
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (!t || t.id == null || t.id === openerTabId) continue;
+      if (knownIds[t.id]) continue;
+      var url = String(t.url || t.pendingUrl || '');
+      var openerMatch = t.openerTabId != null && t.openerTabId === openerTabId;
+      var blank =
+        !url ||
+        url === 'about:blank' ||
+        /^chrome:\/\//i.test(url) ||
+        /^chrome-extension:\/\//i.test(url) ||
+        /^edge:\/\//i.test(url);
+      if (!openerMatch && blank) continue;
+      var score = (openerMatch ? 1000 : 0) + (t.id || 0);
+      if (/apply|application|candidate|job|careers|greenhouse|lever|ashby|workday|icims/i.test(url)) {
+        score += 80;
+      }
+      if (/naukrigulf|michaelpage/i.test(url)) score += 40;
+      candidates.push({ tab: t, score: score });
+    }
+    candidates.sort(function (a, b) {
+      return b.score - a.score;
+    });
+    return candidates.length ? candidates[0].tab : null;
+  }
+
+  async function snapshotTabIdSet() {
+    try {
+      const tabs = await chrome.tabs.query({});
+      const map = {};
+      (tabs || []).forEach(function (t) {
+        if (t && t.id != null) map[t.id] = true;
+      });
+      return map;
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  async function findApplyHandoffTab(openerTabId, knownIds) {
+    try {
+      const tabs = await chrome.tabs.query({});
+      return pickApplyHandoffTab(tabs, openerTabId, knownIds || {});
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  /**
+   * After Apply may open a new tab (NaukriGulf / Michael Page / boards), wait and adopt it.
+   */
+  async function waitForApplyHandoffTab(openerTabId, knownIds, timeoutMs) {
+    timeoutMs = timeoutMs || 9000;
+    const start = Date.now();
+    let last = null;
+    while (Date.now() - start < timeoutMs) {
+      last = await findApplyHandoffTab(openerTabId, knownIds);
+      if (last && last.id != null) {
+        const url = String(last.url || last.pendingUrl || '');
+        const openerMatch = last.openerTabId != null && last.openerTabId === openerTabId;
+        const usable =
+          openerMatch ||
+          (/^https?:\/\//i.test(url) && !/^chrome/i.test(url));
+        if (usable) {
+          if (last.status === 'loading') {
+            try {
+              await waitTabComplete(last.id, Math.max(3000, timeoutMs - (Date.now() - start)));
+            } catch (_w) {
+              /* still adopt */
+            }
+          }
+          return last;
+        }
+      }
+      await sleep(220);
+    }
+    return last;
+  }
+
+  async function adoptTabAsActiveJob(tabId, progressFn) {
+    if (tabId == null) return;
+    try {
+      if (typeof progressFn === 'function') progressFn('running', 'Following Apply to new tab…');
+    } catch (_e) {}
+    try {
+      await focusTab(tabId);
+    } catch (_f) {}
+    try {
+      await waitTabComplete(tabId, 45000);
+    } catch (_w) {}
+    await sleep(400 + Math.floor(Math.random() * 350));
+  }
+
   async function findGoogleOauthTab(openerTabId) {
     try {
       const tabs = await chrome.tabs.query({
@@ -1374,8 +1475,12 @@
    */
   async function fillTabWithApplyStart(tabId, profile, documents, runMode, config, job, opts) {
     opts = opts || {};
+    let currentTabId = tabId;
     function progress(state, message) {
-      notifyPagePanel(tabId, { state: state || 'running', message: message || '' });
+      notifyPagePanel(currentTabId != null ? currentTabId : tabId, {
+        state: state || 'running',
+        message: message || ''
+      });
       if (typeof opts.onProgress === 'function') {
         try {
           opts.onProgress(state, message);
@@ -1383,8 +1488,13 @@
       }
     }
 
-    let currentTabId = tabId;
     let preHandoffUrl = '';
+    let knownTabIds = {};
+    try {
+      knownTabIds = await snapshotTabIdSet();
+    } catch (_eSnap) {
+      knownTabIds = {};
+    }
     try {
       const preTab = await chrome.tabs.get(currentTabId);
       preHandoffUrl = (preTab && preTab.url) || '';
@@ -1417,9 +1527,36 @@
     ) {
       try {
         progress('running', 'Clicked Apply — waiting for form…');
-        await sleep(700 + Math.floor(Math.random() * 500));
-        await waitTabComplete(currentTabId, 45000);
         await sleep(500 + Math.floor(Math.random() * 400));
+
+        // New-tab Apply (NaukriGulf / Michael Page / boards): adopt child tab
+        let handedTab = null;
+        try {
+          handedTab = await waitForApplyHandoffTab(currentTabId, knownTabIds, 8500);
+        } catch (_eHand) {
+          handedTab = null;
+        }
+        if (handedTab && handedTab.id != null && handedTab.id !== currentTabId) {
+          await adoptTabAsActiveJob(handedTab.id, progress);
+          currentTabId = handedTab.id;
+          if (fillResult) {
+            fillResult.adoptedNewTab = true;
+            fillResult.externalApply = true;
+            fillResult.fromTabHandoff = true;
+          }
+          try {
+            notifyPagePanel(tabId, {
+              state: 'running',
+              message: 'Apply opened a new tab — continuing there'
+            });
+          } catch (_eN) {}
+        } else {
+          try {
+            await waitTabComplete(currentTabId, 45000);
+          } catch (_eSame) {}
+          await sleep(400 + Math.floor(Math.random() * 350));
+        }
+
         let postUrl = '';
         try {
           const postTab = await chrome.tabs.get(currentTabId);
@@ -1433,8 +1570,12 @@
         } catch (_eHost) {
           hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
         }
-        const sameHostOpen = !!(fillResult.clickedApplyStart || fillResult.reDetect);
-        if (hostChanged || sameHostOpen) {
+        const sameHostOpen = !!(
+          fillResult.clickedApplyStart ||
+          fillResult.reDetect ||
+          fillResult.adoptedNewTab
+        );
+        if (hostChanged || sameHostOpen || fillResult.adoptedNewTab) {
           progress('running', 'Re-detect / fill after Apply-start…');
           const handedPack = await injectAndFill(
             currentTabId,
@@ -1506,9 +1647,39 @@
             }
           }
         } else if (fillResult) {
-          fillResult.message =
-            (fillResult.message || 'External apply handoff') +
-            ' (same-tab host unchanged — destination may have opened in another tab; continue there or paste ATS URL in queue)';
+          // Last chance: Apply may have opened a tab after our wait window
+          let late = null;
+          try {
+            late = await findApplyHandoffTab(currentTabId, knownTabIds);
+          } catch (_eLate) {}
+          if (late && late.id != null && late.id !== currentTabId) {
+            await adoptTabAsActiveJob(late.id, progress);
+            currentTabId = late.id;
+            fillResult.adoptedNewTab = true;
+            fillResult.externalApply = true;
+            fillResult.fromTabHandoff = true;
+            progress('running', 'Re-detect / fill after new-tab Apply…');
+            const latePack = await injectAndFill(
+              currentTabId,
+              profile,
+              documents,
+              runMode,
+              config,
+              job,
+              { returnTabId: true, maxAttempts: 4 }
+            );
+            if (latePack && latePack.result) {
+              fillResult = latePack.result;
+              fillResult.adoptedNewTab = true;
+              fillResult.externalApply = true;
+              fillResult.fromTabHandoff = true;
+            }
+            if (latePack && latePack.tabId != null) currentTabId = latePack.tabId;
+          } else {
+            fillResult.message =
+              (fillResult.message || 'External apply handoff') +
+              ' (same-tab host unchanged — destination may have opened in another tab; continue there or paste ATS URL in queue)';
+          }
         }
       } catch (handoffErr) {
         if (fillResult && !fillResult.error) {
@@ -2578,6 +2749,9 @@
     fillTabWithApplyStart: fillTabWithApplyStart,
     runOnceOnTab: runOnceOnTab,
     attemptAtsGoogleAuthLifecycle: attemptAtsGoogleAuthLifecycle,
+    pickApplyHandoffTab: pickApplyHandoffTab,
+    findApplyHandoffTab: findApplyHandoffTab,
+    waitForApplyHandoffTab: waitForApplyHandoffTab,
     INJECT_FILES: INJECT_FILES
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

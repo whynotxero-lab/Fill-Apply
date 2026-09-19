@@ -12,7 +12,7 @@
       <img class="titlebar-logo" src="../icons/icon48.png" width="28" height="28" alt="" />
       <div class="titlebar-main">
         <strong class="titlebar-name">Fill &amp; Apply</strong>
-        <span class="titlebar-ver" id="extVersion">v1.18.0</span>
+        <span class="titlebar-ver" id="extVersion">v1.19.0</span>
       </div>
       <span class="active-chip" id="headerActiveChip" title="Active profile">…</span>
     </header>
@@ -21,6 +21,12 @@
       <details class="sec" id="sec-profiles" data-sec="profiles" open>
         <summary>Profiles</summary>
         <div class="sec-body">
+          <p class="hint">
+            Default active profile is <strong>Mock</strong> (demo sample).
+            Select a chip, then <strong>Set active</strong>, <strong>Import</strong>, <strong>Export</strong>,
+            <strong>Create</strong> (+ Create New Profile), or <strong>Delete</strong>.
+            Real applicant data (e.g. Zahid) is import-only — not hardcoded in the store build.
+          </p>
           <div id="profileChips" class="profile-chips" role="list"></div>
           <div class="actions profile-actions">
             <button type="button" id="btnProfileSetActive" class="ghost">Set active</button>
@@ -28,7 +34,7 @@
             <button type="button" id="btnProfileDuplicate" class="ghost">Duplicate</button>
             <button type="button" id="btnProfileDelete" class="danger">Delete</button>
             <button type="button" id="btnResetMockProfile" class="ghost">Reset Mock</button>
-            <button type="button" id="btnZahidGeneral" class="primary">Create / Reset Zahid</button>
+            <button type="button" id="btnZahidGeneral" class="primary">Create / Reset Zahid shell</button>
             <button type="button" id="btnExportProfile" class="ghost">Export Profile</button>
             <button type="button" id="btnImportProfile" class="ghost">Import Profile</button>
             <input type="file" id="importProfileFile" accept="application/json,.json" hidden />
@@ -39,7 +45,7 @@
       </details>
 
 
-      <details class="sec" id="sec-source-profiles" data-sec="sourceProfiles" open>
+      <details class="sec" id="sec-source-profiles" hidden data-sec="sourceProfiles" open>
         <summary>Source selection &amp; profiles</summary>
         <div class="sec-body">
           <p class="hint">
@@ -91,7 +97,11 @@
           <div class="actions">
             <button type="button" id="btnKnowledgeRefresh" class="ghost">Refresh</button>
             <button type="button" id="btnKnowledgeAdd" class="ghost">+ Add fact</button>
+            <button type="button" id="btnKnowledgeExport" class="ghost">Export knowledge</button>
+            <button type="button" id="btnKnowledgeImport" class="ghost">Import knowledge</button>
+            <input type="file" id="importKnowledgeFile" accept="application/json,.json" hidden />
             <span id="knowledgeStatus" class="status" role="status"></span>
+            <p class="hint" id="knowledgeIoHint">Export downloads JSON (no passwords). Import offers merge or replace — empty / secret keys are skipped; values are never invented.</p>
           </div>
         </div>
       </details>
@@ -219,7 +229,7 @@
         </div>
       </details>
 
-      <details class="sec" id="sec-backend" data-sec="backend">
+      <details class="sec" id="sec-backend" hidden data-sec="backend">
         <summary>Backend / runner</summary>
         <div class="sec-body">
           <form id="configForm" onsubmit="return false;">
@@ -283,7 +293,7 @@
         </div>
       </details>
 
-      <details class="sec" id="sec-caps" data-sec="caps">
+      <details class="sec" id="sec-caps" hidden data-sec="caps">
         <summary>Per-source caps</summary>
         <div class="sec-body">
           <div class="grid">
@@ -313,7 +323,7 @@
         </div>
       </details>
 
-      <details class="sec" id="sec-app-db" data-sec="applicationDatabase">
+      <details class="sec" id="sec-app-db" hidden data-sec="applicationDatabase">
         <summary>Application database</summary>
         <div class="sec-body">
           <p class="hint">

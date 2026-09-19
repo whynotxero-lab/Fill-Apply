@@ -9,6 +9,7 @@ const path = require('path');
 
 const SUITES = [
   'smoke-apply-start-synonyms.js',
+  'smoke-tab-popup-handoff.js',
   'smoke-glassdoor-inflow.js',
   'smoke-form-detection.js',
   'smoke-fill-engine.js',
@@ -26,6 +27,7 @@ const SUITES = [
   'smoke-jobpool-status.js',
   'smoke-run-modes.js',
   'smoke-knowledge.js',
+  'smoke-knowledge-import-export.js',
   'smoke-backend-jobpool.js',
   'smoke-page-panel.js',
   'smoke-ats-auth.js',

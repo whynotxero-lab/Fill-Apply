@@ -1318,7 +1318,9 @@
 
     const appeared = await D.waitFor(
       function () {
-        return syn.isApplicationFormOpen(document, options.minOpenFormFields) ? true : null;
+        if (syn.isApplicationFormOpen(document, options.minOpenFormFields)) return true;
+        if (syn.findApplicationModalRoot && syn.findApplicationModalRoot(document)) return true;
+        return null;
       },
       { timeoutMs: options.applyOpenTimeoutMs != null ? options.applyOpenTimeoutMs : 4000, pollMs: 150 }
     );

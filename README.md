@@ -26,6 +26,16 @@ Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh
 
 Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
+## v1.19.0 — tab handoff, Apply popups, leaner Options
+
+**New-tab Apply handoff:** when Apply opens a new tab (or the apply form lands elsewhere), the runner adopts that tab and resumes Fill / Ready / Submit — no longer stuck on the listing page.
+
+**In-page Apply modals:** Michael Page (and general Apply-start) finds Apply via deep/shadow DOM (not Save Job), detects dialog/drawer/modal roots, and continues fill inside them. NaukriGulf keeps Easy Apply preference + Apply fallback across tabs.
+
+**Options UI (hide only):** Source selection, Backend base URL / runner delays / Focus HUD / auto-close / caps, and Application reports sections are hidden from the page; storage defaults and runner behavior remain. Profiles: default active = **Mock**; Import/Export/Create/Delete unchanged; Zahid is an empty shell (import real data).
+
+**Adaptive knowledge Import/Export** in Options (JSON download; merge or replace; never exports passwords; never invents values).
+
 ## v1.18.7 — common signup/login
 
 When the profile includes a **password field**, Auto Fill fills career-site Email/Password (+ retype) and prefers Sign in when the email is already registered. If the password is missing, auth walls still pause (never invent). Passwords are import-only (stripped on export) and never learned into adaptive KB.
