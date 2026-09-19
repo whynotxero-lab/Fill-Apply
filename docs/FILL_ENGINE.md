@@ -234,3 +234,10 @@ Chrome no longer honours `--load-extension`, so the test installs the extension 
 - Decisive knowledge identity blocks wrong field-map fallbacks (e.g. address line ≠ location).
 - Radio groups expose options to the fill gate (Yes/No, Mr./Mrs.).
 - Bare Country prefers residence country over phone country code.
+
+## v1.18.5
+
+- Michael Page (michaelpage.ae): Candidate gate, Apply with CV, personal/employment fill.
+- Label matching uses question text above fields so awkward placeholders (`Name`, `Town`, `Telephone number`) no longer yield filled 0/4.
+- Salary currency map: AED → 2900, SAR → 3000 (default SAR/3000). Middle East working visa only when profile sets it.
+
