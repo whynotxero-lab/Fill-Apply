@@ -50,6 +50,9 @@ Values never come from invented AI guesses. AI/semantic matching may map *wordin
   fieldType,             // boolean | string | number | date | select | multiselect  (legacy: text, multi-select, url)
   value,                 // typed (boolean Yes/No stored as display "Yes"/"No" for HTML controls)
   displayValue,          // as the applicant typed/selected
+  formats,               // optional map of alternate shapes from one canonical value
+                         // e.g. date_of_birth: { iso, mm_dd_yyyy, dd_mm_yyyy, yyyy, mm, dd }
+                         // Fill uses lib/format.js detectDateFormat; works from canonical alone
   aliases,               // question wordings that resolved to this key
   source,                // user_explicit | user_correction | user_confirm | user_edit | imported
   confidence,            // 0..1
@@ -65,6 +68,23 @@ Values never come from invented AI guesses. AI/semantic matching may map *wordin
 IndexedDB is the source of truth. Records are keyed by **profileId + canonicalKey**, so two applicant profiles can store different answers for the same question. A future Sync API plugs in at `FillApplyKnowledgeStore.applyMutation()` / `FillApplyKnowledgeSync.register()` — the fill engine keeps consuming `exportSnapshot()`, not a cloud client.
 
 ---
+
+
+
+## Value formats (one dictionary value → many ATS shapes)
+
+Canonical facts stay in one shape. Dates are stored as ISO `YYYY-MM-DD` (`dateOfBirth` / `date_of_birth` = `1979-04-06`). At fill time `FillApplyFormat.formatForField` / `detectDateFormat` converts to whatever the control asks for:
+
+| Signal | Example output |
+|--------|----------------|
+| `input type="date"` | `1979-04-06` |
+| placeholder / data-format `MM/DD/YYYY` (Workable) | `04/06/1979` |
+| placeholder / label `DD/MM/YYYY` | `06/04/1979` |
+| `birth_year` / `birth_month` / `birth_day` | `1979` / `04` / `06` |
+
+Phone already follows the same idea (full E.164 vs national when a country-code sibling exists). Knowledge records may include an optional `formats` map; the formatter does not require it.
+
+**Names:** `first_name` / `last_name` are first-class catalog keys. Last name may be multi-word (`Zahid Ali`). Deriving from `full_name` uses First = first token, Last = remainder — never the final token alone.
 
 ## Unified resolver precedence
 

@@ -854,12 +854,45 @@
 
   function resolveValue(profile, key) {
     if (!key) return '';
-    if (key === 'fullName') {
-      return (
-        profile.fullName ||
-        [profile.firstName, profile.lastName].filter(Boolean).join(' ') ||
-        ''
-      );
+    // Name fields: prefer explicit first/last. When only fullName is set,
+    // First = first token, Last = remainder (never last token alone).
+    if (
+      key === 'fullName' ||
+      key === 'firstName' ||
+      key === 'lastName' ||
+      key === 'middleName' ||
+      key === 'preferredName'
+    ) {
+      var fmtNames = global.FillApplyFormat;
+      var parts =
+        fmtNames && typeof fmtNames.nameParts === 'function'
+          ? fmtNames.nameParts(profile)
+          : {
+              first: profile.firstName || '',
+              middle: profile.middleName || '',
+              last: profile.lastName || '',
+              full:
+                profile.fullName ||
+                [profile.firstName, profile.lastName].filter(Boolean).join(' ') ||
+                ''
+            };
+      if (key === 'fullName' || key === 'preferredName') {
+        return parts.full || profile.preferredName || '';
+      }
+      if (key === 'firstName') return parts.first || '';
+      if (key === 'lastName') return parts.last || '';
+      if (key === 'middleName') return parts.middle || profile.middleName || '';
+    }
+    if (key === 'dateOfBirth' || key === 'birthYear' || key === 'birthMonth' || key === 'birthDay') {
+      // Always return canonical ISO; formatDate extracts year/month/day from the control.
+      var dob =
+        profile.dateOfBirth ||
+        (profile.customAnswers &&
+          (profile.customAnswers.date_of_birth ||
+            profile.customAnswers.dob ||
+            profile.customAnswers.dob_iso)) ||
+        '';
+      return dob ? String(dob) : '';
     }
     if (key === 'phone') {
       const ca = profile.customAnswers || {};
@@ -1735,7 +1768,12 @@
       const setOk = setNativeValue(el, fillValue, {
         key: answer.key,
         profile: profile,
-        hasPhoneCountryField: hasPhoneCountryField
+        hasPhoneCountryField: hasPhoneCountryField,
+        label: descriptor.label || label || '',
+        formats:
+          (answer.record && answer.record.formats) ||
+          (answer.formats) ||
+          null
       });
       if (setOk === false) {
         unmatched += 1;

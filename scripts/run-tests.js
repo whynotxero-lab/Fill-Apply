@@ -14,6 +14,7 @@ const SUITES = [
   'smoke-form-detection.js',
   'smoke-fill-engine.js',
   'smoke-value-format.js',
+  'smoke-name-dob-formats.js',
   'smoke-global-fill-fixes.js',
   'smoke-phone-full-choose-file.js',
   'smoke-hilton-consent-cv-learn.js',

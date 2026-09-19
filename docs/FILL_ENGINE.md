@@ -118,10 +118,12 @@ Every value is shaped against the constraints the control advertises — `type`,
 | phone | Split into dial code and national number. A form with its own country-code control gets the national number; one without gets `+971501234567`. `pattern="\d{10}"` gets ten bare digits, `placeholder="(555) 555-5555"` gets that mask. A trunk zero is dropped in front of a country code, and a code already present in the stored number is never added twice |
 | phone country code | `+971` for a text or select control, `971` where the control is numeric |
 | postal | US five digits, `A1A 1A1` for Canada, `SW1A 1AA` for the UK, compact when the pattern forbids spaces |
-| date | `yyyy-mm-dd` for `type=date`; `dd/mm/yyyy` or `mm/dd/yyyy` for a text field, read off its placeholder |
+| date | Canonical store is ISO `YYYY-MM-DD` (profile `dateOfBirth` / knowledge `date_of_birth`). At fill time `detectDateFormat` picks the shape from `type=date` → ISO, `placeholder` / `data-format` / `pattern` / aria / label (`MM/DD/YYYY`, `DD/MM/YYYY`, `YYYY-MM-DD`), or `autocomplete=bday`. Split DOB controls (`birth_year` / `birth_month` / `birth_day`) get year / month / day parts. Optional knowledge `formats` map is used when present; conversion still works from canonical alone |
 | url | Scheme added for `type=url`; reduced to a handle when the field asks for a username |
 | number | Currency stripped, rounded to the step, clamped to `min`/`max` |
 | text | Long answers cut on a word boundary rather than mid-word |
+
+**Name split:** `nameParts()` prefers explicit `firstName` / `lastName`. When only `fullName` is set, First = first token and Last = the remainder — never the final token alone (`Chaudhary Zahid Ali` → Last=`Zahid Ali`, not `Ali`). Given / Surname / Family name map to First / Last via the field map.
 
 Selects and listboxes also try alternate spellings, so a profile saying `United Arab Emirates` finds an option labelled `AE`, and `California` finds `CA`. Nationality selects list the demonym, so `Pakistan` finds `Pakistani`.
 
@@ -217,6 +219,7 @@ node scripts/browser-e2e.js   # real Chrome, needs a display
 | `smoke-form-detection.js` | Signal-based detection, iframes, shadow roots, page furniture |
 | `smoke-fill-engine.js` | Labels, control types, async dropdowns, answer resolution, never-invented policy |
 | `smoke-value-format.js` | Phone, postal, date, url, number and text shaping, and select spellings |
+| `smoke-name-dob-formats.js` | First/Last multi-word split + DOB MM/DD vs DD/MM vs `type=date` + Workable/Qiddiya enrich |
 | `smoke-documents.js` | Preloaded document attach, picker suppression, accept mismatch, existing uploads, multi-step |
 | `smoke-profile-fill.js` | Full Zahid profile across text, select, radio, checkbox, buckets, education levels, demonyms; consent ticked, other EEO left alone |
 | `smoke-hilton-consent-cv-learn.js` | Hilton-style consent+email+Next, gender select-only, CV-import-first, learn-on-human-input |

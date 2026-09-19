@@ -269,7 +269,7 @@ function run(page, profile, options) {
 
     suite.ok(result.ok, 'the full form run completes');
     suite.equal(doc.getElementById('fn').value, 'Chaudhary', 'first name filled');
-    suite.equal(doc.getElementById('ln').value, 'Ali', 'last name filled');
+    suite.equal(doc.getElementById('ln').value, 'Zahid Ali', 'last name filled (multi-word)');
     suite.equal(doc.getElementById('em').value, 'czahidali.accacma@gmail.com', 'email filled');
     suite.equal(doc.getElementById('cc').value, '+966', 'phone country code selected');
     suite.equal(doc.getElementById('ph').value, '504131857', 'national number written beside the code');

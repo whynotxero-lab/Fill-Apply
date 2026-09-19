@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.19.2",
+  "version": "1.19.3",
   "description": "Queue-driven job-application filler with on-page Auto Fill / Ready / Submit panel, adaptive applicant knowledge (IndexedDB), versioned profile import/export, ATS Google OAuth auth stage, source fill checklist, JobPool status POST (only submitted = applied), full applicant profile.",
   "permissions": [
     "storage",

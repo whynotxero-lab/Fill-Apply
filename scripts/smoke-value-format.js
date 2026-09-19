@@ -214,6 +214,38 @@ function shape(page, descriptor, value, context) {
   );
 
   suite.equal(
+    shape(page, { tag: 'INPUT', type: 'text', placeholder: 'MM/DD/YYYY' }, '1979-04-06', {
+      kind: 'date'
+    }).value,
+    '04/06/1979',
+    'Workable-style MM/DD/YYYY DOB from canonical ISO'
+  );
+
+  suite.equal(
+    page.window.FillApplyFormat.detectDateFormat(
+      { type: 'text', placeholder: 'MM/DD/YYYY' },
+      {}
+    ),
+    'mdy',
+    'detectDateFormat reads MM/DD/YYYY placeholder'
+  );
+
+  suite.equal(
+    page.window.FillApplyFormat.detectDateFormat(
+      { type: 'text', placeholder: 'DD/MM/YYYY' },
+      {}
+    ),
+    'dmy',
+    'detectDateFormat reads DD/MM/YYYY placeholder'
+  );
+
+  suite.equal(
+    page.window.FillApplyFormat.nameParts({ fullName: 'Chaudhary Zahid Ali' }).last,
+    'Zahid Ali',
+    'nameParts keeps multi-word last name'
+  );
+
+  suite.equal(
     shape(page, { tag: 'INPUT', type: 'number' }, '25000 AED', { kind: 'number' }).value,
     '25000',
     'a currency code is stripped for a number input'

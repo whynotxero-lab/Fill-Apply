@@ -26,6 +26,12 @@ Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh
 
 Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
+## v1.19.3 — Name split + DOB format conversion (Workable / Qiddiya)
+
+- **Name split:** First=`Chaudhary`, Last=`Zahid Ali` (never Last=`Ali` alone). `nameParts()` + field-map Given/Surname/Family; catalog `first_name` / `last_name`.
+- **DOB formatter:** Canonical ISO `1979-04-06` → MM/DD, DD/MM, `type=date` ISO, or year/month/day parts from placeholder / `data-format` / aria / label / autocomplete. Optional knowledge `formats` map.
+- **Workable / Qiddiya:** Education Masters, conflict No, PIF skip-if-empty, LinkedIn social, Location Riyadh, salary skip-if-empty, salutation/nationality/years, Qiddiya No, privacy/criminal Yes, resume upload.
+
 ## v1.19.2 — NaukriGulf Yes/No radios that actually click
 
 **NaukriGulf Easy Apply:** screening Yes/No (and multi-option) answers now:
