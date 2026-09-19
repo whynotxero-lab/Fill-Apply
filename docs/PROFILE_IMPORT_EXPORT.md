@@ -1,4 +1,4 @@
-# Profile Import / Export (v1.18.0)
+# Profile Import / Export (v1.18.4)
 
 ## Format
 
@@ -30,6 +30,13 @@ Import validates fully before writing; success reports field + knowledge counts.
 
 ## Import private Zahid (client)
 
-1. Install / load Fill & Apply 1.18.0+.
+1. Install / load Fill & Apply 1.18.4+.
 2. Options → Import Profile → select private `zahid-profile.json`.
 3. Zahid activates and is immediately usable; survives reload and updates.
+
+## v1.18.4 notes
+
+- Import normalizes knowledge `status:"active"` → confirmed and preserves aliases / question text.
+- Empty knowledge shells (blank value) are skipped on fill — never invented.
+- `applicationQuestions` fold into `customQA` / `customAnswers` for long ATS labels.
+- Title/salutation (Mr.), country/province/city, and Yes/No app questions resolve via adaptive knowledge + profile.

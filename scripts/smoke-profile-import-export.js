@@ -270,7 +270,7 @@ function sleep(ms) {
     const profile = await ctx.Profile.getProfile();
     suite.equal(profile.email, 'czahidali@gmail.com', 'imported email usable immediately');
     suite.equal(profile.fullName, 'Chaudhary Zahid Ali', 'imported fullName');
-    suite.equal(profile.city, 'Riyadh', 'imported city');
+    suite.equal(profile.city, 'Khobar', 'imported city');
     suite.ok(
       Array.isArray(profile.experienceEntries) && profile.experienceEntries.length >= 7,
       'imported experience entries'

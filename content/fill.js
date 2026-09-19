@@ -755,15 +755,26 @@
     if (descriptor && Array.isArray(descriptor.options) && descriptor.options.length) {
       return descriptor.options;
     }
-    if (!el || el.tagName !== 'SELECT' || !el.options) return [];
-    const out = [];
-    for (let i = 0; i < el.options.length; i++) {
-      out.push({
-        value: el.options[i].value,
-        text: (el.options[i].textContent || '').replace(/\s+/g, ' ').trim()
+    if (el && el.tagName === 'SELECT' && el.options) {
+      const out = [];
+      for (let i = 0; i < el.options.length; i++) {
+        out.push({
+          value: el.options[i].value,
+          text: (el.options[i].textContent || '').replace(/\s+/g, ' ').trim()
+        });
+      }
+      return out;
+    }
+    // Radio groups: collect sibling option labels/values so Yes/No + Mr./Mrs. gate correctly
+    const type = String((el && el.type) || (descriptor && descriptor.type) || '').toLowerCase();
+    if (type === 'radio' || (el && String(el.type || '').toLowerCase() === 'radio')) {
+      const group = radioGroupFor(el);
+      return group.map(function (radio) {
+        const text = (getLabelText(radio) || String(radio.value || '')).replace(/\s+/g, ' ').trim();
+        return { value: radio.value, text: text };
       });
     }
-    return out;
+    return [];
   }
 
   /**

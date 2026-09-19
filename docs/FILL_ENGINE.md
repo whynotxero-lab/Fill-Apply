@@ -228,3 +228,9 @@ node scripts/browser-e2e.js   # real Chrome, needs a display
 `scripts/browser-e2e.js` is the honest end-to-end check. It serves a career page on one origin whose application form lives in an iframe on a **different** origin — a shape no same-document traversal can reach — installs the unpacked extension, and drives the real runner injection path from the extension's own service worker. It asserts that the cross-origin form is filled, that the async portalled listbox option is selected, that the winning result came from the sub-frame, that the phone number is split across the country-code control and the number field, that the preloaded resume lands on an upload control that does not exist until Attach is clicked, and that Chrome opened no file chooser dialog while doing it.
 
 Chrome no longer honours `--load-extension`, so the test installs the extension through the CDP `Extensions.loadUnpacked` domain with `--enable-unsafe-extension-debugging`.
+
+## v1.18.4
+
+- Decisive knowledge identity blocks wrong field-map fallbacks (e.g. address line ≠ location).
+- Radio groups expose options to the fill gate (Yes/No, Mr./Mrs.).
+- Bare Country prefers residence country over phone country code.

@@ -68,7 +68,7 @@ function run(page, profile, options) {
   suite.equal(profile.email, 'czahidali@gmail.com', 'email is stored');
   suite.equal(profile.phoneCountry, '+966', 'Saudi dial code is stored');
   suite.equal(profile.phone, '504131857', 'national number is stored without the code');
-  suite.equal(profile.city, 'Riyadh', 'city is stored');
+  suite.equal(profile.city, 'Khobar', 'city is stored');
   suite.equal(profile.country, 'Saudi Arabia', 'country is stored');
   suite.equal(profile.nationality, 'Pakistan', 'nationality is stored');
   suite.equal(profile.highestEducation, "Master's Degree", 'highest education is a level, not a sentence');
@@ -273,7 +273,7 @@ function run(page, profile, options) {
     suite.equal(doc.getElementById('em').value, 'czahidali@gmail.com', 'email filled');
     suite.equal(doc.getElementById('cc').value, '+966', 'phone country code selected');
     suite.equal(doc.getElementById('ph').value, '504131857', 'national number written beside the code');
-    suite.equal(doc.getElementById('city').value, 'Riyadh', 'city filled');
+    suite.equal(doc.getElementById('city').value, 'Khobar', 'city filled');
     suite.equal(doc.getElementById('nat').value, 'Pakistani', 'nationality select uses the demonym');
     suite.equal(doc.getElementById('co').value, 'SA', 'country select uses the ISO code');
     suite.ok(doc.querySelector('input[name="gender"][value="male"]').checked, 'gender radio selected');

@@ -15,6 +15,8 @@ const SUITES = [
   'smoke-value-format.js',
   'smoke-global-fill-fixes.js',
   'smoke-hilton-consent-cv-learn.js',
+  'smoke-naukrigulf-apply-fallback.js',
+  'smoke-zahid-dictionary-fill.js',
   'smoke-documents.js',
   'smoke-profile-fill.js',
   'smoke-profile-init.js',

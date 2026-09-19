@@ -7,11 +7,13 @@
  * "NaukriGulf Easy Apply".
  *
  * Flow:
- * 1. Job page with Easy Apply → click Easy Apply
- * 2. On-page popup/modal with screening Yes/No questions
- * 3. Answer from profile.customAnswers / heuristics (UAE location, employed, industry)
- * 4. fill/ready: leave modal open (do NOT click Submit & Apply)
- * 5. submit: click Submit & Apply
+ * 1. Prefer Easy Apply when present → click → answer modal questions
+ * 2. If Easy Apply modal never appears → fall back to regular Apply / Apply Now /
+ *    company-site apply (never hard-stop requiring Easy Apply only)
+ * 3. On-page popup/modal with screening Yes/No questions (Easy Apply path)
+ * 4. Answer from profile.customAnswers / heuristics (UAE location, employed, industry)
+ * 5. fill/ready: leave modal open (do NOT click Submit & Apply)
+ * 6. submit: click Submit & Apply
  *
  * Diversity surveys are N/A on this board. Structure drift (unknown required
  * Yes/No with no mapping) pauses in submit mode only.
@@ -155,6 +157,48 @@
     );
     if (byAttr && visible(byAttr)) return byAttr;
     return null;
+  }
+
+  /**
+   * Regular Apply / Apply Now / Apply for this job — used when Easy Apply modal
+   * never appears (external ATS / company-site apply).
+   */
+  function findStandardApplyButton(doc) {
+    doc = doc || document;
+    var Syn = global.FillApplySynonyms;
+    if (Syn && typeof Syn.findApplyStartButtons === 'function') {
+      var list = Syn.findApplyStartButtons(doc) || [];
+      for (var i = 0; i < list.length; i++) {
+        var el = list[i];
+        if (!el || !visible(el)) continue;
+        var t = buttonText(el);
+        if (Syn.isEasyApplyCta && Syn.isEasyApplyCta(t)) continue;
+        if (Syn.isApplyStartCta && Syn.isApplyStartCta(t)) return el;
+      }
+    }
+    var nodes = doc.querySelectorAll(
+      'button, a, input[type="button"], input[type="submit"], [role="button"], span[onclick], div[role="button"]'
+    );
+    var best = null;
+    var bestScore = 0;
+    for (var n = 0; n < nodes.length; n++) {
+      var node = nodes[n];
+      if (!visible(node)) continue;
+      var txt = buttonText(node);
+      if (/easy\s*apply/i.test(txt)) continue;
+      if (/auto-?apply|upgrade|subscribe|share|save\s*job/i.test(txt)) continue;
+      var score = 0;
+      if (/^apply now$/i.test(txt)) score = 100;
+      else if (/^apply$/i.test(txt.trim()) && txt.trim().length < 12) score = 90;
+      else if (/apply for this (job|role|position)/i.test(txt)) score = 85;
+      else if (/\bapply now\b/i.test(txt)) score = 80;
+      else if (/\bapply\b/i.test(txt) && txt.length < 48) score = 50;
+      if (score > bestScore) {
+        bestScore = score;
+        best = node;
+      }
+    }
+    return best;
   }
 
   /**
@@ -573,13 +617,68 @@
       }
 
       if (!modal) {
+        // Prefer Easy Apply when it opens; otherwise start ANY apply path.
+        var standardBtn = findStandardApplyButton(doc);
+        if (standardBtn) {
+          try {
+            standardBtn.click();
+            advanced = true;
+            await sleep(humanDelay(500));
+          } catch (_stdClick) {
+            /* ignore */
+          }
+          // Re-check: some Apply CTAs still open the Easy Apply modal
+          modal = await waitForModal(doc, 2500);
+          if (!modal) {
+            return {
+              ok: true,
+              adapterId: 'naukrigulf',
+              clickedApplyStart: true,
+              reDetect: true,
+              handedOff: true,
+              deferToPageAdapter: true,
+              externalApply: true,
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              advanced: true,
+              submitted: false,
+              step: 'standard_apply_handoff',
+              message:
+                'Clicked Apply (Easy Apply modal not present) — waiting for apply form or company site',
+              runMode: runMode,
+              error: null
+            };
+          }
+        } else if (global.__fillApply && typeof global.__fillApply.run === 'function') {
+          // Form may already be on the page (or generic Apply-start can open it)
+          try {
+            var generic = await global.__fillApply.run(profile, {
+              highlightUnmatched: false,
+              runMode: runMode,
+              documents: (ctx && ctx.documents) || {},
+              fileInputHints: (ctx && ctx.fileInputHints) || [
+                { kind: 'resume', match: 'resume|cv' },
+                { kind: 'cover', match: 'cover' }
+              ]
+            });
+            if (generic && (generic.filled > 0 || generic.clickedApplyStart || generic.ok)) {
+              generic.adapterId = 'naukrigulf';
+              generic.usedGenericFallback = true;
+              generic.advanced = advanced || !!generic.clickedApplyStart;
+              return generic;
+            }
+          } catch (_genErr) {
+            /* fall through to soft pause */
+          }
+        }
         return {
           ok: false,
           adapterId: 'naukrigulf',
           needsHuman: true,
           pauseReason: 'structure_drift',
           error:
-            'NaukriGulf Easy Apply modal did not appear — open Easy Apply manually or confirm the job supports Easy Apply, then Resume.',
+            'NaukriGulf: no Easy Apply modal and no Apply button found — open Apply (or Easy Apply) manually, then Resume.',
           filled: 0,
           unmatched: 0,
           total: 0,
@@ -687,6 +786,8 @@
     detect: detect,
     detectProfileRedirect: detectProfileRedirect,
     findEasyApplyModal: findEasyApplyModal,
+    findEasyApplyButton: findEasyApplyButton,
+    findStandardApplyButton: findStandardApplyButton,
     fieldMaps: [],
     submitSelector:
       'button[type="submit"], input[type="submit"], button[aria-label*="Submit" i]',
