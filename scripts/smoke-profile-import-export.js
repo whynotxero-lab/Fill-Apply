@@ -364,6 +364,13 @@ function sleep(ms) {
         bundled.payload.knowledge.records.length >= 1,
       'export includes accumulated knowledge'
     );
+    suite.ok(
+      bundled.payload.adaptiveDictionary &&
+        Array.isArray(bundled.payload.adaptiveDictionary.records) &&
+        bundled.payload.adaptiveDictionary.records.length ===
+          bundled.payload.knowledge.records.length,
+      'export includes adaptiveDictionary alias matching knowledge'
+    );
 
     // Fresh extension storage — Mock only; import creates Sample from JSON
     const fresh = makePage();
@@ -390,6 +397,56 @@ function sleep(ms) {
     await sleep(20);
     const facts = await fresh.Knowledge.listKnowledge(await fresh.Profile.getActiveProfileId());
     suite.ok(facts.length >= 1, 'round-trip knowledge count ' + facts.length);
+  })();
+
+  /* ------------------------------------------------------------------ */
+  /* adaptiveDictionary-only import (Field Memory alias)                 */
+  /* ------------------------------------------------------------------ */
+  await (async function adaptiveDictionaryAliasImport() {
+    const page = makePage();
+    const payload = {
+      format: 'fill-apply-profile',
+      schemaVersion: 1,
+      meta: { profileName: 'Sample Alias', activate: true },
+      profile: {
+        firstName: 'Sample',
+        lastName: 'Alias',
+        email: 'sample.alias@example.test',
+        fullName: 'Sample Alias'
+      },
+      // No knowledge key — only adaptiveDictionary synonym
+      adaptiveDictionary: {
+        version: 1,
+        records: [
+          {
+            canonicalKey: 'sap_experience',
+            aliases: ['Do you have SAP experience?'],
+            value: 'Yes',
+            displayValue: 'Yes',
+            fieldType: 'boolean',
+            confidence: 1,
+            status: 'confirmed',
+            source: 'imported'
+          }
+        ]
+      }
+    };
+    const validated = page.IO.validateImportPayload(payload);
+    suite.ok(validated.ok, 'adaptiveDictionary-only payload validates');
+    suite.ok(
+      validated.data.knowledge && validated.data.knowledge.length >= 1,
+      'validator maps adaptiveDictionary into knowledge records'
+    );
+    const imported = await page.IO.importPayload(payload, { activate: true });
+    suite.ok(imported.ok, 'adaptiveDictionary-only import ok');
+    await sleep(20);
+    const facts = await page.Knowledge.listKnowledge(await page.Profile.getActiveProfileId());
+    suite.ok(
+      facts.some(function (f) {
+        return f.canonicalKey === 'sap_experience' && String(f.value) === 'Yes';
+      }),
+      'adaptiveDictionary fact restored into knowledge store'
+    );
   })();
 
   /* ------------------------------------------------------------------ */

@@ -328,5 +328,33 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     );
   }
 
+  if (
+    message.type === 'FILL_APPLY_KNOWLEDGE_CONFLICTS' ||
+    message.type === MSG.KNOWLEDGE_CONFLICTS
+  ) {
+    return reply(
+      FillApplyKnowledgeStore && FillApplyKnowledgeStore.listConflicts
+        ? FillApplyKnowledgeStore.listConflicts(message).then(function (conflicts) {
+            return { conflicts: conflicts };
+          })
+        : { conflicts: [] }
+    );
+  }
+
+  if (
+    message.type === 'FILL_APPLY_KNOWLEDGE_RESOLVE_CONFLICT' ||
+    message.type === MSG.KNOWLEDGE_RESOLVE_CONFLICT
+  ) {
+    return reply(
+      FillApplyKnowledgeStore && FillApplyKnowledgeStore.resolveConflict
+        ? FillApplyKnowledgeStore.resolveConflict(
+            message.id,
+            message.action,
+            message.extra || {}
+          )
+        : { ok: false, reason: 'unavailable' }
+    );
+  }
+
   return false;
 });

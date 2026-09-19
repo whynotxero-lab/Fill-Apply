@@ -480,3 +480,28 @@ label.check input { width: auto; }
 }
 .profile-chip.primary-profile { border-color: #22c55e88; }
 .profile-chip.secondary-profile { opacity: 0.92; }
+
+/* Field Memory — pending conflicts */
+.knowledge-conflict-list { margin-top: 4px; }
+.knowledge-conflict-card {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+.knowledge-conflict-card .k-conflict-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+.knowledge-conflict-card .k-conflict-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 8px 0;
+}
+.knowledge-conflict-card .k-conflict-val {
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #fde68a;
+  word-break: break-word;
+}

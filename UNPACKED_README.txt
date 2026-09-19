@@ -1,13 +1,13 @@
-Fill & Apply v1.20.0 — Load unpacked
+Fill & Apply v1.21.0 — Load unpacked
 
 1. Chrome → chrome://extensions
 2. Enable Developer mode
-3. Load unpacked → select this folder (Fill-Apply-1.20.0-clean)
+3. Load unpacked → select this folder (Fill-Apply-1.21.0-clean)
 4. Options → Import Profile → choose private zahid-profile.json
    (deliverables/zahid-profile.json or private-profiles copy)
 5. Default profile remains Mock (demo). Applicant data is import-only.
 
-Notes — v1.20.0 (reliability / control-adapter sprint):
+Notes — v1.21.0 (reliability / control-adapter sprint):
 - lib/control-adapter.js: detect → adapt → fill → verify per DOM control type
   (text/email/tel/number/date/radio/checkbox/select/multiselect/combobox/file…).
 - Dependent-field re-scan (WAITING_FOR_DEPENDENT_FIELDS) after fills that reveal

@@ -69,19 +69,25 @@
       </details>
 
       <details class="sec" id="sec-knowledge" data-sec="knowledge" open>
-        <summary>Adaptive knowledge <span class="section-sub" id="knowledgeCountHint"></span></summary>
+        <summary>Adaptive knowledge / Field Memory <span class="section-sub" id="knowledgeCountHint"></span></summary>
         <div class="sec-body">
           <p class="hint">
+            <strong>Field Memory</strong> learns answers you type on unknown application questions
+            and reuses them on similar fields later.
             Model: <strong>Key — Aliases — Type — Value</strong>.
             One Key per meaning; Aliases are wording variants (never separate records).
             Types: boolean · string · number · date · select · multiselect.
             User-confirmed answers override built-in. Identity (name, email, phone) stays in
-            <strong>Profile settings</strong>.
+            <strong>Profile settings</strong>. Conflicting answers need explicit Keep / Replace / Add alias — never silent overwrite.
           </p>
           <label class="check span2">
             <input type="checkbox" id="knowledgeLearningEnabled" checked />
             Learn from my answers on application forms
           </label>
+          <h3 class="subhead" id="knowledgeConflictHeading">Pending conflicts</h3>
+          <p class="hint" id="knowledgeConflictHint" hidden></p>
+          <div id="knowledgeConflictList" class="knowledge-list knowledge-conflict-list"></div>
+          <p class="hint" id="knowledgeConflictEmpty">No pending conflicts.</p>
           <div class="grid">
             <label class="span2">Filter
               <input type="search" id="knowledgeFilter" placeholder="Search key, value, or question wording" />

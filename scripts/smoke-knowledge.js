@@ -1212,6 +1212,102 @@ function pageWith(html) {
     suite.equal(summary.fields.Email, 'z@example.com', 'report meta keeps fields for app DB UI');
   })();
 
+  /* ------------------------------------------------------------------ */
+  /* Field Memory: conflict — no silent overwrite; explicit resolve     */
+  /* ------------------------------------------------------------------ */
+  await (async function fieldMemoryConflictNoSilentOverwrite() {
+    const page = pageWith();
+    const Learn = page.window.FillApplyKnowledgeLearn;
+    const S = page.window.FillApplyKnowledgeStore;
+    const K = page.window.FillApplyKnowledge;
+    S.resetMemory();
+    K.sessionClear();
+
+    const first = await Learn.learn({
+      label: 'Do you have SAP experience?',
+      value: 'Yes',
+      fieldType: 'boolean',
+      kind: 'confirm'
+    });
+    suite.ok(first.accepted, 'Field Memory: first confirm learned');
+    suite.equal(first.record.status, 'confirmed', 'Field Memory: confirmed status');
+    suite.ok((first.record.confidence || 0) >= 0.9, 'Field Memory: high confidence');
+
+    const clash = await Learn.learn({
+      label: 'Have you used SAP?',
+      value: 'No',
+      fieldType: 'boolean',
+      kind: 'observe',
+      host: 'jobs.example.com',
+      url: 'https://jobs.example.com/apply'
+    });
+    suite.equal(clash.accepted, false, 'Field Memory: conflicting observe not accepted');
+    suite.equal(clash.reason, 'conflict_high_confidence', 'Field Memory: conflict reason');
+    suite.ok(clash.conflict && clash.conflict.id, 'Field Memory: conflict queued for review');
+
+    const still = await S.getByCanonical('sap_experience');
+    suite.equal(still.value, 'Yes', 'Field Memory: confirmed value not silently overwritten');
+
+    const pending = await S.listConflicts();
+    suite.ok(pending.length >= 1, 'Field Memory: pending conflict listed');
+    suite.equal(pending[0].existingValue, 'Yes', 'Field Memory: stored side Yes');
+    suite.equal(pending[0].proposedValue, 'No', 'Field Memory: proposed side No');
+
+    const kept = await S.resolveConflict(pending[0].id, 'keep');
+    suite.ok(kept.ok, 'Field Memory: keep resolve ok');
+    suite.equal((await S.getByCanonical('sap_experience')).value, 'Yes', 'Field Memory: keep leaves Yes');
+    suite.equal((await S.listConflicts()).length, 0, 'Field Memory: keep clears pending');
+
+    // Re-queue conflict and replace
+    const clash2 = await Learn.learn({
+      label: 'SAP experience?',
+      value: 'No',
+      fieldType: 'boolean',
+      kind: 'observe'
+    });
+    suite.equal(clash2.accepted, false, 'Field Memory: second conflict refused');
+    const pending2 = await S.listConflicts();
+    suite.ok(pending2.length >= 1, 'Field Memory: conflict re-queued');
+    const replaced = await S.resolveConflict(pending2[0].id, 'replace');
+    suite.ok(replaced.ok, 'Field Memory: replace resolve ok');
+    suite.equal((await S.getByCanonical('sap_experience')).value, 'No', 'Field Memory: replace applies proposed');
+
+    // Alias path: reconfirm Yes, then conflict with different wording → alias keeps value
+    await Learn.learn({
+      label: 'Do you have SAP experience?',
+      value: 'Yes',
+      fieldType: 'boolean',
+      kind: 'confirm'
+    });
+    const clash3 = await Learn.learn({
+      label: 'Any hands-on SAP work?',
+      value: 'Maybe',
+      fieldType: 'boolean',
+      kind: 'observe'
+    });
+    suite.equal(clash3.accepted, false, 'Field Memory: third conflict refused');
+    const pending3 = await S.listConflicts();
+    const aliased = await S.resolveConflict(pending3[0].id, 'alias');
+    suite.ok(aliased.ok, 'Field Memory: alias resolve ok');
+    const afterAlias = await S.getByCanonical('sap_experience');
+    suite.equal(afterAlias.value, 'Yes', 'Field Memory: alias keeps value');
+    suite.ok(
+      (afterAlias.aliases || []).some(function (a) {
+        return /hands-on SAP/i.test(a);
+      }),
+      'Field Memory: alias adds question wording'
+    );
+
+    // Reuse after resolve
+    const reuse = K.resolve(
+      { __adaptiveKnowledge: { records: [] } },
+      { label: 'Do you have SAP experience?', type: 'select' },
+      page.window.FillApplyFieldMap
+    );
+    suite.equal(reuse.value, 'Yes', 'Field Memory: reuse after conflict resolution');
+  })();
+
+
 suite.finish();
 })().catch(function (err) {
   console.error(err);
