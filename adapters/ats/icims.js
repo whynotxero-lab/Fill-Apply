@@ -17,7 +17,9 @@
  *   Job Specific Questions → customAnswers / pause unknown required in submit
  *
  * Auth rule: Sign Up / Sign In / Register / Login / Create a login / Returning Candidate
- * "Log back in" → needsHuman pause. NEVER invent passwords or create accounts.
+ * "Log back in" → needsHuman pause when profile has no password.
+ * v1.18.7: when profile.password is set, FillApplySignupLogin may fill
+ * Email/Password (+ retype). NEVER invent passwords.
  * Exception: Connected / Disconnect (social SSO) without Password Re-enter → authenticated.
  *
  * Modes:
@@ -216,22 +218,28 @@
     };
   }
 
-  function authWallPause(doc, filled) {
+  function authWallPause(doc, filled, profile) {
     if (isSsoConnected(doc)) return null;
     var wall = detectAuthWall(doc);
     if (!wall || !wall.challenged) return null;
+    // Profile password present → do not pause; signup-login / fill will use it.
+    if (global.FillApplyAuthWalls && global.FillApplyAuthWalls.canAutoFillCredentials) {
+      if (global.FillApplyAuthWalls.canAutoFillCredentials(profile || {})) return null;
+    } else if (global.FillApplySignupLogin && global.FillApplySignupLogin.profileHasCredentials) {
+      if (global.FillApplySignupLogin.profileHasCredentials(profile || {})) return null;
+    }
     return {
       ok: false,
       adapterId: 'icims',
       needsHuman: true,
       challenge: wall,
       pauseReason: 'auth_wall',
-      error: 'iCIMS account required — sign in/register manually, then Resume',
+      error: 'iCIMS account required — sign in/register manually, then Resume (no profile password)',
       filled: filled || 0,
       unmatched: 0,
       total: filled || 0,
       submitted: false,
-      message: 'iCIMS account required — sign in/register manually, then Resume'
+      message: 'iCIMS account required — sign in/register manually, then Resume (no profile password)'
     };
   }
 
@@ -246,9 +254,14 @@
     return false;
   }
 
-  /** True when we should pause for account create / sign-in (not when SSO connected). */
-  function needsAuthPause(doc) {
+  /** True when we should pause for account create / sign-in (not when SSO connected or profile password set). */
+  function needsAuthPause(doc, profile) {
     if (isSsoConnected(doc)) return false;
+    if (global.FillApplyAuthWalls && global.FillApplyAuthWalls.canAutoFillCredentials) {
+      if (global.FillApplyAuthWalls.canAutoFillCredentials(profile || {})) return false;
+    } else if (global.FillApplySignupLogin && global.FillApplySignupLogin.profileHasCredentials) {
+      if (global.FillApplySignupLogin.profileHasCredentials(profile || {})) return false;
+    }
     if (hasPasswordCreateFields(doc)) return true;
     var wall = detectAuthWall(doc);
     return !!(wall && wall.challenged);
@@ -320,9 +333,10 @@
   function setNativeValue(el, value) {
     if (!el) return false;
     var type = String(el.type || '').toLowerCase();
-    // NEVER fill password fields — account creation is human-only
-    if (type === 'password') return false;
     var str = value == null ? '' : String(value);
+    // Password: never invent — only write a non-empty caller-supplied value
+    // (FillApplySignupLogin / profile password). Empty → skip.
+    if (type === 'password' && !String(str).trim()) return false;
 
     if (type === 'checkbox') {
       var want = /^(yes|y|true|1|on|accept|i accept|agree)$/i.test(str) || str === true;
@@ -1301,7 +1315,7 @@
     doc = doc || document;
     // Never click Submit Profile while Create login / password fields are visible
     // (SSO Connected/Disconnect without passwords is OK — needsAuthPause is false)
-    if (needsAuthPause(doc)) return false;
+    if (needsAuthPause(doc, profile)) return false;
 
     var nodes = doc.querySelectorAll(
       'button, input[type="submit"], input[type="button"], a[role="button"], [role="button"]'
@@ -1322,7 +1336,7 @@
 
   function clickSubmit(doc) {
     doc = doc || document;
-    if (needsAuthPause(doc)) return false;
+    if (needsAuthPause(doc, profile)) return false;
     var nodes = doc.querySelectorAll(
       'button, input[type="submit"], input[type="button"], a[role="button"], [role="button"]'
     );
@@ -1480,8 +1494,8 @@
           if (pauseProf) return pauseProf;
 
           // Create-login → auth pause; SSO Connected/Disconnect → skip pause
-          if (needsAuthPause(doc)) {
-            var authPause = authWallPause(doc, totalFilled);
+          if (needsAuthPause(doc, profile)) {
+            var authPause = authWallPause(doc, totalFilled, profile);
             if (authPause) {
               authPause.filled = totalFilled;
               authPause.resumeAttached = resumeAttached;
@@ -1514,13 +1528,13 @@
           // fill/ready: fields filled but do NOT Submit Profile
         } else {
           // Non-profile pages: still honor auth wall (e.g. dedicated sign-in)
-          var authEarly = authWallPause(doc, totalFilled);
+          var authEarly = authWallPause(doc, totalFilled, profile);
           if (authEarly) return authEarly;
         }
 
         var pause3 = challengePause(doc, totalFilled);
         if (pause3) return pause3;
-        var auth3 = authWallPause(doc, totalFilled);
+        var auth3 = authWallPause(doc, totalFilled, profile);
         if (auth3) return auth3;
 
         // EEO — skip / decline, never invent
@@ -1584,14 +1598,14 @@
 
         var pause4 = challengePause(doc, totalFilled);
         if (pause4) return pause4;
-        var auth4 = authWallPause(doc, totalFilled);
+        var auth4 = authWallPause(doc, totalFilled, profile);
         if (auth4) return auth4;
 
         if (runMode === 'submit') {
           for (var hop = 0; hop < 8; hop++) {
             var pauseHop = challengePause(doc, totalFilled);
             if (pauseHop) return pauseHop;
-            var authHop = authWallPause(doc, totalFilled);
+            var authHop = authWallPause(doc, totalFilled, profile);
             if (authHop) return authHop;
 
             if (isEeoStep(doc)) {
@@ -1625,9 +1639,9 @@
               }
             }
 
-            if (needsAuthPause(doc)) {
+            if (needsAuthPause(doc, profile)) {
               return (
-                authWallPause(doc, totalFilled) || {
+                authWallPause(doc, totalFilled, profile) || {
                   ok: false,
                   adapterId: 'icims',
                   needsHuman: true,

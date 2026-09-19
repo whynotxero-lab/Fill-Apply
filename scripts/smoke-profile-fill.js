@@ -65,7 +65,7 @@ function run(page, profile, options) {
    * ---------------------------------------------------------------- */
 
   suite.equal(profile.fullName, 'Chaudhary Zahid Ali', 'full name is stored');
-  suite.equal(profile.email, 'czahidali@gmail.com', 'email is stored');
+  suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'email is stored');
   suite.equal(profile.phoneCountry, '+966', 'Saudi dial code is stored');
   suite.equal(profile.phone, '504131857', 'national number is stored without the code');
   suite.equal(profile.city, 'Khobar', 'city is stored');
@@ -270,7 +270,7 @@ function run(page, profile, options) {
     suite.ok(result.ok, 'the full form run completes');
     suite.equal(doc.getElementById('fn').value, 'Chaudhary', 'first name filled');
     suite.equal(doc.getElementById('ln').value, 'Ali', 'last name filled');
-    suite.equal(doc.getElementById('em').value, 'czahidali@gmail.com', 'email filled');
+    suite.equal(doc.getElementById('em').value, 'czahidali.accacma@gmail.com', 'email filled');
     suite.equal(doc.getElementById('cc').value, '+966', 'phone country code selected');
     suite.equal(doc.getElementById('ph').value, '504131857', 'national number written beside the code');
     suite.equal(doc.getElementById('city').value, 'Khobar', 'city filled');

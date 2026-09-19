@@ -279,7 +279,7 @@ Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframe
 | **Returning Candidate? Log back in!** | **Manual** — `needsHuman` auth-wall pause |
 | **SSO Connected / Disconnect** (no Password Re-enter) | Treat as **authenticated** — **skip** auth pause |
 | **CV** / Resume upload* (max 5MB) | DataTransfer; Resume≈CV synonyms (`lib/synonyms.js`) |
-| **Create a login:** Login* / Password* / Password Re-enter* | **MANUAL — never invent passwords / never create accounts** (still auth pause if present; skipped when SSO Connected) |
+| **Create a login:** Login* / Password* / Password Re-enter* | **Auto-fill when profile.password is set** (Email + Password + retype). If profile password missing → **MANUAL pause** (never invent). Skipped when SSO Connected |
 | First / Last Name* (as in passport) | `firstName` / `lastName` |
 | Nationality*, Gender* | `nationality` / `gender` (+ `customAnswers`); gender here is profile demographic, not EEO invent |
 | Email*, Mobile Phone Country Code* + number* | `email` / `phoneCountry` / `phone` |
@@ -291,7 +291,7 @@ Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframe
 | Marketing consent* | Prefer **No** unless `customAnswers` says Yes (privacy) |
 | Privacy agree → **Submit Profile** | Agree checked; **Submit Profile** only in **submit** mode and only when auth pause is cleared |
 
-**User rule:** Sign Up / Sign In / Register / Login / Create a login / Returning Candidate Log back in = manual attention signals → pause + notify — **except** when Connected / Disconnect SSO chrome is shown without Password Re-enter.
+**User rule (v1.18.7):** Sign Up / Sign In / Register / Login / Create a login / Returning Candidate Log back in → **fill credentials when profile provides password**; otherwise pause + notify (never invent). Still skip pause when Connected / Disconnect SSO chrome is shown without Password Re-enter. Never learn passwords from the page into adaptive KB.
 
 ### Later steps
 
@@ -305,7 +305,7 @@ Captcha: `lib/challenges.js` detects **hCaptcha** (`.h-captcha`, hcaptcha iframe
 
 ### Modes
 
-- **fill** / **ready**: fill fields + Next/Continue — **no** Submit Profile / final Submit / Finish Later as submit. If Create-login password fields present (and not SSO Connected) → always pause first.
+- **fill** / **ready**: fill fields + Next/Continue — **no** Submit Profile / final Submit / Finish Later as submit. If Create-login password fields present (and not SSO Connected): fill when profile.password exists; otherwise pause first.
 - **submit**: fill, Submit Profile (when auth cleared / SSO connected), advance, Submit when complete.
 
 ### Related
@@ -521,7 +521,7 @@ Footer marker: **Powered by CATS**.
 ### What Fill & Apply does today
 
 1. Detects eFinancialCareers hosts (`efinancialcareers.com`).
-2. If a **Sign in / Register** wall is present → **needsHuman** pause via `lib/auth-walls.js` (account required). **Never invents credentials.**
+2. If a **Sign in / Register** wall is present → fill when profile password exists; else **needsHuman** pause via `lib/auth-walls.js`. **Never invents credentials.**
 3. Clicks **Apply now** on the job page.
 4. Fills the **"Your application"** modal: First name / Last name from the active profile; **Upload Resume** via DataTransfer (DOC/DOCX/PDF).
 5. Modes:
@@ -771,3 +771,25 @@ Sources that mainly deep-link into Greenhouse/Ashby/Lever/CATS may need little/n
 - Main project README (load unpacked, architecture, Greenhouse / Indeed notes).
 - [SOURCE_FILL_CHECKLIST.md](SOURCE_FILL_CHECKLIST.md) — per-source fill confidence, start/fill/continue/submit, JobPool POST contract.
 - Adapter comments in `adapters/ats/ashby.js` restate Ashby’s 3/60 and 180-day rules for maintainers.
+
+## SAP SuccessFactors / Al-Futtaim (afuturewithus.com) — v1.18.7
+
+External SuccessFactors-style career sites use the **common signup/login** helper (`lib/signup-login.js`) plus universal fill.
+
+| Control | Behavior |
+|---------|----------|
+| Resume/CV upload | Existing file pipeline (`Zahid_CV.docx` / profile resume) |
+| Email + Retype Email | `profile.email` / confirm aliases |
+| Password + Retype Password | **profile password field** only — never invent |
+| Prefer Sign in | When copy says "Already a registered user? Please sign in" and credentials exist |
+| First / Last Name | Chaudhary / Ali |
+| Country/Region Code + Phone | Saudi Arabia (+966) / 504131857 |
+| Title / Nationality / Country of Residence | Mr / Pakistani / Saudi Arabia |
+| How did you hear | Job Board |
+| Previous / currently employed / family AF | No |
+| Schools alumni | Not Applicable |
+| Date of Birth / job-currency salary | **Leave empty** if blank in profile → Complete Missing Info / pause when required |
+| Terms of Use / data privacy | Tick (open agreement if needed — consent patterns) |
+
+Adapter: `adapters/ats/successfactors.js` (hosts: afuturewithus.com, successfactors.com). Fallback + universal fill also cover SF-like pages.
+

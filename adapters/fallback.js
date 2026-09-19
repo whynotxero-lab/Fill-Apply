@@ -35,6 +35,29 @@
       };
     }
 
+    // Auth wall: pause only when profile has no password; else signup-login fills credentials.
+    try {
+      var Signup = global.FillApplySignupLogin;
+      var doc = typeof document !== 'undefined' ? document : null;
+      if (Signup && Signup.shouldPauseForAuth) {
+        var gate = Signup.shouldPauseForAuth(doc, profile);
+        if (gate && gate.pause) {
+          return {
+            ok: false,
+            adapterId: ctx.adapterId || 'fallback',
+            needsHuman: true,
+            pauseReason: 'auth_wall',
+            error: gate.detail || 'Sign in / register required — complete manually (no profile password)',
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            submitted: false,
+            runMode: runMode
+          };
+        }
+      }
+    } catch (_authGate) { /* continue to fill */ }
+
     if (fieldMaps && global.FillApplyFieldMap && Array.isArray(fieldMaps)) {
       try {
         const registry = global.FillApplyFieldMap.FIELD_MAP;

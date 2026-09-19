@@ -93,7 +93,8 @@
     { id: 'icims', name: 'iCIMS', category: 'ats', hosts: ['icims.com', 'careers-*.icims.com'], hostRe: /icims\.com/i },
     { id: 'cats', name: 'CATS', category: 'ats', hosts: ['catsone.com', 'www.catsone.com'], hostRe: /catsone\.com/i },
     { id: 'recruitee', name: 'Recruitee', category: 'ats', hosts: ['recruitee.com', 'www.recruitee.com'], hostRe: /(^|\.)recruitee\.com$/i },
-    { id: 'teamtailor', name: 'Teamtailor', category: 'ats', hosts: ['teamtailor.com', 'www.teamtailor.com', 'app.teamtailor.com'], hostRe: /(^|\.)teamtailor\.com$/i }
+    { id: 'teamtailor', name: 'Teamtailor', category: 'ats', hosts: ['teamtailor.com', 'www.teamtailor.com', 'app.teamtailor.com'], hostRe: /(^|\.)teamtailor\.com$/i },
+    { id: 'successfactors', name: 'SAP SuccessFactors', category: 'ats', hosts: ['afuturewithus.com', 'www.afuturewithus.com', 'successfactors.com', 'successfactors.eu'], hostRe: /afuturewithus\.com|successfactors\.(com|eu)/i }
   ];
 
   var index = [];

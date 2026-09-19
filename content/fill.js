@@ -28,7 +28,7 @@
    * Matched by label keywords — ticked during Auto Fill / Ready / Submit.
    */
   const CONSENT_RE =
-    /\b(i understand and agree|i agree|i accept|i consent|i acknowledge|i certify|i confirm|agree|consent|privacy notice|applicant privacy|privacy policy|electronic signature|e-?sign|terms(?:\s+and\s+conditions)?|acknowledge|data protection|gdpr|declaration)\b/i;
+    /\b(i understand and agree|i agree|i accept|i consent|i acknowledge|i certify|i confirm|agree|consent|privacy notice|applicant privacy|privacy policy|electronic signature|e-?sign|terms(?:\s+and\s+conditions)?|terms\s+of\s+use|data\s+privacy|acknowledge|data protection|gdpr|declaration)\b/i;
 
   /** CV / Resume import CTAs — prefer these before normal field fill. */
   const CV_IMPORT_RE =
@@ -237,11 +237,16 @@
     return !!(el && el.required);
   }
 
+  /** Set during run() when profile supplies password for career signup/login. */
+  let allowPasswordFill = false;
+  let allowLoginFormFill = false;
+
   function isFillable(el) {
     if (!el || el.disabled) return false;
     const type = String(el.type || '').toLowerCase();
     if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'image') return false;
-    if (type === 'file' || type === 'password') return false;
+    if (type === 'file') return false;
+    if (type === 'password' && !allowPasswordFill) return false;
     if (el.readOnly && !isComboboxInput(el)) return false;
     const tag = el.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
@@ -625,7 +630,14 @@
       if (!isFillable(el)) return;
       if (!isVisible(el)) return;
       if (syn && syn.isSearchLikeField && syn.isSearchLikeField(el)) return;
-      if (syn && syn.isInsideLoginForm && syn.isInsideLoginForm(el)) return;
+      if (
+        !allowLoginFormFill &&
+        syn &&
+        syn.isInsideLoginForm &&
+        syn.isInsideLoginForm(el)
+      ) {
+        return;
+      }
 
       if (String(el.type || '').toLowerCase() === 'radio') {
         const name = el.getAttribute('name') || '';
@@ -846,6 +858,40 @@
       return (
         profile.fullName ||
         [profile.firstName, profile.lastName].filter(Boolean).join(' ') ||
+        ''
+      );
+    }
+    if (key === 'emailConfirm' || key === 'confirm_email' || key === 'retype_email') {
+      const ca = profile.customAnswers || {};
+      return (
+        profile.emailConfirm ||
+        profile.confirm_email ||
+        profile.retype_email ||
+        ca.confirm_email ||
+        ca.retype_email ||
+        ca.emailConfirm ||
+        profile.email ||
+        ca.email ||
+        ''
+      );
+    }
+    if (key === 'password' || key === 'passwordConfirm' || key === 'confirm_password' || key === 'retype_password') {
+      const ca = profile.customAnswers || {};
+      const pw =
+        profile.password ||
+        ca.password ||
+        ca.choose_password ||
+        ca.account_password ||
+        '';
+      if (key === 'password') return pw == null ? '' : String(pw);
+      return (
+        profile.passwordConfirm ||
+        profile.confirm_password ||
+        profile.retype_password ||
+        ca.confirm_password ||
+        ca.retype_password ||
+        ca.passwordConfirm ||
+        pw ||
         ''
       );
     }
@@ -1298,6 +1344,45 @@
       return { ok: false, error: 'FillApplyFieldMap not loaded', filled: 0, unmatched: 0 };
     }
 
+    const Signup = global.FillApplySignupLogin;
+    const hasCreds =
+      (Signup && Signup.profileHasCredentials && Signup.profileHasCredentials(profile)) ||
+      !!(
+        profile.password ||
+        (profile.customAnswers && profile.customAnswers.password)
+      );
+    allowPasswordFill = !!hasCreds;
+    allowLoginFormFill = !!hasCreds;
+
+    let signupPrep = null;
+    if (Signup && typeof Signup.prepareSignupOrLogin === 'function') {
+      try {
+        signupPrep = await Signup.prepareSignupOrLogin(document, profile, {
+          setValue: function (el, v, ctx) {
+            return setNativeValue(el, v, ctx || { profile: profile });
+          },
+          waitMs: 400
+        });
+      } catch (_signupErr) {
+        signupPrep = { ok: false, error: String(_signupErr && _signupErr.message) };
+      }
+      if (signupPrep && signupPrep.pause) {
+        allowPasswordFill = false;
+        allowLoginFormFill = false;
+        return {
+          ok: false,
+          needsHuman: true,
+          pauseReason: signupPrep.pauseReason || 'auth_wall',
+          error: signupPrep.detail || 'Sign in / register required — complete manually (no profile password)',
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          signupLogin: signupPrep
+        };
+      }
+    }
+
     // Give a slow SPA a moment to render its form before deciding anything.
     if (D && D.waitFor && syn) {
       await D.waitFor(
@@ -1653,6 +1738,7 @@
       cvImportText: (cvImport && cvImport.text) || '',
       details: details,
       skipped: skipped,
+      signupLogin: signupPrep,
       missingRequired: dedupe(missingRequired),
       unknownFields: unknownFields,
       // Prefer rich unknown discovery for Complete Missing Information
@@ -1874,6 +1960,7 @@
 
   global.__fillApply = {
     isGenderField: isGenderField,
+    allowPasswordFill: function () { return allowPasswordFill; },
     isGenderChoiceControl: isGenderChoiceControl,
     isConsentCheckbox: isConsentCheckbox,
     tryClickCvImport: tryClickCvImport,

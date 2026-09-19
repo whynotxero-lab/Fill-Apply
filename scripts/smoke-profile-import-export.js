@@ -192,7 +192,7 @@ function sleep(ms) {
   /* Package must not contain real Zahid PII                             */
   /* ------------------------------------------------------------------ */
   await (async function noPrivateDataInPackage() {
-    const markers = ['czahidali@gmail.com', 'chaudhryzahidali', '504131857', 'Chaudhary Zahid Ali'];
+    const markers = ['czahidali.accacma@gmail.com', 'chaudhryzahidali', '504131857', 'Chaudhary Zahid Ali'];
     const scanFiles = [
       'lib/profile.js',
       'profiles/zahid-general.json',
@@ -268,7 +268,7 @@ function sleep(ms) {
     suite.ok(result.knowledgeImported >= 2, 'knowledge facts imported (' + result.knowledgeImported + ')');
 
     const profile = await ctx.Profile.getProfile();
-    suite.equal(profile.email, 'czahidali@gmail.com', 'imported email usable immediately');
+    suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'imported email usable immediately');
     suite.equal(profile.fullName, 'Chaudhary Zahid Ali', 'imported fullName');
     suite.equal(profile.city, 'Khobar', 'imported city');
     suite.ok(
@@ -300,7 +300,7 @@ function sleep(ms) {
     ctx = reloadPage(ctx);
     await sleep(20);
     const profile = await ctx.Profile.getProfile();
-    suite.equal(profile.email, 'czahidali@gmail.com', 'email survives reload');
+    suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'email survives reload');
     suite.equal(profile.nationality, 'Pakistan', 'nationality survives reload');
     const active = await ctx.Profile.getActiveProfileMeta();
     suite.ok(ctx.Profile.isZahidName(active.name), 'Zahid still active after reload');
@@ -326,7 +326,7 @@ function sleep(ms) {
       await ctx.Profile.ensureDefaultProfiles({});
     }
     const profile = await ctx.Profile.getProfile();
-    suite.equal(profile.email, 'czahidali@gmail.com', 'ensure* without reset keeps imported email');
+    suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'ensure* without reset keeps imported email');
     const list = await ctx.Profile.listProfiles();
     suite.ok(
       list.some(function (p) {
@@ -357,7 +357,7 @@ function sleep(ms) {
     suite.equal(bundled.payload.format, 'fill-apply-profile', 'export format');
     suite.equal(bundled.payload.schemaVersion, 1, 'export schemaVersion');
     suite.ok(/zahid.*\.json$/i.test(bundled.filename) || /profile\.json$/i.test(bundled.filename), 'export filename');
-    suite.equal(bundled.payload.profile.email, 'czahidali@gmail.com', 'export includes profile email');
+    suite.equal(bundled.payload.profile.email, 'czahidali.accacma@gmail.com', 'export includes profile email');
     suite.ok(
       bundled.payload.knowledge &&
         Array.isArray(bundled.payload.knowledge.records) &&
@@ -449,7 +449,7 @@ function sleep(ms) {
     suite.ok(!Object.prototype.hasOwnProperty.call(bundled.payload.profile, 'password'), 'no password key');
     suite.ok(!Object.prototype.hasOwnProperty.call(bundled.payload.profile, 'oauth'), 'no oauth key');
     // Legitimate data still present
-    suite.equal(bundled.payload.profile.email, 'czahidali@gmail.com', 'export still has real profile fields');
+    suite.equal(bundled.payload.profile.email, 'czahidali.accacma@gmail.com', 'export still has real profile fields');
   })();
 
   /* ------------------------------------------------------------------ */
@@ -458,10 +458,10 @@ function sleep(ms) {
   await (async function createResetIsExplicit() {
     const page = makePage();
     await page.IO.importPayload(enriched, { activate: true });
-    suite.equal((await page.Profile.getProfile()).email, 'czahidali@gmail.com', 'pre-reset has data');
+    suite.equal((await page.Profile.getProfile()).email, 'czahidali.accacma@gmail.com', 'pre-reset has data');
     // Startup-like ensure must NOT wipe
     await page.Profile.ensureZahidProfile({ reset: false });
-    suite.equal((await page.Profile.getProfile()).email, 'czahidali@gmail.com', 'startup ensure does not reset');
+    suite.equal((await page.Profile.getProfile()).email, 'czahidali.accacma@gmail.com', 'startup ensure does not reset');
     // Explicit user action resets to empty public shell
     await page.Profile.createZahidGeneralProfile();
     const after = await page.Profile.getProfile();

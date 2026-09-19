@@ -24,6 +24,7 @@
     'lib/knowledge-learn.js',
     'lib/files.js',
     'lib/auth-walls.js',
+    'lib/signup-login.js',
     'lib/ats-auth.js',
     'lib/challenges.js',
     'lib/easy-apply-steps.js',
@@ -43,6 +44,7 @@
     'adapters/ats/cats.js',
     'adapters/ats/recruitee.js',
     'adapters/ats/teamtailor.js',
+    'adapters/ats/successfactors.js',
     'adapters/boards/indeed.js',
     'adapters/boards/glassdoor.js',
     'adapters/boards/linkedin.js',
@@ -569,7 +571,7 @@
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tabId },
-        files: ['lib/auth-walls.js', 'lib/ats-auth.js', 'lib/challenges.js']
+        files: ['lib/auth-walls.js', 'lib/signup-login.js', 'lib/ats-auth.js', 'lib/challenges.js']
       });
       const results = await chrome.scripting.executeScript({
         target: { tabId: tabId },
@@ -605,7 +607,7 @@
   }
 
   /** Auth-only inject target — composed separately so INJECT_TARGET stays untouched. */
-  const AUTH_INJECT_FILES = ['lib/auth-walls.js', 'lib/ats-auth.js', 'lib/challenges.js'];
+  const AUTH_INJECT_FILES = ['lib/auth-walls.js', 'lib/signup-login.js', 'lib/ats-auth.js', 'lib/challenges.js'];
 
   async function injectAtsAuthLibs(tabId, allFrames) {
     const target = allFrames

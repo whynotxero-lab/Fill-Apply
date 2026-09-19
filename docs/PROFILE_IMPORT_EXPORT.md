@@ -1,4 +1,4 @@
-# Profile Import / Export (v1.18.6)
+# Profile Import / Export (v1.18.7)
 
 ## Format
 
@@ -14,7 +14,7 @@
 ```
 
 Export = complete accumulated state (profile + adaptive knowledge), not a static CV only.
-Secrets, OAuth tokens, passwords, CAPTCHA/runtime/DOM state are stripped.
+Secrets, OAuth tokens, CAPTCHA/runtime/DOM state are stripped on **export**. On **import** (v1.18.7), client-provided apply-time `password` / confirm / retype email aliases are preserved in the same profile store the fill engine reads so common signup/login can auto-fill career sites. Export still strips passwords (never re-export secrets).
 
 ## UI
 
@@ -30,7 +30,7 @@ Import validates fully before writing; success reports field + knowledge counts.
 
 ## Import private Zahid (client)
 
-1. Install / load Fill & Apply 1.18.6+.
+1. Install / load Fill & Apply 1.18.7+.
 2. Options → Import Profile → select private `zahid-profile.json`.
 3. Zahid activates and is immediately usable; survives reload and updates.
 
@@ -45,3 +45,10 @@ Import validates fully before writing; success reports field + knowledge counts.
 
 - Profile: `availableFrom` / `available_to_start` = 09/25/2026; `middle_east_working_visa` Yes; salary AED 2900 / SAR 3000 kept for Auto Fill maps.
 - Michael Page Submit mode does not rewrite those fields (nav-only); Auto Fill still can.
+
+## v1.18.7 notes
+
+- Import persists `password` (+ confirm/retype email aliases) into the active profile for apply-time signup/login only.
+- Export continues to strip password keys (smoke-covered).
+- Adaptive knowledge never learns passwords from the page (`isSensitiveLabel`).
+- See `lib/signup-login.js` and `docs/APPLICATION_GUIDE.md` (SuccessFactors / Al-Futtaim).

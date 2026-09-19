@@ -26,6 +26,10 @@ Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh
 
 Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
+## v1.18.7 — common signup/login
+
+When the profile includes a **password field**, Auto Fill fills career-site Email/Password (+ retype) and prefers Sign in when the email is already registered. If the password is missing, auth walls still pause (never invent). Passwords are import-only (stripped on export) and never learned into adaptive KB.
+
 ## Load unpacked
 
 1. Clone or download this repo.
