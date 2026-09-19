@@ -1,6 +1,7 @@
 /**
  * Michael Page (michaelpage.ae): awkward placeholders + question text above,
- * Candidate / Apply with CV gates, salary AED/SAR mapping, ME visa from profile.
+ * Candidate / Apply with CV gates, salary AED/SAR mapping, ME visa from profile,
+ * Apply CTA (not Save Job), nav-only Ready/Submit (no re-fill), Next/Apply Now.
  * Run: node scripts/smoke-michaelpage-fill.js
  */
 'use strict';
@@ -37,6 +38,7 @@ const PROFILE = {
   salaryCurrentSAR: '3000',
   salaryCurrentAED: '2900',
   currentSalary: '',
+  availableFrom: '09/25/2026',
   middleEastWorkingVisa: 'Yes',
   experienceLevel: 'Director',
   sector: 'Accounting & Finance',
@@ -51,7 +53,8 @@ const PROFILE = {
     current_monthly_salary: '3000',
     salary_current_aed: '2900',
     salary_current_sar: '3000',
-    available_to_start: 'I can start immediately'
+    available_to_start: '09/25/2026',
+    available_from: '09/25/2026'
   }
 };
 
@@ -236,6 +239,123 @@ const PROFILE = {
   suite.equal(page3.document.getElementById('cur').value, 'SAR', 'currency SAR');
   const yesRadio = page3.document.querySelector('input[name="visa"][value="Yes"]');
   suite.ok(yesRadio && yesRadio.checked, 'ME working visa Yes checked');
+
+  const enrichedStart = page3.window.FillApply_michaelpageAdapter.enrichProfile(PROFILE);
+  suite.equal(
+    String(enrichedStart.availableFrom || ''),
+    '09/25/2026',
+    'enrich availableFrom 09/25/2026'
+  );
+
+  // --- 5) Find Apply CTA (not Save Job) + robust click ---
+  const pageApply = createPage(
+    `
+    <h1>Finance Manager — Riyadh</h1>
+    <button type="button" id="save">Save Job</button>
+    <button type="button" id="share">Share</button>
+    <a href="#apply" id="apply" class="btn-apply">Apply</a>
+    <input type="search" placeholder="Search jobs" />
+    <input type="text" placeholder="Keywords" />
+  `,
+    LIBS
+  );
+  const adA = pageApply.window.FillApply_michaelpageAdapter;
+  const cta = adA.findJobApplyCta(pageApply.document);
+  suite.ok(cta && cta.id === 'apply', 'findJobApplyCta prefers Apply over Save Job');
+  let applyClicked = false;
+  pageApply.document.getElementById('apply').addEventListener('click', function () {
+    applyClicked = true;
+  });
+  const clicked = adA.clickJobApply(pageApply.document);
+  suite.ok(clicked.clicked && applyClicked, 'clickJobApply clicks visible Apply (not Save Job)');
+
+  // --- 6) Nav-only: runMode submit skips field fill ---
+  const pageNav = createPage(
+    `
+    <form id="wiz">
+      <p class="question">First name</p>
+      <input id="nfn" placeholder="Name" value="Chaudhary" />
+      <p class="question">Last Name</p>
+      <input id="nln" placeholder="Last Name" value="Ali" />
+      <button type="button" id="next">Next</button>
+    </form>
+  `,
+    LIBS
+  );
+  const adN = pageNav.window.FillApply_michaelpageAdapter;
+  suite.ok(adN.isNavOnlyMode('submit'), 'submit is nav-only mode');
+  suite.ok(adN.isNavOnlyMode('ready'), 'ready is nav-only mode');
+  suite.ok(!adN.isNavOnlyMode('fill'), 'fill is NOT nav-only');
+
+  let nextClicked = false;
+  pageNav.document.getElementById('next').addEventListener('click', function () {
+    nextClicked = true;
+  });
+  const beforeFn = pageNav.document.getElementById('nfn').value;
+  const navResult = await adN.fill({
+    profile: PROFILE,
+    document: pageNav.document,
+    runMode: 'submit'
+  });
+  suite.ok(navResult && navResult.navOnly, 'submit returns navOnly');
+  suite.ok(navResult.advanced || nextClicked, 'submit clicks Next');
+  suite.ok(nextClicked, 'Next button received click');
+  suite.equal(pageNav.document.getElementById('nfn').value, beforeFn, 'nav-only did not re-fill first name');
+  suite.equal((navResult.filled || 0), 0, 'nav-only filled count is 0');
+
+  // --- 7) Next / Apply Now detection ---
+  const pageFinal = createPage(
+    `
+    <form>
+      <label>Experience Level</label>
+      <select id="el"><option>Director</option></select>
+      <label>Do you currently have a working visa for the Middle East?</label>
+      <input type="radio" name="v" value="Yes" checked />
+      <button type="button" id="applyNow">Apply Now</button>
+    </form>
+  `,
+    LIBS
+  );
+  const adF = pageFinal.window.FillApply_michaelpageAdapter;
+  suite.ok(adF.looksLikeWizardStep(pageFinal.document), 'employment step looks like wizard');
+  const nextMissing = adF.findNextOrContinue(pageFinal.document);
+  suite.ok(!nextMissing, 'no Next on final step');
+  const fin = adF.findFinalSubmitCta(pageFinal.document);
+  suite.ok(fin && /apply now/i.test(fin.textContent || ''), 'detects Apply Now submit CTA');
+  let applyNowClicked = false;
+  pageFinal.document.getElementById('applyNow').addEventListener('click', function () {
+    applyNowClicked = true;
+  });
+  const subResult = await adF.fill({
+    profile: PROFILE,
+    document: pageFinal.document,
+    runMode: 'submit'
+  });
+  suite.ok(subResult && subResult.submitted, 'submit mode clicks Apply Now → submitted');
+  suite.ok(applyNowClicked, 'Apply Now received click');
+  suite.ok(subResult.navOnly, 'final submit still navOnly (no fill)');
+
+  // Auto Fill path still fills when runMode=fill
+  const pageFill = createPage(
+    `
+    <form>
+      <p class="question">First name</p>
+      <input id="ffn" placeholder="Name" />
+      <p class="question">Last Name</p>
+      <input id="fln" placeholder="Last Name" />
+      <button type="button">Next</button>
+    </form>
+  `,
+    LIBS
+  );
+  const fillMode = await pageFill.window.FillApply_michaelpageAdapter.fill({
+    profile: PROFILE,
+    document: pageFill.document,
+    runMode: 'fill'
+  });
+  suite.ok((fillMode.filled || 0) >= 2, 'Auto Fill (runMode=fill) still fills fields: ' + (fillMode && fillMode.filled));
+  suite.equal(pageFill.document.getElementById('ffn').value, 'Chaudhary', 'fill mode wrote first name');
+  suite.ok(!fillMode.navOnly, 'fill mode is not navOnly');
 
   suite.finish();
   if (suite.failed) process.exit(1);

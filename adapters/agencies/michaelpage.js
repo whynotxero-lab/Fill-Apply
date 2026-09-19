@@ -2,14 +2,20 @@
  * Michael Page adapter (agency) — michaelpage.ae / michaelpage.com apply wizard.
  *
  * Multi-step:
- * 1. Survey gate: Client vs Candidate → Candidate
- * 2. Job page Apply → wizard
+ * 1. Survey gate: Client vs Candidate → Candidate (skip if already past)
+ * 2. Job page Apply → wizard (robust scroll + pointer click; not Save Job)
  * 3. How would you like to apply? → Apply with CV / Resume (not LinkedIn)
- * 4. Personal + employment fields via fallback + fieldMaps
+ * 4. Personal + employment steps
+ *
+ * runMode fill (Auto Fill): fill/correct current step fields as usual.
+ * runMode ready | submit (e2e / Auto Ready→Submit): NAV-ONLY on michaelpage
+ * hosts — do NOT re-fill (One Click profile already stored). Only navigate:
+ *   Apply (if job page) → Next → Next/Continue → Apply Now / Submit aliases.
  *
  * Salary: AED → 2900, SAR → 3000, default SAR/3000 from profile.
  * Middle East working visa: only when profile has middleEastWorkingVisa /
  * customAnswers.middle_east_working_visa (never invent Yes/No).
+ * availableFrom / start: prefer profile (e.g. 09/25/2026).
  */
 (function (global) {
   'use strict';
@@ -293,21 +299,42 @@
     return { clicked: false };
   }
 
-  function clickJobApply(doc) {
+  function findJobApplyCta(doc) {
     doc = doc || document;
-    var Syn = global.FillApplySynonyms;
-    if (Syn && typeof Syn.tryClickApplyStart === 'function') {
-      var open = Syn.tryClickApplyStart(doc, { minOpenFormFields: 2 });
-      if (open && open.clicked) return open;
-    }
-    var apply = findClickableByText(
+    return findClickableByText(
       doc,
       [/^apply now$/i, /^apply$/i, /apply for this (job|role|position)/i, /\bapply now\b/i],
-      { exclude: /linkedin|auto-?apply|save job|share/i, preferExact: true }
+      { exclude: /linkedin|auto-?apply|save\s*job|share|bookmark|saved jobs?/i, preferExact: true }
     );
+  }
+
+  /**
+   * Job-detail Apply — prefer dedicated CTA with scroll + realClick / pointer events.
+   * Does not treat Save Job as Apply. Syn tryClickApplyStart is fallback only.
+   */
+  function clickJobApply(doc) {
+    doc = doc || document;
+    var apply = findJobApplyCta(doc);
     if (apply) {
-      realClick(apply);
-      return { clicked: true, text: buttonText(apply), reason: 'michaelpage-apply' };
+      try {
+        if (apply.scrollIntoView) apply.scrollIntoView({ block: 'center', inline: 'nearest' });
+      } catch (_eScroll) {
+        /* ignore */
+      }
+      try {
+        apply.disabled = false;
+      } catch (_eEn) {
+        /* ignore */
+      }
+      if (realClick(apply)) {
+        return { clicked: true, text: buttonText(apply), reason: 'michaelpage-apply', el: apply };
+      }
+    }
+    var Syn = global.FillApplySynonyms;
+    if (Syn && typeof Syn.tryClickApplyStart === 'function') {
+      // force: job pages often have search/filter inputs that look like "form open"
+      var open = Syn.tryClickApplyStart(doc, { minFields: 2, force: true });
+      if (open && open.clicked) return open;
     }
     return { clicked: false };
   }
@@ -322,6 +349,83 @@
       if (visible(inputs[i])) n += 1;
     }
     return n >= 2;
+  }
+
+  function findNextOrContinue(doc) {
+    doc = doc || document;
+    return findClickableByText(
+      doc,
+      [/^next$/i, /^continue$/i, /^save and continue$/i, /\bnext\s*step\b/i, /\bsave\s*(&|and)\s*continue\b/i, /\bcontinue\b/i, /\bnext\b/i],
+      { exclude: /apply now|submit application|submit your|previous|back|save job/i, preferExact: true }
+    );
+  }
+
+  function findFinalSubmitCta(doc) {
+    doc = doc || document;
+    return findClickableByText(
+      doc,
+      [
+        /^apply now$/i,
+        /^submit$/i,
+        /^submit application$/i,
+        /submit your application/i,
+        /submit (&|and) apply/i,
+        /^send application$/i,
+        /\bapply now\b/i,
+        /\bsubmit application\b/i
+      ],
+      { exclude: /linkedin|auto-?apply|save\s*job|share|next|continue/i, preferExact: true }
+    );
+  }
+
+  function hasWizardNav(doc) {
+    return !!(findNextOrContinue(doc) || (pageHasApplicationFields(doc) && findFinalSubmitCta(doc)));
+  }
+
+  /** True when copy/URL looks like an in-progress Michael Page apply wizard (not job detail). */
+  function looksLikeWizardStep(doc) {
+    doc = doc || document;
+    if (findNextOrContinue(doc)) return true;
+    var body = '';
+    try {
+      var raw = '';
+      if (doc.body) raw = doc.body.innerText || doc.body.textContent || '';
+      body = norm(raw).slice(0, 8000);
+    } catch (_e) {
+      body = '';
+    }
+    if (
+      /first name|last name|telephone number|experience level|working visa|monthly salary|available to start|which sector|which sub-sector|current job title/i.test(
+        body
+      )
+    ) {
+      return true;
+    }
+    try {
+      var href = '';
+      if (typeof location !== 'undefined') href = String(location.href || '');
+      if (/\/(apply|application|candidate|register)/i.test(href)) return true;
+    } catch (_e2) {
+      /* ignore */
+    }
+    return false;
+  }
+
+  /** Resolve runMode from ctx (fill | ready | submit). */
+  function resolveRunMode(ctx) {
+    ctx = ctx || {};
+    var options = ctx.options || {};
+    var runMode = ctx.runMode || options.runMode;
+    if (!runMode) {
+      runMode = ctx.autoSubmit || options.autoSubmit ? 'submit' : 'fill';
+    }
+    if (['fill', 'ready', 'submit'].indexOf(runMode) === -1) runMode = 'fill';
+    return runMode;
+  }
+
+  /** True for Ready / Submit — navigate only; do not re-fill prefilled MP profile. */
+  function isNavOnlyMode(runMode) {
+    return runMode === 'ready' || runMode === 'submit';
   }
 
   var FIELD_MAPS = [
@@ -403,12 +507,21 @@
     },
     {
       key: 'availableFrom',
-      labels: ['available to start', 'when are you available to start'],
-      names: ['available_to_start']
+      labels: [
+        'available to start',
+        'when are you available to start',
+        'please let us know when you are available to start'
+      ],
+      names: ['available_to_start', 'available_from']
     }
   ];
 
-  async function runGates(doc) {
+  /**
+   * Gates only: Candidate / Apply / Apply with CV.
+   * Skip gates already past. Click job Apply when CTA visible and not mid-wizard (has Next).
+   */
+  async function runGates(doc, opts) {
+    opts = opts || {};
     doc = doc || document;
     var steps = [];
     var cand = clickCandidateGate(doc);
@@ -416,7 +529,10 @@
       steps.push({ step: 'candidate', text: cand.text });
       await sleep(400);
     }
-    if (!pageHasApplicationFields(doc)) {
+    // Job Apply: only on job detail — never when wizard copy/fields/Next present
+    // (final step "Apply Now" must not be treated as job-detail Apply).
+    var nextBtn = findNextOrContinue(doc);
+    if (!nextBtn && !looksLikeWizardStep(doc)) {
       var apply = clickJobApply(doc);
       if (apply.clicked) {
         steps.push({ step: 'apply', text: apply.text || apply.reason });
@@ -428,7 +544,7 @@
       steps.push({ step: 'apply_with_cv', text: cv.text });
       await sleep(500);
     }
-    // Candidate gate can appear after Apply as well
+    // Candidate / CV can appear after Apply
     if (!cand.clicked) {
       cand = clickCandidateGate(doc);
       if (cand.clicked) {
@@ -446,8 +562,162 @@
     return steps;
   }
 
+  /**
+   * Navigate one step: Next/Continue, or final Apply Now/Submit when runMode=submit.
+   * Never fills fields.
+   */
+  async function navigateWizard(doc, runMode) {
+    doc = doc || document;
+    var next = findNextOrContinue(doc);
+    if (next) {
+      try {
+        if (next.scrollIntoView) next.scrollIntoView({ block: 'center', inline: 'nearest' });
+      } catch (_e) {}
+      if (realClick(next)) {
+        return {
+          advanced: true,
+          submitted: false,
+          text: buttonText(next),
+          kind: 'next'
+        };
+      }
+    }
+    if (runMode === 'submit') {
+      var fin = findFinalSubmitCta(doc);
+      if (!fin) return { advanced: false, submitted: false };
+      var t = buttonText(fin);
+      var isExplicitSubmit = /\bsubmit\b/i.test(t);
+      // Apply Now is final only inside the wizard — never on the job detail page.
+      if (!isExplicitSubmit && !looksLikeWizardStep(doc)) {
+        return { advanced: false, submitted: false };
+      }
+      try {
+        if (fin.scrollIntoView) fin.scrollIntoView({ block: 'center', inline: 'nearest' });
+      } catch (_e2) {}
+      if (realClick(fin)) {
+        return {
+          advanced: false,
+          submitted: true,
+          text: t,
+          kind: 'submit'
+        };
+      }
+    }
+    return { advanced: false, submitted: false };
+  }
+
+  async function fillNavOnly(ctx) {
+    ctx = ctx || {};
+    var doc = ctx.document || (typeof document !== 'undefined' ? document : null);
+    var runMode = resolveRunMode(ctx);
+    var steps = [];
+    try {
+      steps = await runGates(doc);
+    } catch (_eGates) {
+      steps = [];
+    }
+
+    // After a gate click on job detail, wait for wizard — do not treat Apply Now as submit.
+    var justGated = steps.some(function (s) {
+      return s.step === 'apply' || s.step === 'candidate' || s.step === 'apply_with_cv';
+    });
+    if (justGated && !findNextOrContinue(doc) && !looksLikeWizardStep(doc)) {
+      return {
+        ok: true,
+        adapterId: 'michaelpage',
+        clickedApplyStart: true,
+        reDetect: true,
+        handedOff: true,
+        deferToPageAdapter: true,
+        navOnly: true,
+        filled: 0,
+        unmatched: 0,
+        total: 0,
+        submitted: false,
+        advanced: false,
+        runMode: runMode,
+        michaelPageSteps: steps,
+        message: 'Michael Page gate clicked — re-detect (nav-only, no fill)',
+        error: null
+      };
+    }
+
+    var nav = { advanced: false, submitted: false };
+    try {
+      nav = await navigateWizard(doc, runMode);
+    } catch (_eNav) {
+      nav = { advanced: false, submitted: false };
+    }
+    if (nav && nav.text) {
+      steps.push({ step: nav.kind || 'nav', text: nav.text });
+    }
+
+    if (nav.submitted) {
+      return {
+        ok: true,
+        adapterId: 'michaelpage',
+        navOnly: true,
+        filled: 0,
+        unmatched: 0,
+        total: 0,
+        submitted: true,
+        advanced: false,
+        runMode: runMode,
+        michaelPageSteps: steps,
+        message: 'Michael Page nav-only submit: ' + (nav.text || 'Apply Now'),
+        error: null
+      };
+    }
+
+    if (nav.advanced || steps.length) {
+      return {
+        ok: true,
+        adapterId: 'michaelpage',
+        navOnly: true,
+        clickedApplyStart: !!(steps.some(function (s) { return s.step === 'apply'; })),
+        reDetect: true,
+        handedOff: true,
+        deferToPageAdapter: true,
+        filled: 0,
+        unmatched: 0,
+        total: 0,
+        submitted: false,
+        advanced: !!nav.advanced,
+        runMode: runMode,
+        michaelPageSteps: steps,
+        message:
+          'Michael Page nav-only: ' +
+          (nav.text || (steps.length ? steps[steps.length - 1].text : 'step')) +
+          ' — no field fill',
+        error: null
+      };
+    }
+
+    return {
+      ok: true,
+      adapterId: 'michaelpage',
+      navOnly: true,
+      filled: 0,
+      unmatched: 0,
+      total: 0,
+      submitted: false,
+      advanced: false,
+      runMode: runMode,
+      michaelPageSteps: steps,
+      message: 'Michael Page nav-only: no Next/Submit CTA on this page yet',
+      error: null
+    };
+  }
+
   async function fill(ctx) {
     ctx = ctx || {};
+    var runMode = resolveRunMode(ctx);
+
+    // Ready / Submit on Michael Page: navigate only — profile already on site (One Click Apply).
+    if (isNavOnlyMode(runMode)) {
+      return fillNavOnly(ctx);
+    }
+
     var doc = ctx.document || (typeof document !== 'undefined' ? document : null);
     var profile = enrichProfile(ctx.profile || {});
     var steps = [];
@@ -470,6 +740,7 @@
         unmatched: 0,
         total: 0,
         submitted: false,
+        runMode: runMode,
         michaelPageSteps: steps,
         message: 'Michael Page gate clicked — re-detect after wizard load',
         error: null
@@ -485,6 +756,7 @@
         filled: 0,
         unmatched: 0,
         total: 0,
+        runMode: runMode,
         michaelPageSteps: steps
       };
     }
@@ -493,6 +765,7 @@
       Object.assign({}, ctx, {
         profile: profile,
         adapterId: 'michaelpage',
+        runMode: runMode,
         submitSelector: adapter.submitSelector,
         fileInputHints: adapter.fileInputHints,
         fieldMaps: (adapter.fieldMaps || []).concat(ctx.fieldMaps || [])
@@ -500,6 +773,7 @@
     );
     result = result || {};
     result.adapterId = 'michaelpage';
+    result.runMode = runMode;
     result.michaelPageSteps = steps;
     return result;
   }
@@ -524,7 +798,13 @@
     clickCandidateGate: clickCandidateGate,
     clickApplyWithCv: clickApplyWithCv,
     clickJobApply: clickJobApply,
+    findJobApplyCta: findJobApplyCta,
+    findNextOrContinue: findNextOrContinue,
+    findFinalSubmitCta: findFinalSubmitCta,
+    looksLikeWizardStep: looksLikeWizardStep,
     findClickableByText: findClickableByText,
+    isNavOnlyMode: isNavOnlyMode,
+    resolveRunMode: resolveRunMode,
     fill: fill
   };
 

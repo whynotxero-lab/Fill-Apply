@@ -241,3 +241,8 @@ Chrome no longer honours `--load-extension`, so the test installs the extension 
 - Label matching uses question text above fields so awkward placeholders (`Name`, `Town`, `Telephone number`) no longer yield filled 0/4.
 - Salary currency map: AED → 2900, SAR → 3000 (default SAR/3000). Middle East working visa only when profile sets it.
 
+## v1.18.6
+
+- Michael Page Ready/Submit: navigate only (Apply → Next → Continue → Apply Now); do not re-fill One Click profile fields.
+- Robust job-detail Apply click (scroll into view, pointer/real click); never Save Job.
+- Auto Fill on Michael Page still fills/corrects the current step as before.

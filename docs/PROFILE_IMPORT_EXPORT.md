@@ -1,4 +1,4 @@
-# Profile Import / Export (v1.18.5)
+# Profile Import / Export (v1.18.6)
 
 ## Format
 
@@ -30,7 +30,7 @@ Import validates fully before writing; success reports field + knowledge counts.
 
 ## Import private Zahid (client)
 
-1. Install / load Fill & Apply 1.18.5+.
+1. Install / load Fill & Apply 1.18.6+.
 2. Options → Import Profile → select private `zahid-profile.json`.
 3. Zahid activates and is immediately usable; survives reload and updates.
 
@@ -40,3 +40,8 @@ Import validates fully before writing; success reports field + knowledge counts.
 - Empty knowledge shells (blank value) are skipped on fill — never invented.
 - `applicationQuestions` fold into `customQA` / `customAnswers` for long ATS labels.
 - Title/salutation (Mr.), country/province/city, and Yes/No app questions resolve via adaptive knowledge + profile.
+
+## v1.18.6 notes
+
+- Profile: `availableFrom` / `available_to_start` = 09/25/2026; `middle_east_working_visa` Yes; salary AED 2900 / SAR 3000 kept for Auto Fill maps.
+- Michael Page Submit mode does not rewrite those fields (nav-only); Auto Fill still can.

@@ -1268,7 +1268,9 @@
             !out.clickedApplyStart &&
             !out.reDetect &&
             !out.handedOff &&
-            !out.externalApply;
+            !out.externalApply &&
+            !out.navOnly &&
+            !out.advanced;
 
           if (adapterFoundNothing && globalThis.__fillApply) {
             try {
