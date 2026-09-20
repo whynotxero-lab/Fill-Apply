@@ -33,6 +33,7 @@ const SUITES = [
   'smoke-knowledge.js',
   'smoke-knowledge-import-export.js',
   'smoke-backend-jobpool.js',
+  'smoke-jobpool-apply-start.js',
   'smoke-page-panel.js',
   'smoke-ats-auth.js',
   'smoke-challenges.js',

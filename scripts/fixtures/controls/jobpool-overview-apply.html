@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>JobPool overview Apply-start fixture</title></head>
+<body>
+  <main id="posting">
+    <h1>Senior Analyst — Acme Corp</h1>
+    <p class="description">Job overview page. Application form is closed until Apply is clicked.</p>
+    <button type="button" id="ai-upsell">AI Auto-Apply</button>
+    <button type="button" id="upgrade">Upgrade</button>
+    <!-- Ambiguous text that must lose to data-fill-apply="apply-start" -->
+    <button type="button" id="ambiguous">Click here to begin</button>
+    <button type="button" id="apply" data-fill-apply="apply-start">Apply Now</button>
+  </main>
+
+  <div id="application" role="dialog" aria-modal="true" hidden style="display:none;width:400px;height:300px;border:1px solid #ccc;padding:12px">
+    <h2>Application</h2>
+    <form id="job-application-form">
+      <label for="fn">First name</label>
+      <input id="fn" name="first_name" required />
+      <label for="ln">Last name</label>
+      <input id="ln" name="last_name" required />
+      <label for="em">Email</label>
+      <input id="em" name="email" type="email" required />
+      <label for="ph">Phone</label>
+      <input id="ph" name="phone" type="tel" />
+      <button type="button" id="next" data-fill-apply="continue">Continue</button>
+      <button type="button" id="review-step" hidden data-fill-apply="continue">Review</button>
+      <button type="submit" id="submit" hidden data-fill-apply="submit">Submit application</button>
+    </form>
+  </div>
+
+  <script>
+  (function () {
+    var apply = document.getElementById('apply');
+    var app = document.getElementById('application');
+    var next = document.getElementById('next');
+    var review = document.getElementById('review-step');
+    var submit = document.getElementById('submit');
+    apply.addEventListener('click', function () {
+      app.hidden = false;
+      app.style.display = 'block';
+    });
+    next.addEventListener('click', function () {
+      next.hidden = true;
+      review.hidden = false;
+    });
+    review.addEventListener('click', function () {
+      review.hidden = true;
+      submit.hidden = false;
+    });
+  })();
+  </script>
+</body>
+</html>

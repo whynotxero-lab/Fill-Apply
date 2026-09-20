@@ -2320,29 +2320,61 @@
    * ------------------------------------------------------------------ */
 
   /**
-   * Click Next/Continue but never final Submit/Apply (for runMode=ready).
+   * Click Next/Continue/Review but never final Submit/Apply (for runMode=ready).
+   * Prefers [data-fill-apply="continue"] when JobPool/host stamped it.
    */
   function clickContinueButtons() {
     const clicked = [];
-    const buttons = queryAll(
-      'button, input[type="button"], input[type="submit"], a[role="button"], a.button, [role="button"]'
-    );
     const syn = global.FillApplySynonyms;
-    const continueRe = (syn && syn.CONTINUE_CTA) || /\b(next|continue|save and continue|save & continue)\b/i;
-    const isApply = syn && syn.isApplyCta ? syn.isApplyCta : function (t) {
-      return /\b(submit application|apply now|apply for this|submit & apply|apply)\b/i.test(t);
-    };
+
+    if (syn && typeof syn.findContinueButtons === 'function') {
+      const ranked = syn.findContinueButtons(document) || [];
+      for (let r = 0; r < ranked.length; r++) {
+        const btn = ranked[r];
+        if (!btn || btn.disabled) continue;
+        const text = syn.buttonText ? syn.buttonText(btn) : textOf(btn);
+        if (syn.isExcludedApplyCta && syn.isExcludedApplyCta(text)) continue;
+        if (syn.isFinalSubmitCta && syn.isFinalSubmitCta(text) && !(syn.isContinueDataCta && syn.isContinueDataCta(btn))) {
+          continue;
+        }
+        if (realClick(btn)) {
+          clicked.push((text || 'Continue').slice(0, 40));
+          break;
+        }
+      }
+      if (clicked.length) return clicked;
+    }
+
+    const buttons = queryAll(
+      'button, input[type="button"], input[type="submit"], a[role="button"], a.button, [role="button"], [data-fill-apply="continue"]'
+    );
+    const continueRe =
+      (syn && syn.CONTINUE_CTA) ||
+      /\b(next|continue|save and continue|save & continue|review)\b/i;
+    const isApply = syn && syn.isApplyCta
+      ? syn.isApplyCta
+      : function (t) {
+          return /\b(submit application|apply now|apply for this|submit & apply|apply)\b/i.test(t);
+        };
+    const isCont =
+      syn && syn.isContinueCta
+        ? syn.isContinueCta
+        : function (t) {
+            return continueRe.test(t);
+          };
 
     for (let i = 0; i < buttons.length; i++) {
       const btn = buttons[i];
       if (btn.disabled) continue;
-      if (!isVisible(btn)) continue;
+      const marked = syn && syn.isContinueDataCta && syn.isContinueDataCta(btn);
+      if (!marked && !isVisible(btn)) continue;
       const text = syn && syn.buttonText ? syn.buttonText(btn) : textOf(btn);
-      if (!text) continue;
-      if (isApply(text) && !continueRe.test(text)) continue;
-      if (continueRe.test(text)) {
+      if (!text && !marked) continue;
+      if (syn && syn.isExcludedApplyCta && syn.isExcludedApplyCta(text)) continue;
+      if (!marked && isApply(text) && !continueRe.test(text)) continue;
+      if (marked || isCont(text) || continueRe.test(text)) {
         if (realClick(btn)) {
-          clicked.push(text.slice(0, 40));
+          clicked.push((text || 'Continue').slice(0, 40));
           break; // one step at a time
         }
       }
@@ -2352,6 +2384,7 @@
 
   /**
    * Click final Submit/Apply when confidently found (runMode=submit).
+   * Prefers [data-fill-apply="submit"] when stamped.
    */
   function clickSubmitButtons(submitSelector) {
     const syn = global.FillApplySynonyms;
@@ -2366,11 +2399,35 @@
       }
     }
 
+    if (syn && typeof syn.findSubmitButtons === 'function') {
+      const ranked = syn.findSubmitButtons(document) || [];
+      const formOpenEarly =
+        syn && typeof syn.isApplicationFormOpen === 'function'
+          ? syn.isApplicationFormOpen(document)
+          : true;
+      for (let r = 0; r < ranked.length; r++) {
+        const btn = ranked[r];
+        if (!btn || btn.disabled) continue;
+        const text = syn.buttonText ? syn.buttonText(btn) : textOf(btn);
+        if (syn.isExcludedApplyCta && syn.isExcludedApplyCta(text)) continue;
+        if (
+          !formOpenEarly &&
+          syn.isApplyStartCta &&
+          syn.isApplyStartCta(text) &&
+          !(syn.isFinalSubmitCta && syn.isFinalSubmitCta(text)) &&
+          !(syn.isSubmitDataCta && syn.isSubmitDataCta(btn))
+        ) {
+          continue;
+        }
+        if (realClick(btn)) return true;
+      }
+    }
+
     const isApply = syn && syn.isApplyCta ? syn.isApplyCta : function (t) {
       return /\b(submit application|submit & apply|apply now|apply for this|send application|apply)\b/i.test(t);
     };
     const buttons = queryAll(
-      'button[type="submit"], input[type="submit"], button, input[type="button"], a[role="button"], [role="button"]'
+      'button[type="submit"], input[type="submit"], button, input[type="button"], a[role="button"], [role="button"], [data-fill-apply="submit"]'
     );
     const formOpen =
       syn && typeof syn.isApplicationFormOpen === 'function' ? syn.isApplicationFormOpen(document) : true;
@@ -2384,12 +2441,14 @@
     for (let i = 0; i < buttons.length; i++) {
       const btn = buttons[i];
       if (btn.disabled) continue;
-      if (!isVisible(btn)) continue;
+      const markedSubmit = syn && syn.isSubmitDataCta && syn.isSubmitDataCta(btn);
+      if (!markedSubmit && !isVisible(btn)) continue;
       const text = syn && syn.buttonText ? syn.buttonText(btn) : textOf(btn);
       if (isExcluded(text)) continue;
       // If form not open yet, leave Apply-start to tryOpenApplication — do not "submit" overview CTAs
       if (
         !formOpen &&
+        !markedSubmit &&
         syn &&
         syn.isApplyStartCta &&
         syn.isApplyStartCta(text) &&
@@ -2397,8 +2456,14 @@
       ) {
         continue;
       }
-      if (isApply(text) || /submit_app|submit-app|btn-submit|btn-apply/i.test(btn.id + ' ' + btn.className)) {
-        if (/\bnext\b|\bcontinue\b/i.test(text) && !/\bsubmit\b|\bapply\b/i.test(text)) continue;
+      if (
+        markedSubmit ||
+        isApply(text) ||
+        /submit_app|submit-app|btn-submit|btn-apply/i.test(btn.id + ' ' + btn.className)
+      ) {
+        if (/\bnext\b|\bcontinue\b|\breview\b/i.test(text) && !/\bsubmit\b|\bapply\b/i.test(text) && !markedSubmit) {
+          continue;
+        }
         if (realClick(btn)) return true;
       }
     }

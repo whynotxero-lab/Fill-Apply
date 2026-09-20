@@ -1528,6 +1528,19 @@
       }
     }
 
+    // Wait for load before Apply-start so Single (JobPool link already open) matches Batch.
+    if (!opts.skipInitialSettle) {
+      try {
+        progress('running', 'Waiting for page load…', 'DETECTING');
+        await waitTabComplete(currentTabId, 45000);
+      } catch (_eWait) {
+        /* settle below still helps SPAs */
+      }
+      try {
+        await waitPageSettle(currentTabId, 600, 1200);
+      } catch (_eSettle) {}
+    }
+
     function mapStateToPhase(state, message) {
       const s = String(state || '');
       const m = String(message || '');
@@ -1887,6 +1900,15 @@
         message: 'On-page panel — ' + mode + ' on current tab'
       });
 
+      // JobPool overview links often need Apply-start; wait for load like Batch openJobTab.
+      try {
+        notifyPagePanel(tabId, { state: 'running', message: 'Waiting for page load…' });
+        await waitTabComplete(tabId, 45000);
+      } catch (_eLoad) {}
+      try {
+        await waitPageSettle(tabId, 600, 1200);
+      } catch (_eSettleOnce) {}
+
       const packed = await fillTabWithApplyStart(
         tabId,
         profile,
@@ -1894,7 +1916,7 @@
         mode,
         config,
         job,
-        {}
+        { skipInitialSettle: true }
       );
       let fillResult = packed.result;
       const resultTabId = packed.tabId != null ? packed.tabId : tabId;

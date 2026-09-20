@@ -162,6 +162,18 @@ Mock / queue mode (default) still uses the **Application queue** URL list in App
 
 **Only `status === "submitted"` means the application was actually sent to the employer.** Do not flip JobPool to Applied because the local extension bucket is named `applied`, or because `runMode` was `submit` but `submitted` is false (the run may have paused or only filled).
 
+### Optional JobPool `data-fill-apply` hooks (follow-up)
+
+Fill & Apply prefers stable attributes when present (text heuristics remain fallback):
+
+| Attribute | Role |
+|-----------|------|
+| `data-fill-apply="apply-start"` | Open the application (Apply / Apply Now) |
+| `data-fill-apply="continue"` | Advance: Next / Continue / Review |
+| `data-fill-apply="submit"` | Final submit (Submit mode only) |
+
+JobPool (or employer pages it controls) can stamp these on CTAs so overview → form automation is unambiguous. Paid upsell (AI Auto-Apply / Upgrade / Subscribe) is never clicked even if mis-marked.
+
 ### Suggested JobPool flow
 
 1. JobPool publishes apply URLs on `GET /queue` (and/or `GET /queue/next`).
