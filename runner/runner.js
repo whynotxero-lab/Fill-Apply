@@ -5,7 +5,7 @@
  * move to applied/failed OR pause for human → prune old submitted tabs? → delay.
  * Honors STOP and RESUME (after Cloudflare/CAPTCHA / form drift).
  *
- * runMode: fill | ready | submit
+ * runMode: register | fill | navigate | ready | submit
  * Auto-close: Submit mode + submitted success only; keeps last N tabs (keepRecentTabs).
  * PDF report: on successful submit when autoPdfReport is ON.
  */
@@ -21,14 +21,22 @@
   const RUN_PHASES = {
     DETECTING: 'DETECTING',
     FILLING: 'FILLING',
+    REGISTERING: 'REGISTERING',
+    NAVIGATING: 'NAVIGATING',
     WAITING_FOR_DEPENDENT_FIELDS: 'WAITING_FOR_DEPENDENT_FIELDS',
     VALIDATING: 'VALIDATING',
     MISSING_INFORMATION: 'MISSING_INFORMATION',
     BLOCKED: 'BLOCKED',
     READY: 'READY',
     SUBMITTING: 'SUBMITTING',
-    COMPLETE: 'COMPLETE'
+    COMPLETE: 'COMPLETE',
+    WAITING_FOR_USER: 'WAITING_FOR_USER',
+    AUTH_REQUIRED: 'AUTH_REQUIRED',
+    AMBIGUOUS: 'AMBIGUOUS',
+    TIMEOUT: 'TIMEOUT'
   };
+
+  const PROGRESS_PLATEAU_MS = (global.FillApplyTypes && global.FillApplyTypes.PROGRESS_PLATEAU_MS) || 10000;
 
   const INJECT_FILES = [
     'lib/dom-deep.js',
@@ -1518,11 +1526,18 @@
       const s = String(state || '');
       const m = String(message || '');
       if (s === 'done') return RUN_PHASES.COMPLETE;
-      if (s === 'paused' || /missing|blocker|blocked/i.test(m)) {
+      if (s === 'timeout' || /plateau|no progress|timed?\s*out/i.test(m)) return RUN_PHASES.TIMEOUT;
+      if (s === 'paused' || /missing|blocker|blocked|waiting for user/i.test(m)) {
+        if (/captcha|cloudflare|mfa|2fa|otp/i.test(m)) return RUN_PHASES.BLOCKED;
         if (/\bdocument\b|\bfile\b|\bupload\b|\bresume\b|\bcv\b/i.test(m)) return RUN_PHASES.BLOCKED;
+        if (/auth|sign in|log in|register|login/i.test(m)) return RUN_PHASES.AUTH_REQUIRED;
+        if (/ambiguous/i.test(m)) return RUN_PHASES.AMBIGUOUS;
+        if (/waiting for user|action needed|complete manually/i.test(m)) return RUN_PHASES.WAITING_FOR_USER;
         return RUN_PHASES.MISSING_INFORMATION;
       }
       if (s === 'error') return RUN_PHASES.BLOCKED;
+      if (/register|sign\s*up/i.test(m)) return RUN_PHASES.REGISTERING;
+      if (/navigat|next step|continue/i.test(m) && !/submit/i.test(m)) return RUN_PHASES.NAVIGATING;
       if (/submit/i.test(m)) return RUN_PHASES.SUBMITTING;
       if (/depend/i.test(m)) return RUN_PHASES.WAITING_FOR_DEPENDENT_FIELDS;
       if (/detect|inspect|open/i.test(m)) return RUN_PHASES.DETECTING;
@@ -1765,7 +1780,7 @@
     let mode = runMode;
     if (global.FillApplyTypes && global.FillApplyTypes.RUN_MODES) {
       if (global.FillApplyTypes.RUN_MODES.indexOf(mode) === -1) mode = 'fill';
-    } else if (['fill', 'ready', 'submit'].indexOf(mode) === -1) {
+    } else if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(mode) === -1) {
       mode = 'fill';
     }
 

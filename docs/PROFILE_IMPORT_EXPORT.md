@@ -9,7 +9,8 @@
   "exportedAt": "ISO-8601",
   "meta": { "profileName": "Sample", "activate": true, "appVersion": "1.18.0" },
   "profile": { /* applicant fields, customQA, customAnswers, experienceEntries, … */ },
-  "knowledge": { "version": 1, "records": [ /* key / aliases / type / value */ ] }
+  "knowledge": { "version": 1, "records": [ /* key / aliases / type / value */ ] },
+  "adaptiveDictionary": { "version": 1, "records": [ /* synonym of knowledge */ ] }
 }
 ```
 
@@ -52,3 +53,10 @@ Import validates fully before writing; success reports field + knowledge counts.
 - Export continues to strip password keys (smoke-covered).
 - Adaptive knowledge never learns passwords from the page (`isSensitiveLabel`).
 - See `lib/signup-login.js` and `docs/APPLICATION_GUIDE.md` (SuccessFactors / Al-Futtaim).
+
+
+## v1.21.0 notes (Field Memory)
+
+- Export includes both `knowledge` and `adaptiveDictionary` (identical `{ version, records }` blocks).
+- Import accepts `knowledge`, `adaptiveDictionary`, or both. When both are present, `knowledge` wins on the same `canonicalKey`; extra adaptiveDictionary keys are merged in.
+- Profile facts remain under `profile`; adaptive Q&A stays under knowledge / adaptiveDictionary.

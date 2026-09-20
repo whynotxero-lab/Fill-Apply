@@ -88,6 +88,22 @@ const LIBS = [
   suite.ok(S.isSecretKnowledgeRecord({ canonicalKey: 'user_password' }), 'detects password key');
   suite.ok(!S.isSecretKnowledgeRecord({ canonicalKey: 'years_experience' }), 'non-secret ok');
 
+  // Conflict queue API smoke (store-level)
+  const conflict = await S2.putConflict({
+    canonicalKey: 'sap_experience',
+    label: 'SAP?',
+    existingValue: 'Yes',
+    proposedValue: 'No',
+    existingConfidence: 1,
+    existingStatus: 'confirmed'
+  });
+  suite.ok(conflict && conflict.id, 'putConflict returns id');
+  const listed = await S2.listConflicts();
+  suite.ok(listed.some(function (c) { return c.id === conflict.id; }), 'listConflicts includes pending');
+  const kept = await S2.resolveConflict(conflict.id, 'keep');
+  suite.ok(kept.ok && kept.action === 'keep', 'resolveConflict keep');
+  suite.equal((await S2.listConflicts()).length, 0, 'resolve clears pending');
+
   suite.finish();
 })().catch(function (err) {
   console.error(err);

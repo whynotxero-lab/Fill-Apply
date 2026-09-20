@@ -1,5 +1,5 @@
 /**
- * On-page floating control panel — Auto Fill / Auto Ready / Auto Submit.
+ * On-page floating control panel — Auto Register / Auto Fill / Auto Navigate / Auto Ready / Auto Submit.
  *
  * Injected as a top-frame content script on http(s) job/application pages.
  * Isolated via Shadow DOM + `all: initial` on the host so page CSS cannot
@@ -28,7 +28,7 @@
   var HOST_ID = 'fill-apply-page-panel-host';
   var ATTR = 'data-fill-apply-page-panel';
   var PANEL_WIDTH = 216;
-  var PANEL_HEIGHT = 172;
+  var PANEL_HEIGHT = 248;
   var COLLAPSED_WIDTH = 156;
   var COLLAPSED_HEIGHT = 36;
   var MARGIN = 16;
@@ -48,16 +48,22 @@
     paused: 'paused',
     done: 'done',
     error: 'error',
-    // Reliability sprint phases (surfaced when runner sends phase)
+    // Reliability + universal workflow phases
     DETECTING: 'DETECTING',
     FILLING: 'FILLING',
+    REGISTERING: 'REGISTERING',
+    NAVIGATING: 'NAVIGATING',
     WAITING_FOR_DEPENDENT_FIELDS: 'WAITING_FOR_DEPENDENT_FIELDS',
     VALIDATING: 'VALIDATING',
     MISSING_INFORMATION: 'MISSING_INFORMATION',
     BLOCKED: 'BLOCKED',
     READY: 'READY',
     SUBMITTING: 'SUBMITTING',
-    COMPLETE: 'COMPLETE'
+    COMPLETE: 'COMPLETE',
+    WAITING_FOR_USER: 'WAITING_FOR_USER',
+    AUTH_REQUIRED: 'AUTH_REQUIRED',
+    AMBIGUOUS: 'AMBIGUOUS',
+    TIMEOUT: 'TIMEOUT'
   };
 
   var SLOTS = [
@@ -84,6 +90,8 @@
     var m = String(mode || '')
       .toLowerCase()
       .replace(/\s+/g, '');
+    if (m === 'register' || m === 'autoregister' || m === 'signup') return 'register';
+    if (m === 'navigate' || m === 'autonavigate' || m === 'nav') return 'navigate';
     if (m === 'ready' || m === 'autoready') return 'ready';
     if (m === 'submit' || m === 'autosubmit') return 'submit';
     if (m === 'fill' || m === 'autofill') return 'fill';
@@ -361,7 +369,9 @@
       'button.act{all:unset;display:block;width:100%;text-align:center;font-size:12px;font-weight:650;line-height:1.2;padding:7px 8px;border-radius:7px;cursor:pointer;border:1px solid #1f2937;}',
       'button.act:hover:not(:disabled){filter:brightness(1.08);}',
       'button.act:disabled{opacity:.55;cursor:default;}',
+      'button[data-mode="register"]{background:#6d28d9;color:#fff;}',
       'button[data-mode="fill"]{background:#1d4ed8;color:#fff;}',
+      'button[data-mode="navigate"]{background:#0369a1;color:#fff;}',
       'button[data-mode="ready"]{background:#0f766e;color:#fff;}',
       'button[data-mode="submit"]{background:#b45309;color:#fff;}',
       '.status{margin-top:6px;font-size:11px;line-height:1.3;color:#94a3b8;min-height:2.6em;}',
@@ -408,6 +418,8 @@
       state === STATUS.running ||
       state === STATUS.DETECTING ||
       state === STATUS.FILLING ||
+      state === STATUS.REGISTERING ||
+      state === STATUS.NAVIGATING ||
       state === STATUS.WAITING_FOR_DEPENDENT_FIELDS ||
       state === STATUS.VALIDATING ||
       state === STATUS.SUBMITTING
@@ -422,7 +434,11 @@
       state === STATUS.READY ||
       state === STATUS.COMPLETE ||
       state === STATUS.BLOCKED ||
-      state === STATUS.MISSING_INFORMATION
+      state === STATUS.MISSING_INFORMATION ||
+      state === STATUS.WAITING_FOR_USER ||
+      state === STATUS.AUTH_REQUIRED ||
+      state === STATUS.AMBIGUOUS ||
+      state === STATUS.TIMEOUT
     ) {
       setBusy(false);
     }
@@ -434,20 +450,33 @@
     if (state === STATUS.done) return 'Done';
     if (state === STATUS.error) return 'Error';
     if (state === STATUS.DETECTING) return 'Detecting…';
-    if (state === STATUS.FILLING) return 'Filling…';
+    if (state === STATUS.REGISTERING) return 'Auto Register — Signing up…';
+    if (state === STATUS.FILLING) return 'Auto Fill — Filling…';
+    if (state === STATUS.NAVIGATING) return 'Auto Navigate — Next step…';
     if (state === STATUS.WAITING_FOR_DEPENDENT_FIELDS) return 'Waiting for dependent fields…';
     if (state === STATUS.VALIDATING) return 'Validating…';
     if (state === STATUS.MISSING_INFORMATION) return 'Missing information';
     if (state === STATUS.BLOCKED) return 'Blocked';
     if (state === STATUS.READY) return 'Ready';
-    if (state === STATUS.SUBMITTING) return 'Submitting…';
+    if (state === STATUS.SUBMITTING) return 'Auto Submit — Submitting…';
     if (state === STATUS.COMPLETE) return 'Complete';
+    if (state === STATUS.WAITING_FOR_USER) return 'Waiting for user…';
+    if (state === STATUS.AUTH_REQUIRED) return 'Sign in required';
+    if (state === STATUS.AMBIGUOUS) return 'Ambiguous — choose manually';
+    if (state === STATUS.TIMEOUT) return 'Timed out — no progress';
     return 'Idle — current tab';
   }
 
   function sendRun(runMode) {
     var mode = normalizeRunMode(runMode);
-    setStatus(STATUS.running, 'Starting ' + mode + '…');
+    var startLabel = {
+      register: 'Auto Register — Starting…',
+      fill: 'Auto Fill — Filling…',
+      navigate: 'Auto Navigate — Starting…',
+      ready: 'Auto Ready — Starting…',
+      submit: 'Auto Submit — Starting…'
+    };
+    setStatus(STATUS.running, startLabel[mode] || ('Starting ' + mode + '…'));
     if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
       setStatus(STATUS.error, 'Extension background unavailable');
       return;
@@ -468,8 +497,16 @@
         }
         if (!res || res.ok === false) {
           var err = (res && res.error) || 'Request failed';
-          if (/paused|captcha|cloudflare|missing profile|action needed/i.test(err)) {
-            setStatus(STATUS.paused, err);
+          if (/captcha|cloudflare/i.test(err)) {
+            setStatus(STATUS.BLOCKED, 'Blocked — CAPTCHA…');
+          } else if (/auth|sign in|log in|register/i.test(err)) {
+            setStatus(STATUS.AUTH_REQUIRED, err);
+          } else if (/paused|missing profile|action needed|waiting for user/i.test(err)) {
+            setStatus(STATUS.WAITING_FOR_USER, err);
+          } else if (/timeout|no progress|plateau/i.test(err)) {
+            setStatus(STATUS.TIMEOUT, err);
+          } else if (/ambiguous/i.test(err)) {
+            setStatus(STATUS.AMBIGUOUS, err);
           } else {
             setStatus(STATUS.error, err);
           }
@@ -517,7 +554,9 @@
       shadowRoot = existing.shadowRoot;
       if (shadowRoot) {
         statusEl = shadowRoot.querySelector('.status');
+        buttons.register = shadowRoot.querySelector('[data-mode="register"]');
         buttons.fill = shadowRoot.querySelector('[data-mode="fill"]');
+        buttons.navigate = shadowRoot.querySelector('[data-mode="navigate"]');
         buttons.ready = shadowRoot.querySelector('[data-mode="ready"]');
         buttons.submit = shadowRoot.querySelector('[data-mode="submit"]');
       }
@@ -578,7 +617,9 @@
     var btns = doc.createElement('div');
     btns.className = 'btns';
     [
+      { mode: 'register', label: 'Auto Register' },
       { mode: 'fill', label: 'Auto Fill' },
+      { mode: 'navigate', label: 'Auto Navigate' },
       { mode: 'ready', label: 'Auto Ready' },
       { mode: 'submit', label: 'Auto Submit' }
     ].forEach(function (def) {

@@ -39,7 +39,9 @@ const SUITES = [
   'smoke-control-adapter.js',
   'smoke-dependent-fields.js',
   'smoke-runner-states.js',
-  'smoke-application-flow.js'
+  'smoke-application-flow.js',
+  'smoke-universal-workflow.js',
+  'smoke-private-profile-release.js'
 ];
 
 let failed = 0;

@@ -112,24 +112,38 @@
     } else if (controlType === 'checkbox') {
       fieldType = 'boolean';
     }
-    Learn.learn({
-      label: label,
-      value: value,
-      fieldType: fieldType,
-      controlType: controlType || fieldType,
-      kind: kind,
-      host: loc.host,
-      url: loc.url,
-      previousValue: previous || '',
-      autofilled: autofilled && kind === 'correct',
-      name: el.getAttribute && el.getAttribute('name'),
-      placeholder: el.getAttribute && el.getAttribute('placeholder'),
-      id: el.id || '',
-      options: el.tagName === 'SELECT' && el.options
-        ? Array.prototype.map.call(el.options, function (o) {
-            return { value: o.value, text: (o.textContent || '').trim() };
-          })
-        : []
+    Promise.resolve(
+      Learn.learn({
+        label: label,
+        value: value,
+        fieldType: fieldType,
+        controlType: controlType || fieldType,
+        kind: kind,
+        host: loc.host,
+        url: loc.url,
+        previousValue: previous || '',
+        autofilled: autofilled && kind === 'correct',
+        name: el.getAttribute && el.getAttribute('name'),
+        placeholder: el.getAttribute && el.getAttribute('placeholder'),
+        id: el.id || '',
+        options: el.tagName === 'SELECT' && el.options
+          ? Array.prototype.map.call(el.options, function (o) {
+              return { value: o.value, text: (o.textContent || '').trim() };
+            })
+          : []
+      })
+    ).then(function (res) {
+      if (!res || res.accepted !== false || res.reason !== 'conflict_high_confidence') return;
+      try {
+        if (global.chrome && chrome.runtime && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({
+            type: 'FILL_APPLY_KNOWLEDGE_CONFLICTS',
+            notify: true,
+            conflict: res.conflict || null,
+            canonicalKey: res.canonicalKey || ''
+          });
+        }
+      } catch (_e) { /* ignore */ }
     });
   }
 

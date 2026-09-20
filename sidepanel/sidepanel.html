@@ -26,12 +26,26 @@
 
           <fieldset class="mode-fieldset">
             <legend>Application mode</legend>
-            <div class="mode-seg" role="radiogroup" aria-label="Application mode">
+                        <div class="mode-seg" role="radiogroup" aria-label="Application mode">
+              <label class="mode-seg-item">
+                <input type="radio" name="runMode" value="register" />
+                <span class="mode-seg-label">
+                  <strong>Register</strong>
+                  <small>Sign up</small>
+                </span>
+              </label>
               <label class="mode-seg-item">
                 <input type="radio" name="runMode" value="fill" checked />
                 <span class="mode-seg-label">
                   <strong>Fill</strong>
                   <small>Fields</small>
+                </span>
+              </label>
+              <label class="mode-seg-item">
+                <input type="radio" name="runMode" value="navigate" />
+                <span class="mode-seg-label">
+                  <strong>Navigate</strong>
+                  <small>Steps</small>
                 </span>
               </label>
               <label class="mode-seg-item">
@@ -49,7 +63,7 @@
                 </span>
               </label>
             </div>
-          </fieldset>
+</fieldset>
 
           <fieldset class="mode-fieldset">
             <legend>Runner mode</legend>

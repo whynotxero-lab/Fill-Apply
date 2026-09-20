@@ -14,13 +14,19 @@ const suite = createSuite('smoke-runner-states');
 const PHASES = [
   'DETECTING',
   'FILLING',
+  'REGISTERING',
+  'NAVIGATING',
   'WAITING_FOR_DEPENDENT_FIELDS',
   'VALIDATING',
   'MISSING_INFORMATION',
   'BLOCKED',
   'READY',
   'SUBMITTING',
-  'COMPLETE'
+  'COMPLETE',
+  'WAITING_FOR_USER',
+  'AUTH_REQUIRED',
+  'AMBIGUOUS',
+  'TIMEOUT'
 ];
 
 (async function main() {

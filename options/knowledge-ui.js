@@ -16,10 +16,14 @@
   var btnExport = document.getElementById('btnKnowledgeExport');
   var btnImport = document.getElementById('btnKnowledgeImport');
   var importFile = document.getElementById('importKnowledgeFile');
+  var conflictListEl = document.getElementById('knowledgeConflictList');
+  var conflictEmptyEl = document.getElementById('knowledgeConflictEmpty');
+  var conflictHintEl = document.getElementById('knowledgeConflictHint');
 
   if (!listEl) return;
 
   var cache = [];
+  var conflictCache = [];
 
   function setStatus(msg, kind) {
     if (!statusEl) return;
@@ -120,9 +124,36 @@
     card.querySelector('.k-key-input').value = rec.canonicalKey || '';
     card.querySelector('.k-value').value = rec.displayValue != null ? rec.displayValue : rec.value || '';
     card.querySelector('.k-alias-edit').value = aliases;
+    var prov = rec.provenance || {};
+    var ctxBits = [];
+    if (prov.host) ctxBits.push(prov.host);
+    if (prov.originalLabel && prov.originalLabel !== (rec.aliases || [])[0]) {
+      ctxBits.push('q: ' + prov.originalLabel);
+    }
+    if (rec.lastSeenLabel && ctxBits.indexOf('q: ' + rec.lastSeenLabel) === -1) {
+      /* lastSeenLabel often duplicates aliases — show only if useful */
+    }
+    function fmtTs(t) {
+      if (!t) return '';
+      try {
+        return new Date(t).toLocaleString();
+      } catch (_e) {
+        return String(t);
+      }
+    }
+    var first = fmtTs(rec.createdAt);
+    var last = fmtTs(rec.updatedAt || rec.lastUsedAt);
     card.querySelector('.k-meta-line').textContent =
-      (rec.source || 'user') + ' · ' + conf + '% · used ' + used + '×' +
-      (rec.status && rec.status !== 'confirmed' ? ' · ' + rec.status : '');
+      (rec.source || 'user') +
+      ' · ' +
+      conf +
+      '% · used ' +
+      used +
+      '×' +
+      (rec.status && rec.status !== 'confirmed' ? ' · ' + rec.status : '') +
+      (ctxBits.length ? ' · ' + ctxBits.join(' · ') : '') +
+      (first ? ' · first ' + first : '') +
+      (last ? ' · last ' + last : '');
 
     var typeSel = card.querySelector('.k-type');
     userTypes().forEach(function (t) {
@@ -184,6 +215,97 @@
     }
   }
 
+
+  function renderConflicts() {
+    if (!conflictListEl) return;
+    conflictListEl.innerHTML = '';
+    if (conflictHintEl) {
+      conflictHintEl.hidden = !conflictCache.length;
+      conflictHintEl.textContent = conflictCache.length
+        ? conflictCache.length +
+          ' pending conflict' +
+          (conflictCache.length === 1 ? '' : 's') +
+          ' — choose Keep old, Replace, or Add alias. Confirmed answers are never overwritten silently.'
+        : '';
+    }
+    if (conflictEmptyEl) {
+      conflictEmptyEl.hidden = conflictCache.length > 0;
+    }
+    conflictCache.forEach(function (row) {
+      conflictListEl.appendChild(conflictCard(row));
+    });
+  }
+
+  function conflictCard(row) {
+    var card = document.createElement('article');
+    card.className = 'knowledge-card knowledge-conflict-card';
+    card.dataset.id = row.id;
+    var host = row.host ? ' · ' + row.host : '';
+    card.innerHTML =
+      '<p class="k-conflict-title"><strong>Conflict</strong> on <code class="k-key">' +
+      escapeHtml(row.canonicalKey || '') +
+      '</code>' +
+      escapeHtml(host) +
+      '</p>' +
+      '<p class="k-meta-line">Question: ' +
+      escapeHtml(row.label || '(none)') +
+      '</p>' +
+      '<div class="k-conflict-values">' +
+      '<div><span class="k-label">Stored</span><div class="k-conflict-val">' +
+      escapeHtml(row.existingValue || '') +
+      '</div></div>' +
+      '<div><span class="k-label">Proposed</span><div class="k-conflict-val">' +
+      escapeHtml(row.proposedValue || '') +
+      '</div></div>' +
+      '</div>' +
+      '<div class="k-actions">' +
+      '<button type="button" class="ghost k-keep">Keep old</button>' +
+      '<button type="button" class="primary k-replace">Replace</button>' +
+      '<button type="button" class="ghost k-alias">Add alias</button>' +
+      '</div>';
+    card.querySelector('.k-keep').addEventListener('click', function () {
+      resolveConflictRow(row.id, 'keep');
+    });
+    card.querySelector('.k-replace').addEventListener('click', function () {
+      resolveConflictRow(row.id, 'replace');
+    });
+    card.querySelector('.k-alias').addEventListener('click', function () {
+      resolveConflictRow(row.id, 'alias');
+    });
+    return card;
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  async function resolveConflictRow(id, action) {
+    var S = store();
+    if (!S || !S.resolveConflict) return;
+    try {
+      var res = await S.resolveConflict(id, action);
+      if (!res || !res.ok) {
+        setStatus('Conflict resolve failed: ' + ((res && res.reason) || 'unknown'), 'err');
+        return;
+      }
+      setStatus(
+        action === 'keep'
+          ? 'Kept stored answer'
+          : action === 'replace'
+            ? 'Replaced with proposed answer'
+            : 'Added question wording as alias (value unchanged)',
+        'ok'
+      );
+      await load();
+    } catch (e) {
+      setStatus('Conflict resolve failed: ' + (e && e.message ? e.message : e), 'err');
+    }
+  }
+
   async function load() {
     var S = store();
     if (!S) {
@@ -196,6 +318,10 @@
         return (b.updatedAt || 0) - (a.updatedAt || 0);
       });
       render();
+      if (S.listConflicts) {
+        conflictCache = await S.listConflicts();
+        renderConflicts();
+      }
       var settings = await S.getSettings();
       if (enabledEl) enabledEl.checked = settings.learningEnabled !== false;
     } catch (e) {

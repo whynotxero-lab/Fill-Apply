@@ -183,6 +183,15 @@ function readPrivateSample() {
   return JSON.parse(fs.readFileSync(PRIVATE_ZAHID, 'utf8'));
 }
 
+function privateExpects(payload) {
+  const pr = (payload && payload.profile) || {};
+  return {
+    email: String(pr.email || ''),
+    fullName: String(pr.fullName || '')
+  };
+}
+
+
 function sleep(ms) {
   return new Promise(function (r) {
     setTimeout(r, ms);
@@ -194,7 +203,15 @@ function sleep(ms) {
   /* Package must not contain real Sample PII                             */
   /* ------------------------------------------------------------------ */
   await (async function noPrivateDataInPackage() {
-    const markers = ['czahidali.accacma@gmail.com', 'czahidali@gmail.com', '504131857', 'Chaudhary Zahid Ali', '1979-04-06', '+966504131857'];
+    // Derive markers from private handoff when present — never hardcode applicant PII in repo.
+    let markers = [];
+    if (fs.existsSync(PRIVATE_ZAHID)) {
+      const priv = JSON.parse(fs.readFileSync(PRIVATE_ZAHID, 'utf8'));
+      const pr = (priv && priv.profile) || {};
+      markers = [pr.email, pr.emailSecondary, pr.fullName, pr.phone, pr.dateOfBirth, pr.alternatePhone]
+        .map(function (v) { return v == null ? '' : String(v).trim(); })
+        .filter(function (v) { return v.length >= 4; });
+    }
     const scanFiles = [
       'lib/profile.js',
       'profiles/zahid-general.json',
@@ -205,8 +222,11 @@ function sleep(ms) {
     scanFiles.forEach(function (rel) {
       const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
       markers.forEach(function (m) {
-        suite.ok(text.indexOf(m) === -1, rel + ' has no private marker: ' + m);
+        suite.ok(text.indexOf(m) === -1, rel + ' has no private marker');
       });
+      if (!markers.length) {
+        suite.ok(true, rel + ' skip private-marker scan (no private file)');
+      }
     });
     const publicSample = JSON.parse(fs.readFileSync(path.join(ROOT, 'profiles/zahid-general.json'), 'utf8'));
     suite.equal(publicSample.email || '', '', 'public zahid-general.json email is empty');
@@ -268,8 +288,8 @@ function sleep(ms) {
     suite.ok(result.knowledgeImported >= 2, 'knowledge facts imported (' + result.knowledgeImported + ')');
 
     const profile = await ctx.Profile.getProfile();
-    suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'imported email usable immediately');
-    suite.equal(profile.fullName, 'Chaudhary Zahid Ali', 'imported fullName');
+    suite.equal(profile.email, privateExpects(privatePayload).email, 'imported email usable immediately');
+    suite.equal(profile.fullName, privateExpects(privatePayload).fullName, 'imported fullName');
     suite.ok(profile.city === 'Khobar' || profile.city === 'Riyadh', 'imported city (got ' + profile.city + ')');
     suite.ok(
       Array.isArray(profile.experienceEntries) && profile.experienceEntries.length >= 7,
@@ -300,7 +320,7 @@ function sleep(ms) {
     ctx = reloadPage(ctx);
     await sleep(20);
     const profile = await ctx.Profile.getProfile();
-    suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'email survives reload');
+    suite.equal(profile.email, privateExpects(privatePayload).email, 'email survives reload');
     suite.equal(profile.nationality, 'Pakistan', 'nationality survives reload');
     const active = await ctx.Profile.getActiveProfileMeta();
     suite.ok(ctx.Profile.isZahidName(active.name), 'Sample still active after reload');
@@ -326,7 +346,7 @@ function sleep(ms) {
       await ctx.Profile.ensureDefaultProfiles({});
     }
     const profile = await ctx.Profile.getProfile();
-    suite.equal(profile.email, 'czahidali.accacma@gmail.com', 'ensure* without reset keeps imported email');
+    suite.equal(profile.email, privateExpects(privatePayload).email, 'ensure* without reset keeps imported email');
     const list = await ctx.Profile.listProfiles();
     suite.ok(
       list.some(function (p) {
@@ -357,12 +377,19 @@ function sleep(ms) {
     suite.equal(bundled.payload.format, 'fill-apply-profile', 'export format');
     suite.equal(bundled.payload.schemaVersion, 1, 'export schemaVersion');
     suite.ok(/zahid.*\.json$/i.test(bundled.filename) || /profile\.json$/i.test(bundled.filename), 'export filename');
-    suite.equal(bundled.payload.profile.email, 'czahidali.accacma@gmail.com', 'export includes profile email');
+    suite.equal(bundled.payload.profile.email, privateExpects(privatePayload).email, 'export includes profile email');
     suite.ok(
       bundled.payload.knowledge &&
         Array.isArray(bundled.payload.knowledge.records) &&
         bundled.payload.knowledge.records.length >= 1,
       'export includes accumulated knowledge'
+    );
+    suite.ok(
+      bundled.payload.adaptiveDictionary &&
+        Array.isArray(bundled.payload.adaptiveDictionary.records) &&
+        bundled.payload.adaptiveDictionary.records.length ===
+          bundled.payload.knowledge.records.length,
+      'export includes adaptiveDictionary alias matching knowledge'
     );
 
     // Fresh extension storage — Mock only; import creates Sample from JSON
@@ -390,6 +417,56 @@ function sleep(ms) {
     await sleep(20);
     const facts = await fresh.Knowledge.listKnowledge(await fresh.Profile.getActiveProfileId());
     suite.ok(facts.length >= 1, 'round-trip knowledge count ' + facts.length);
+  })();
+
+  /* ------------------------------------------------------------------ */
+  /* adaptiveDictionary-only import (Field Memory alias)                 */
+  /* ------------------------------------------------------------------ */
+  await (async function adaptiveDictionaryAliasImport() {
+    const page = makePage();
+    const payload = {
+      format: 'fill-apply-profile',
+      schemaVersion: 1,
+      meta: { profileName: 'Sample Alias', activate: true },
+      profile: {
+        firstName: 'Sample',
+        lastName: 'Alias',
+        email: 'sample.alias@example.test',
+        fullName: 'Sample Alias'
+      },
+      // No knowledge key — only adaptiveDictionary synonym
+      adaptiveDictionary: {
+        version: 1,
+        records: [
+          {
+            canonicalKey: 'sap_experience',
+            aliases: ['Do you have SAP experience?'],
+            value: 'Yes',
+            displayValue: 'Yes',
+            fieldType: 'boolean',
+            confidence: 1,
+            status: 'confirmed',
+            source: 'imported'
+          }
+        ]
+      }
+    };
+    const validated = page.IO.validateImportPayload(payload);
+    suite.ok(validated.ok, 'adaptiveDictionary-only payload validates');
+    suite.ok(
+      validated.data.knowledge && validated.data.knowledge.length >= 1,
+      'validator maps adaptiveDictionary into knowledge records'
+    );
+    const imported = await page.IO.importPayload(payload, { activate: true });
+    suite.ok(imported.ok, 'adaptiveDictionary-only import ok');
+    await sleep(20);
+    const facts = await page.Knowledge.listKnowledge(await page.Profile.getActiveProfileId());
+    suite.ok(
+      facts.some(function (f) {
+        return f.canonicalKey === 'sap_experience' && String(f.value) === 'Yes';
+      }),
+      'adaptiveDictionary fact restored into knowledge store'
+    );
   })();
 
   /* ------------------------------------------------------------------ */
@@ -461,7 +538,7 @@ function sleep(ms) {
     suite.ok(!Object.prototype.hasOwnProperty.call(bundled.payload.profile, 'password'), 'no password key');
     suite.ok(!Object.prototype.hasOwnProperty.call(bundled.payload.profile, 'oauth'), 'no oauth key');
     // Legitimate data still present
-    suite.equal(bundled.payload.profile.email, 'czahidali.accacma@gmail.com', 'export still has real profile fields');
+    suite.equal(bundled.payload.profile.email, privateExpects(privatePayload).email, 'export still has real profile fields');
   })();
 
   /* ------------------------------------------------------------------ */
@@ -470,10 +547,10 @@ function sleep(ms) {
   await (async function createResetIsExplicit() {
     const page = makePage();
     await page.IO.importPayload(enriched, { activate: true });
-    suite.equal((await page.Profile.getProfile()).email, 'czahidali.accacma@gmail.com', 'pre-reset has data');
+    suite.equal((await page.Profile.getProfile()).email, privateExpects(privatePayload).email, 'pre-reset has data');
     // Startup-like ensure must NOT wipe
     await page.Profile.ensureZahidProfile({ reset: false });
-    suite.equal((await page.Profile.getProfile()).email, 'czahidali.accacma@gmail.com', 'startup ensure does not reset');
+    suite.equal((await page.Profile.getProfile()).email, privateExpects(privatePayload).email, 'startup ensure does not reset');
     // Explicit user action resets to empty public shell
     await page.Profile.createZahidGeneralProfile();
     const after = await page.Profile.getProfile();

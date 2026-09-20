@@ -1,4 +1,6 @@
-# Adaptive applicant knowledge (v1.16)
+# Adaptive applicant knowledge / Field Memory (v1.21+)
+
+> v1.22 wires Field Memory into the universal Register / Fill / Navigate / Ready / Submit workflow — see [`UNIVERSAL_WORKFLOW.md`](UNIVERSAL_WORKFLOW.md).
 
 User-oriented, persistent, two-tier knowledge for Fill & Apply.
 
@@ -277,3 +279,19 @@ Canonical key comes from the resolved **semantic question**, not DOM `id`/`name`
 
 Debug diagnostic per fill: `question`, `semanticKey`, `knowledgeType`, `domControlType`, `candidateKeys`, `selectedKey`, `matchedEvidence`, `source`, `confidence`, `action`, `reason`.
 
+
+
+---
+
+## Field Memory (v1.21)
+
+Product name for Tier-2 adaptive knowledge when Auto-Fill / Auto-Apply hits an unknown field:
+
+1. **Do not hard-stop** the whole run incorrectly — required unknowns pause as `MISSING_INFORMATION` / Complete Missing Information; optional unknowns stay empty and observable.
+2. **Manual fill** is allowed; `content/knowledge-observe.js` captures label, value, control type, and host/url context on trusted change/blur.
+3. **Persist** into IndexedDB (+ hot overlay + profile import/export `knowledge`).
+4. **Reuse** via `FillApplyKnowledge.resolve` when label/aliases + type + context match with sufficient confidence; incompatible control/options → `DO_NOT_FILL`.
+5. **Conflicts** against confirmed high-confidence answers are **never** silently overwritten. They queue in Options → Adaptive knowledge / Field Memory as **Keep old / Replace / Add alias**.
+6. Export JSON keeps `profile` and `knowledge` separate. Export also includes `adaptiveDictionary` as a documented synonym of `knowledge` (same records). Import accepts either key (or both; `knowledge` wins on canonical key collision).
+
+Review/edit UI shows Key, Aliases, Type, Value, plus source/confidence/usage, host context, and first/last timestamps.

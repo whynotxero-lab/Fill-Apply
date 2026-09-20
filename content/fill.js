@@ -1508,9 +1508,33 @@
    * Main entry point
    * ------------------------------------------------------------------ */
 
+
+  /** ~10s no-progress plateau (not absolute lifetime). Progress = fill/select/dependent/nav/upload/new control. */
+  function createProgressTracker(limitMs) {
+    var limit = limitMs != null ? limitMs : 10000;
+    var last = Date.now();
+    return {
+      touch: function () {
+        last = Date.now();
+      },
+      timedOut: function () {
+        return Date.now() - last >= limit;
+      },
+      idleMs: function () {
+        return Date.now() - last;
+      }
+    };
+  }
+
   async function run(profile, options) {
     options = options || {};
     profile = profile || {};
+    var progress = createProgressTracker(
+      options.progressPlateauMs != null
+        ? options.progressPlateauMs
+        : (global.FillApplyTypes && global.FillApplyTypes.PROGRESS_PLATEAU_MS) || 10000
+    );
+    progress.touch();
     if (global.FillApplyKnowledge && profile.__adaptiveKnowledge) {
       global.FillApplyKnowledge.hydrate(profile.__adaptiveKnowledge);
     }
@@ -1856,6 +1880,7 @@
       }
 
       filled += 1;
+      progress.touch();
       markAutofilled(el, fillValue);
       highlight(el, 'filled');
       details.push(
@@ -1883,6 +1908,10 @@
     let dependentPasses = 0;
     const maxDependentPasses = options.maxDependentPasses != null ? options.maxDependentPasses : 2;
     while (dependentPasses < maxDependentPasses) {
+      if (progress.timedOut()) {
+        phase = 'TIMEOUT';
+        break;
+      }
       phase = 'WAITING_FOR_DEPENDENT_FIELDS';
       if (options.onPhase) {
         try {
@@ -1902,6 +1931,7 @@
         return !prevIds[id] && !f.getAttribute(FILLED_ATTR);
       });
       if (!newcomers.length) break;
+      progress.touch();
       dependentPasses += 1;
       phase = 'FILLING';
       fields = nextFields;
@@ -1930,6 +1960,7 @@
           continue;
         }
         filled += 1;
+        progress.touch();
         markAutofilled(el, fillValue);
         highlight(el, 'filled');
         details.push(
@@ -1990,11 +2021,14 @@
         blockers.push({ type: 'file', message: u.label || 'Required file', reason: u.reason });
       }
     });
-    const runPhase = blockers.length
-      ? 'BLOCKED'
-      : missingRequired.length
-        ? 'MISSING_INFORMATION'
-        : 'READY';
+    const runPhase =
+      phase === 'TIMEOUT' || progress.timedOut()
+        ? 'TIMEOUT'
+        : blockers.length
+          ? 'BLOCKED'
+          : missingRequired.length
+            ? 'MISSING_INFORMATION'
+            : 'READY';
 
     return {
       ok: true,
@@ -2248,6 +2282,7 @@
     pickFromDropdown: pickFromDropdown,
     clickContinueButtons: clickContinueButtons,
     clickSubmitButtons: clickSubmitButtons,
+    createProgressTracker: createProgressTracker,
     tryOpenApplication: tryOpenApplication,
     openApplicationAndWait: openApplicationAndWait,
     attachFileInput: attachFileInput,

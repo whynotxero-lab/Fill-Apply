@@ -28,7 +28,9 @@ const JOB_FORM = `
   const P = page.window.FillApplyPagePanel;
   suite.ok(!!P, 'FillApplyPagePanel is attached');
 
+  suite.equal(P.normalizeRunMode('Auto Register'), 'register', 'Auto Register maps to register');
   suite.equal(P.normalizeRunMode('Auto Fill'), 'fill', 'Auto Fill maps to fill');
+  suite.equal(P.normalizeRunMode('Auto Navigate'), 'navigate', 'Auto Navigate maps to navigate');
   suite.equal(P.normalizeRunMode('Auto Ready'), 'ready', 'Auto Ready maps to ready');
   suite.equal(P.normalizeRunMode('Auto Submit'), 'submit', 'Auto Submit maps to submit');
   suite.equal(P.normalizeRunMode('ready'), 'ready', 'ready stays ready');
@@ -86,7 +88,7 @@ const JOB_FORM = `
   suite.ok(midLeft.top > 200 && midLeft.top < 500, 'mid-left is vertically centered');
 })();
 
-(function mountsThreeButtonsInShadow() {
+(function mountsFiveButtonsInShadow() {
   const page = createPage(JOB_FORM, LIBS);
   const P = page.window.FillApplyPagePanel;
   const host = page.document.getElementById(P.HOST_ID) || P.mount(page.document);
@@ -95,10 +97,14 @@ const JOB_FORM = `
   suite.ok(host.style.position === 'fixed', 'host is position:fixed (not a page overlay)');
 
   const shadow = host.shadowRoot;
+  const register = shadow.querySelector('[data-mode="register"]');
   const fill = shadow.querySelector('[data-mode="fill"]');
+  const navigate = shadow.querySelector('[data-mode="navigate"]');
   const ready = shadow.querySelector('[data-mode="ready"]');
   const submit = shadow.querySelector('[data-mode="submit"]');
+  suite.ok(register && register.textContent === 'Auto Register', 'Auto Register button');
   suite.ok(fill && fill.textContent === 'Auto Fill', 'Auto Fill button');
+  suite.ok(navigate && navigate.textContent === 'Auto Navigate', 'Auto Navigate button');
   suite.ok(ready && ready.textContent === 'Auto Ready', 'Auto Ready button');
   suite.ok(submit && submit.textContent === 'Auto Submit', 'Auto Submit button');
   suite.ok(!!shadow.querySelector('.status'), 'status line is present');

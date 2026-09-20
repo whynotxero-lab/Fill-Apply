@@ -1,6 +1,6 @@
 /**
  * Generic heuristic fill adapter — wraps content/fill.js (__fillApply) + file attach.
- * Supports runMode: fill | ready | submit.
+ * Supports runMode: register | fill | navigate | ready | submit.
  */
 (function (global) {
   'use strict';
@@ -22,7 +22,7 @@
     if (!runMode) {
       runMode = ctx.autoSubmit || options.autoSubmit ? 'submit' : 'fill';
     }
-    if (['fill', 'ready', 'submit'].indexOf(runMode) === -1) runMode = 'fill';
+    if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(runMode) === -1) runMode = 'fill';
 
     if (!global.__fillApply || typeof global.__fillApply.run !== 'function') {
       return {
@@ -35,28 +35,198 @@
       };
     }
 
-    // Auth wall: pause only when profile has no password; else signup-login fills credentials.
-    try {
-      var Signup = global.FillApplySignupLogin;
-      var doc = typeof document !== 'undefined' ? document : null;
-      if (Signup && Signup.shouldPauseForAuth) {
-        var gate = Signup.shouldPauseForAuth(doc, profile);
-        if (gate && gate.pause) {
+    // Auto Register: reuse ats-auth / auth-walls / signup-login (no parallel auth).
+    if (runMode === 'register') {
+      try {
+        var docR = typeof document !== 'undefined' ? document : null;
+        var Ats = global.FillApplyAtsAuth;
+        var Walls = global.FillApplyAuthWalls;
+        var SignupR = global.FillApplySignupLogin;
+
+        // Already authenticated → registration unnecessary; hand off to fill.
+        if (Ats && typeof Ats.detectAuthSuccess === 'function') {
+          var success = Ats.detectAuthSuccess(docR, { profile: profile });
+          if (success && (success.ok || success.authenticated || success.result === 'AUTHENTICATED')) {
+            return {
+              ok: true,
+              adapterId: ctx.adapterId || 'fallback',
+              runMode: 'register',
+              phase: 'READY',
+              terminal: 'READY',
+              registerUnnecessary: true,
+              handoffToFill: true,
+              message: 'Already signed in — registration not needed',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false
+            };
+          }
+        }
+
+        var Challenges = global.FillApplyChallenges;
+        if (Challenges && typeof Challenges.detectChallenge === 'function') {
+          var chal = Challenges.detectChallenge(docR);
+          if (chal && chal.kind) {
+            return {
+              ok: false,
+              adapterId: ctx.adapterId || 'fallback',
+              needsHuman: true,
+              phase: 'BLOCKED',
+              terminal: 'BLOCKED',
+              pauseReason: chal.kind,
+              error: 'Blocked — CAPTCHA…',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              runMode: 'register'
+            };
+          }
+        }
+
+        if (Ats && typeof Ats.detectMfaOrEmailVerification === 'function') {
+          var mfa = Ats.detectMfaOrEmailVerification(docR);
+          if (mfa && mfa.code) {
+            return {
+              ok: false,
+              adapterId: ctx.adapterId || 'fallback',
+              needsHuman: true,
+              phase: 'WAITING_FOR_USER',
+              terminal: 'WAITING_FOR_USER',
+              pauseReason: mfa.code,
+              error: mfa.detail || 'Waiting for user — verification required',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              runMode: 'register'
+            };
+          }
+        }
+
+        // Prefer Google social when present
+        if (Ats && typeof Ats.findGoogleAuthActions === 'function') {
+          var googleBtns = Ats.findGoogleAuthActions(docR) || [];
+          if (googleBtns.length) {
+            var g0 = googleBtns[0];
+            var gEl = g0 && (g0.el || g0.element || g0);
+            if (Ats.clickElement) Ats.clickElement(gEl);
+            else if (gEl && gEl.click) gEl.click();
+            return {
+              ok: true,
+              adapterId: ctx.adapterId || 'fallback',
+              runMode: 'register',
+              phase: 'WAITING_FOR_USER',
+              terminal: 'WAITING_FOR_USER',
+              needsHuman: true,
+              googleAuthClicked: true,
+              message: 'Continue with Google — complete sign-in if prompted',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false
+            };
+          }
+        }
+
+        // Email/password register via signup-login (passwords never leave profile → never into knowledge)
+        if (SignupR && typeof SignupR.prepareSignupOrLogin === 'function') {
+          var prep = await SignupR.prepareSignupOrLogin(docR, profile, { waitMs: 400 });
+          if (prep && prep.pause) {
+            return {
+              ok: false,
+              adapterId: ctx.adapterId || 'fallback',
+              needsHuman: true,
+              phase: prep.pauseReason === 'captcha' ? 'BLOCKED' : 'AUTH_REQUIRED',
+              terminal: prep.pauseReason === 'captcha' ? 'BLOCKED' : 'AUTH_REQUIRED',
+              pauseReason: prep.pauseReason || 'auth_wall',
+              error: prep.detail || 'Sign in / register required',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              runMode: 'register',
+              signupLogin: prep
+            };
+          }
           return {
-            ok: false,
+            ok: !!(prep && prep.ok !== false),
             adapterId: ctx.adapterId || 'fallback',
-            needsHuman: true,
-            pauseReason: 'auth_wall',
-            error: gate.detail || 'Sign in / register required — complete manually (no profile password)',
-            filled: 0,
+            runMode: 'register',
+            phase: prep && prep.authenticated ? 'READY' : 'FILLING',
+            terminal: prep && prep.authenticated ? 'READY' : undefined,
+            filled: (prep && prep.filled) || 0,
             unmatched: 0,
             total: 0,
             submitted: false,
-            runMode: runMode
+            signupLogin: prep,
+            message: (prep && prep.detail) || 'Registration fields filled'
           };
         }
+
+        if (Walls && Walls.detectAuthWall) {
+          var wall = Walls.detectAuthWall(docR);
+          if (wall && wall.hit) {
+            return {
+              ok: false,
+              adapterId: ctx.adapterId || 'fallback',
+              needsHuman: true,
+              phase: 'AUTH_REQUIRED',
+              terminal: 'AUTH_REQUIRED',
+              pauseReason: 'auth_wall',
+              error: wall.detail || 'Sign in / register required',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              runMode: 'register'
+            };
+          }
+        }
+      } catch (regErr) {
+        return {
+          ok: false,
+          adapterId: ctx.adapterId || 'fallback',
+          error: String((regErr && regErr.message) || regErr),
+          phase: 'BLOCKED',
+          terminal: 'BLOCKED',
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          runMode: 'register'
+        };
       }
-    } catch (_authGate) { /* continue to fill */ }
+    }
+
+    // Auth wall: pause only when profile has no password; else signup-login fills credentials.
+    // Skip for register mode (handled above).
+    if (runMode !== 'register') {
+      try {
+        var Signup = global.FillApplySignupLogin;
+        var doc = typeof document !== 'undefined' ? document : null;
+        if (Signup && Signup.shouldPauseForAuth) {
+          var gate = Signup.shouldPauseForAuth(doc, profile);
+          if (gate && gate.pause) {
+            return {
+              ok: false,
+              adapterId: ctx.adapterId || 'fallback',
+              needsHuman: true,
+              phase: 'AUTH_REQUIRED',
+              terminal: 'AUTH_REQUIRED',
+              pauseReason: 'auth_wall',
+              error: gate.detail || 'Sign in / register required — complete manually (no profile password)',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              runMode: runMode
+            };
+          }
+        }
+      } catch (_authGate) { /* continue to fill */ }
+    }
 
     if (fieldMaps && global.FillApplyFieldMap && Array.isArray(fieldMaps)) {
       try {
@@ -76,14 +246,16 @@
       }
     }
 
-    const fillResult = await global.__fillApply.run(profile, {
+    let fillResult = await global.__fillApply.run(profile, {
       highlightUnmatched: !!options.highlightUnmatched,
       minOpenFormFields: options.minOpenFormFields,
       formWaitMs: options.formWaitMs,
       // The engine waits for the upload control and attaches the documents the
       // applicant already loaded, rather than leaving it to a later blind pass.
       documents: documents,
-      fileInputHints: fileInputHints
+      fileInputHints: fileInputHints,
+      progressPlateauMs: options.progressPlateauMs,
+      runMode: runMode
     });
 
     // Apply-start open step: form not open yet — runner / Fill once should wait + re-detect
@@ -129,12 +301,74 @@
 
     let advanced = false;
     let submitted = false;
+    let navigateSteps = 0;
+    let plateauTimedOut = false;
+    const plateauMs =
+      (options.progressPlateauMs != null
+        ? options.progressPlateauMs
+        : global.FillApplyTypes && global.FillApplyTypes.PROGRESS_PLATEAU_MS) || 10000;
 
-    if (runMode === 'ready' || runMode === 'submit') {
-      // Navigate multi-step as far as possible (Next/Continue), never final submit in ready
+    async function sleep(ms) {
+      return new Promise(function (r) {
+        setTimeout(r, ms);
+      });
+    }
+
+    // ready / submit / navigate: click Next/Continue/Review (never Submit unless submit mode)
+    if (runMode === 'ready' || runMode === 'submit' || runMode === 'navigate') {
       if (global.__fillApply.clickContinueButtons) {
         const clicked = global.__fillApply.clickContinueButtons();
         advanced = !!(clicked && clicked.length);
+        if (advanced) navigateSteps += 1;
+      }
+    }
+
+    // Auto Navigate: fill → continue → stabilize → re-fill loop; prefer stop at READY; never Submit
+    if (runMode === 'navigate') {
+      const maxSteps = options.maxNavigateSteps != null ? options.maxNavigateSteps : 8;
+      let lastProgressAt = Date.now();
+      let lastFilled = fillResult.filled || 0;
+      while (navigateSteps < maxSteps) {
+        if (Date.now() - lastProgressAt > plateauMs) {
+          plateauTimedOut = true;
+          break;
+        }
+        // Stop if page looks review/ready (submit visible, no more continue)
+        var synNav = global.FillApplySynonyms;
+        var contClicked = [];
+        if (global.__fillApply.clickContinueButtons) {
+          contClicked = global.__fillApply.clickContinueButtons() || [];
+        }
+        if (!contClicked.length) {
+          // No continue — treat as READY
+          advanced = advanced || navigateSteps > 0;
+          break;
+        }
+        advanced = true;
+        navigateSteps += 1;
+        lastProgressAt = Date.now();
+        await sleep(options.navigateStabilizeMs != null ? options.navigateStabilizeMs : 600);
+        // Re-fill newly revealed fields
+        var again = await global.__fillApply.run(profile, {
+          highlightUnmatched: !!options.highlightUnmatched,
+          documents: documents,
+          fileInputHints: fileInputHints,
+          skipApplyStart: true,
+          progressPlateauMs: plateauMs
+        });
+        if (again && again.phase === 'TIMEOUT') {
+          plateauTimedOut = true;
+          fillResult = again;
+          break;
+        }
+        if (again && (again.filled || 0) > lastFilled) {
+          lastFilled = again.filled;
+          lastProgressAt = Date.now();
+        }
+        if (again) {
+          fillResult = again;
+          if (again.filesAttached) filesAttached = again.filesAttached;
+        }
       }
     }
 
@@ -225,8 +459,29 @@
       };
     }
 
+    var phase = fillResult.phase || null;
+    var terminal = null;
+    if (plateauTimedOut || phase === 'TIMEOUT') {
+      phase = 'TIMEOUT';
+      terminal = 'TIMEOUT';
+    } else if (submitted) {
+      phase = 'COMPLETE';
+      terminal = 'COMPLETE';
+    } else if (runMode === 'navigate' && advanced && !plateauTimedOut) {
+      phase = 'READY';
+      terminal = 'READY';
+    } else if (advanced && (runMode === 'ready' || runMode === 'navigate')) {
+      phase = phase || 'READY';
+      terminal = 'READY';
+    } else if (phase === 'READY' || phase === 'BLOCKED' || phase === 'MISSING_INFORMATION') {
+      terminal = phase;
+    } else if (fillResult.ok && !(missingProfileFields && missingProfileFields.length)) {
+      phase = phase || 'READY';
+      terminal = 'READY';
+    }
+
     return {
-      ok: !!fillResult.ok,
+      ok: plateauTimedOut ? true : !!fillResult.ok,
       adapterId: ctx.adapterId || 'fallback',
       filled: fillResult.filled || 0,
       unmatched: fillResult.unmatched || 0,
@@ -248,7 +503,12 @@
       runMode: runMode,
       advanced: advanced,
       submitted: submitted,
-      error: fillResult.error || null,
+      navigateSteps: navigateSteps,
+      phase: phase,
+      terminal: terminal,
+      error: plateauTimedOut
+        ? 'Timed out — no progress for ~10s'
+        : fillResult.error || null,
       missingProfileFields: missingProfileFields.length ? missingProfileFields : undefined,
       debugResolutions: fillResult.debugResolutions || null
     };
