@@ -410,8 +410,57 @@
    * (adapt → fill → verify). Checkboxes/radios use real clicks; selects never
    * free-text; type=date never gets a human-readable date.
    */
+
+  /** Never write the wrong shape into typed controls (Email←salary, Title←first name, etc.). */
+  function valueCompatibleWithControl(el, key, value, descriptor) {
+    var type = String((el && el.type) || '').toLowerCase();
+    var lab = String((descriptor && descriptor.label) || '').toLowerCase();
+    var raw = value == null ? '' : String(value).trim();
+    if (!raw) return false;
+
+    var salaryKeys = {
+      salaryText: 1,
+      currentSalary: 1,
+      expectedSalary: 1,
+      salaryCurrency: 1
+    };
+    var nameKeys = {
+      firstName: 1,
+      lastName: 1,
+      middleName: 1,
+      fullName: 1,
+      preferredName: 1
+    };
+    var honorificKeys = { salutation: 1, title: 1 };
+
+    if (type === 'email' || /\be-?mail\b/.test(lab)) {
+      if (!/@/.test(raw)) return false;
+      if (salaryKeys[key] || nameKeys[key] || honorificKeys[key]) return false;
+      if (key && key !== 'email' && key !== 'emailConfirm' && key !== 'customQA' && key !== 'customAnswers') {
+        // Allow adaptive knowledge only when value still looks like email
+        if (!/@/.test(raw)) return false;
+      }
+      if (/\b(sar|aed|usd|gbp)\b/i.test(raw) && raw.indexOf('@') === -1) return false;
+    }
+    if (type === 'tel' || type === 'phone') {
+      if (salaryKeys[key]) return false;
+      if (key === 'email' || key === 'emailConfirm') return false;
+      if (!/[0-9]/.test(raw)) return false;
+    }
+    if (lab === 'title' || lab === 'title *' || (descriptor && String(descriptor.name || '').toLowerCase() === 'title')) {
+      if (nameKeys[key] || key === 'currentTitle' || key === 'salaryText') return false;
+      if (raw.length > 24) return false;
+      if (/financial|planning|manager|analyst|engineer|director/i.test(raw)) return false;
+    }
+    if (salaryKeys[key] && (type === 'email' || type === 'tel' || type === 'url')) return false;
+    return true;
+  }
+
   function setNativeValue(el, value, context) {
     context = context || {};
+    if (!valueCompatibleWithControl(el, context.key, value, context.descriptor || {})) {
+      return false;
+    }
     const A = global.FillApplyControlAdapter;
     if (A && typeof A.applyToControl === 'function') {
       const ct = controlTypeOf(el, context.descriptor || {});
@@ -686,6 +735,7 @@
       if (!isFillable(el)) return;
       if (!isVisible(el)) return;
       if (syn && syn.isSearchLikeField && syn.isSearchLikeField(el)) return;
+      if (syn && syn.isInsideEnquiryForm && syn.isInsideEnquiryForm(el)) return;
       if (
         !allowLoginFormFill &&
         syn &&
@@ -921,6 +971,14 @@
     if (!key) return '';
     // Name fields: prefer explicit first/last. When only fullName is set,
     // First = first token, Last = remainder (never last token alone).
+    if (key === 'salutation' || key === 'title') {
+      return (
+        profile.salutation ||
+        profile.title ||
+        (profile.customAnswers && (profile.customAnswers.salutation || profile.customAnswers.title)) ||
+        ''
+      );
+    }
     if (
       key === 'fullName' ||
       key === 'firstName' ||
@@ -1092,10 +1150,24 @@
     const labLower = label.toLowerCase();
 
     let key = map.bestKeyForField(descriptor);
+    var inputType = String(descriptor.type || '').toLowerCase();
+    // Typed controls win over fuzzy label matches (stops salary→email, name→title).
+    if (inputType === 'email') key = 'email';
+    else if (inputType === 'tel' || inputType === 'phone') {
+      if (key !== 'phoneCountry') key = 'phone';
+    }
     if (descriptorLooksLikePhoneCountry(descriptor, null) && resolveValue(profile, 'phoneCountry')) {
       key = 'phoneCountry';
     }
+    var labExact = String(descriptor.label || '').trim().toLowerCase();
+    if (labExact === 'title' || labExact === 'title *') {
+      if (key === 'firstName' || key === 'fullName' || key === 'currentTitle' || key === 'salaryText') {
+        key = resolveValue(profile, 'salutation') ? 'salutation' : 'title';
+      }
+    }
     let value = resolveValue(profile, key);
+    if (key === 'title' && !value) value = resolveValue(profile, 'salutation');
+    if (key === 'salutation' && !value) value = resolveValue(profile, 'title');
     if (value) return { key: key, value: value, source: 'fieldMap' };
 
     if (/authoriz|eligible.*work|legally.*work|work.*auth|right to work|permitted to work/.test(labLower)) {

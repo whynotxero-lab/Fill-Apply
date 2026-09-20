@@ -41,6 +41,7 @@ const SUITES = [
   'smoke-runner-states.js',
   'smoke-application-flow.js',
   'smoke-universal-workflow.js',
+  'smoke-title-honorific-enquiry.js',
   'smoke-private-profile-release.js'
 ];
 

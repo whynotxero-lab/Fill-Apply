@@ -1,0 +1,28 @@
+<!doctype html>
+<html><body>
+<form id="requestApplyNow">
+  <label>Title
+    <select name="title" id="honorific" required>
+      <option value="">Select</option>
+      <option>Doctor</option>
+      <option>Miss</option>
+      <option>Mr</option>
+      <option>Mrs</option>
+      <option>Ms</option>
+      <option>Sir</option>
+    </select>
+  </label>
+  <label>First Name <input name="first_name" id="fn" placeholder="First Name" required /></label>
+  <label>Middle Name <input name="middle_name" id="mn" placeholder="Middle Name" /></label>
+  <label>Last Name <input name="last_name" id="ln" placeholder="Last Name" required /></label>
+  <label>Email <input type="email" name="email" id="em" placeholder="Email" required /></label>
+  <label>Phone <input type="tel" id="ph" placeholder="Phone" required /></label>
+  <label>Upload Your CV <input type="file" name="cv" id="cvUpload" /></label>
+</form>
+<form id="requestFormapplication">
+  <h3>For Employers</h3>
+  <p>I am hiring. Tell us about the role you're hiring for and send an inquiry.</p>
+  <label>Name <input name="enq_name" id="enq_name" /></label>
+  <label>Email <input type="email" name="enq_email" id="enq_email" /></label>
+</form>
+</body></html>
