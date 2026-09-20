@@ -82,7 +82,8 @@
     'adapters/boards/workingnomads.js',
     'adapters/boards/jooble.js',
     'adapters/boards/swooped.js',
-    'adapters/boards/efinancialcareers.js'
+    'adapters/boards/efinancialcareers.js',
+    'adapters/boards/jobpool.js'
   ];
 
   /**
@@ -130,8 +131,9 @@
       if (r.total > 0) s += 5;
       if (r.needsHuman) s += 40;
       if (r.submitted) s += 60;
+      if (r.jobpoolMarkedApplied) s += 55;
       if (r.filled > 0) s += 100 + Math.min(r.filled, 50);
-      if (r.clickedApplyStart || r.reDetect) s += 20;
+      if (r.clickedApplyStart || r.reDetect || r.jobpoolHubApply) s += 20;
       if (r.ok === false && !r.total) s -= 1;
       return s;
     }
@@ -1323,12 +1325,18 @@
     const focusHud = !(config && config.focusHud === false);
     const paceCfg = {
       actionDelayMinMs: config && config.actionDelayMinMs != null ? config.actionDelayMinMs : 400,
-      actionDelayMaxMs: config && config.actionDelayMaxMs != null ? config.actionDelayMaxMs : 900
+      actionDelayMaxMs: config && config.actionDelayMaxMs != null ? config.actionDelayMaxMs : 900,
+      backendBaseUrl: (config && config.backendBaseUrl) || ''
     };
 
     const results = await chrome.scripting.executeScript({
       target: Object.assign({ tabId: tabId }, INJECT_TARGET),
       func: async function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg, focusHudArg, paceArg) {
+        // Let JobPool hub detect() match configured backend host without a hard-coded secret.
+        try {
+          globalThis.__fillApplyBackendBaseUrl =
+            (paceArg && paceArg.backendBaseUrl) || globalThis.__fillApplyBackendBaseUrl || '';
+        } catch (_cfgHost) {}
         // Sub-frames are mostly ads, trackers and social widgets. Only engage a
         // sub-frame that actually contains an application form or an Apply CTA.
         const isSubFrame = (function () {
@@ -1343,7 +1351,9 @@
           const hasForm = syn && syn.isApplicationFormOpen && syn.isApplicationFormOpen(document);
           const hasCta =
             syn && syn.findApplyStartButtons && syn.findApplyStartButtons(document).length > 0;
-          if (!hasForm && !hasCta) {
+          const isHub =
+            syn && syn.isJobPoolHubPage && syn.isJobPoolHubPage(document, location.href, {});
+          if (!hasForm && !hasCta && !isHub) {
             return { ok: true, frameSkipped: true, filled: 0, unmatched: 0, total: 0 };
           }
         }
@@ -1411,7 +1421,10 @@
             !out.handedOff &&
             !out.externalApply &&
             !out.navOnly &&
-            !out.advanced;
+            !out.advanced &&
+            !out.jobpoolHubApply &&
+            !out.jobpoolMarkedApplied &&
+            !out.jobpoolPending;
 
           if (adapterFoundNothing && globalThis.__fillApply) {
             try {
@@ -1505,6 +1518,265 @@
       }
     }
     throw lastErr || new Error('injectAndFill failed after frame retries');
+  }
+
+  const JOBPOOL_PENDING_KEY = 'fillApply.jobpoolPendingMark';
+
+  async function readJobPoolPendingMark() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        const area = chrome.storage.session || chrome.storage.local;
+        const result = await new Promise(function (resolve) {
+          area.get([JOBPOOL_PENDING_KEY], function (r) {
+            resolve(r || {});
+          });
+        });
+        let pending = result[JOBPOOL_PENDING_KEY];
+        if (pending) return pending;
+        if (chrome.storage.session && area !== chrome.storage.local) {
+          const local = await new Promise(function (resolve) {
+            chrome.storage.local.get([JOBPOOL_PENDING_KEY], function (r) {
+              resolve(r || {});
+            });
+          });
+          return local[JOBPOOL_PENDING_KEY] || null;
+        }
+      }
+    } catch (_e) {}
+    return null;
+  }
+
+  async function clearJobPoolPendingMark() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        const empty = {};
+        empty[JOBPOOL_PENDING_KEY] = null;
+        if (chrome.storage.session) {
+          await new Promise(function (resolve) {
+            chrome.storage.session.set(empty, resolve);
+          });
+        }
+        await new Promise(function (resolve) {
+          chrome.storage.local.set(empty, resolve);
+        });
+      }
+    } catch (_e) {}
+  }
+
+  /**
+   * After employer submit (or JobPool return-after-submit), focus the Applications
+   * hub and click Mark as applied for the pending card. Also POST markApplied.
+   *
+   * Policy: Mark only when submitted / return-success — not after fill/ready alone.
+   */
+  async function maybeCompleteJobPoolHubMark(fromTabId, fillResult, runMode, job) {
+    const pending = await readJobPoolPendingMark();
+    if (!pending || !pending.jobId) return null;
+
+    const submitted = !!(fillResult && fillResult.submitted);
+    const returnOk = !!(fillResult && (fillResult.jobpoolReturnSuccess || fillResult.jobpoolMarkedApplied));
+    // Ready/Fill without employer submit: do not Mark (unless return-success signals real submit).
+    if (!submitted && !returnOk) return null;
+
+    const S = global.FillApplyStorage;
+    const B = global.FillApplyBackend;
+
+    if (fillResult && fillResult.jobpoolMarkedApplied) {
+      try {
+        if (B && B.markApplied) {
+          await B.markApplied(
+            pending.jobId,
+            withJobPoolStatus({
+              fillResult: fillResult,
+              submitted: true,
+              runMode: runMode || 'submit',
+              url: (job && job.url) || pending.hubUrl || '',
+              source: 'jobpool_hub_mark'
+            })
+          );
+        }
+      } catch (_api) {}
+      await clearJobPoolPendingMark();
+      if (S && S.appendSessionLog) {
+        await S.appendSessionLog({
+          type: 'jobpool_hub_mark',
+          jobId: pending.jobId,
+          alreadyMarked: true
+        });
+      }
+      return { ok: true, alreadyMarked: true, jobId: pending.jobId };
+    }
+
+    // Find JobPool Applications tab
+    let hubTabId = null;
+    try {
+      const tabs = await chrome.tabs.query({});
+      const hubUrl = pending.hubUrl || '';
+      let hubHost = '';
+      try {
+        hubHost = hubUrl ? new URL(hubUrl).hostname : '';
+      } catch (_u) {}
+      for (let i = 0; i < tabs.length; i++) {
+        const t = tabs[i];
+        if (!t || t.id == null || !t.url) continue;
+        if (hubUrl && t.url.indexOf(hubUrl.split('?')[0]) === 0) {
+          hubTabId = t.id;
+          break;
+        }
+        if (hubHost) {
+          try {
+            if (new URL(t.url).hostname === hubHost && /application/i.test(t.url)) {
+              hubTabId = t.id;
+              break;
+            }
+          } catch (_e2) {}
+        }
+      }
+      // Fallback: scan titles / URLs for Applications hub hints
+      if (hubTabId == null) {
+        for (let j = 0; j < tabs.length; j++) {
+          const t2 = tabs[j];
+          if (!t2 || !t2.url) continue;
+          const blob = String(t2.title || '') + ' ' + String(t2.url || '');
+          if (/Intelligent Opportunity Hub|JobPool/i.test(blob) && /application/i.test(blob)) {
+            hubTabId = t2.id;
+            break;
+          }
+        }
+      }
+    } catch (_tabs) {}
+
+    if (hubTabId == null && fromTabId != null) {
+      // Employer may have redirected back into the same tab
+      hubTabId = fromTabId;
+    }
+    if (hubTabId == null) {
+      if (S && S.appendSessionLog) {
+        await S.appendSessionLog({
+          type: 'jobpool_hub_mark_miss',
+          jobId: pending.jobId,
+          error: 'Hub tab not found'
+        });
+      }
+      return { ok: false, error: 'Hub tab not found', jobId: pending.jobId };
+    }
+
+    try {
+      await focusTab(hubTabId);
+      await waitTabComplete(hubTabId, 20000).catch(function () {});
+      await waitPageSettle(hubTabId, 400, 900).catch(function () {});
+    } catch (_focus) {}
+
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: hubTabId, allFrames: false },
+        files: INJECT_FILES
+      });
+    } catch (_inj) {}
+
+    const markJobId = pending.jobId;
+    let markResults;
+    try {
+      markResults = await chrome.scripting.executeScript({
+        target: { tabId: hubTabId, allFrames: false },
+        func: async function (jobIdArg) {
+          const hub = globalThis.FillApplyJobPoolHub;
+          const registry = globalThis.FillApplyRegistry;
+          if (hub && typeof hub.fill === 'function') {
+            const out = await hub.fill({
+              runMode: 'submit',
+              forceJobPoolMark: true,
+              submitted: true,
+              markAfterSubmit: true,
+              options: { forceJobPoolMark: true, runMode: 'submit' }
+            });
+            return out;
+          }
+          if (registry) {
+            const adapter = registry.get && registry.get('jobpool');
+            if (adapter && adapter.fill) {
+              return await adapter.fill({
+                runMode: 'submit',
+                forceJobPoolMark: true,
+                submitted: true
+              });
+            }
+          }
+          // Last resort: click Mark as applied via synonyms
+          const Syn = globalThis.FillApplySynonyms;
+          if (Syn && Syn.findMarkAppliedButtons) {
+            const btns = Syn.findMarkAppliedButtons(document);
+            let target = btns[0] || null;
+            if (jobIdArg && btns.length) {
+              for (let i = 0; i < btns.length; i++) {
+                const card = btns[i].closest('[data-job-id], [data-jobpool-job-id], article, li');
+                const id =
+                  (card &&
+                    (card.getAttribute('data-job-id') ||
+                      card.getAttribute('data-jobpool-job-id'))) ||
+                  '';
+                if (String(id) === String(jobIdArg)) {
+                  target = btns[i];
+                  break;
+                }
+              }
+            }
+            if (target) {
+              target.click();
+              return {
+                ok: true,
+                jobpoolMarkedApplied: true,
+                jobId: jobIdArg,
+                submitted: true,
+                adapterId: 'jobpool'
+              };
+            }
+          }
+          return { ok: false, error: 'JobPool hub mark helpers missing', jobId: jobIdArg };
+        },
+        args: [markJobId]
+      });
+    } catch (markErr) {
+      if (S && S.appendSessionLog) {
+        await S.appendSessionLog({
+          type: 'jobpool_hub_mark_error',
+          jobId: markJobId,
+          error: String((markErr && markErr.message) || markErr)
+        });
+      }
+      return { ok: false, error: String((markErr && markErr.message) || markErr), jobId: markJobId };
+    }
+
+    const markOut =
+      (markResults && markResults[0] && markResults[0].result) ||
+      { ok: false, error: 'No mark result' };
+
+    try {
+      if (B && B.markApplied && markJobId) {
+        await B.markApplied(
+          markJobId,
+          withJobPoolStatus({
+            fillResult: Object.assign({}, fillResult || {}, markOut || {}),
+            submitted: true,
+            runMode: runMode || 'submit',
+            url: (job && job.url) || pending.hubUrl || '',
+            source: 'jobpool_hub_mark',
+            jobpoolMarkedApplied: !!(markOut && markOut.jobpoolMarkedApplied)
+          })
+        );
+      }
+    } catch (_api2) {}
+
+    await clearJobPoolPendingMark();
+    if (S && S.appendSessionLog) {
+      await S.appendSessionLog({
+        type: 'jobpool_hub_mark',
+        jobId: markJobId,
+        ok: !!(markOut && markOut.ok),
+        jobpoolMarkedApplied: !!(markOut && markOut.jobpoolMarkedApplied)
+      });
+    }
+    return Object.assign({ jobId: markJobId }, markOut || {});
   }
 
   /**
@@ -2006,12 +2278,27 @@
         };
       }
 
+      // JobPool hub: after employer submit / return-success, Mark as applied on hub.
+      let hubMark = null;
+      try {
+        hubMark = await maybeCompleteJobPoolHubMark(resultTabId, fillResult, mode, job);
+        if (hubMark && hubMark.jobpoolMarkedApplied) {
+          fillResult = Object.assign({}, fillResult, {
+            jobpoolMarkedApplied: true,
+            jobpoolHubJobId: hubMark.jobId || null
+          });
+        }
+      } catch (_hubErr) {
+        hubMark = { ok: false, error: String((_hubErr && _hubErr.message) || _hubErr) };
+      }
+
       const bits = [];
       if (fillResult.filled != null) {
         bits.push('filled ' + fillResult.filled + '/' + (fillResult.total != null ? fillResult.total : '?'));
       }
       if (fillResult.advanced) bits.push('ready');
       if (fillResult.submitted) bits.push('submitted');
+      if (fillResult.jobpoolMarkedApplied) bits.push('jobpool-marked');
       if (fillResult.adapterId) bits.push(fillResult.adapterId);
       const doneMsg = bits.length ? bits.join(' · ') : 'Done';
       notifyPagePanel(resultTabId, { state: 'done', message: doneMsg, result: fillResult });
@@ -2019,7 +2306,8 @@
         state: 'done',
         message: doneMsg,
         runMode: mode,
-        result: fillResult
+        result: fillResult,
+        jobpoolHubMark: hubMark
       };
     } catch (e) {
       const msg = String((e && e.message) || e);
@@ -2543,6 +2831,15 @@
             }
           }
 
+          // JobPool Applications hub: Mark as applied after employer submit
+          if (wasSubmitted || (fillResult && fillResult.jobpoolReturnSuccess)) {
+            try {
+              await maybeCompleteJobPoolHubMark(tab && tab.id, fillResult, runMode, job);
+            } catch (_hubBatch) {
+              /* best-effort — markApplied API already posted above */
+            }
+          }
+
           // Auto-close: Submit + submitted success only; keep recent context tabs
           if (wasSubmitted && tab && tab.id != null) {
             await trackSubmittedTabAndPrune(tab.id, job.id, config, tab.id);
@@ -2839,6 +3136,8 @@
     pickApplyHandoffTab: pickApplyHandoffTab,
     findApplyHandoffTab: findApplyHandoffTab,
     waitForApplyHandoffTab: waitForApplyHandoffTab,
+    maybeCompleteJobPoolHubMark: maybeCompleteJobPoolHubMark,
+    readJobPoolPendingMark: readJobPoolPendingMark,
     INJECT_FILES: INJECT_FILES
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

@@ -1,3 +1,11 @@
+Fill & Apply v1.22.5 — Load unpacked
+
+Notes — v1.22.5 (JobPool Applications hub Apply → Mark as applied):
+- adapters/boards/jobpool.js: hub detect by page text / data attrs / backendBaseUrl host.
+- Single on hub: Apply first Ready card → employer fill → Mark as applied only after submit/return.
+- Stamps: data-fill-apply=jobpool-apply | jobpool-mark-applied; data-job-id.
+
+
 Fill & Apply v1.22.0 — Load unpacked
 
 1. Chrome → chrome://extensions
