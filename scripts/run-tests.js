@@ -40,7 +40,8 @@ const SUITES = [
   'smoke-dependent-fields.js',
   'smoke-runner-states.js',
   'smoke-application-flow.js',
-  'smoke-universal-workflow.js'
+  'smoke-universal-workflow.js',
+  'smoke-private-profile-release.js'
 ];
 
 let failed = 0;
