@@ -1,0 +1,36 @@
+<!doctype html>
+<html><body>
+<form id="app" data-step="1">
+  <div class="step" data-step="1">
+    <h2>Step 1 — Contact</h2>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required />
+    <label for="fn">First name</label>
+    <input id="fn" name="first_name" required />
+    <button type="button" id="next1">Continue</button>
+  </div>
+  <div class="step" data-step="2" hidden>
+    <h2>Step 2 — Review</h2>
+    <label for="phone">Phone</label>
+    <input id="phone" name="phone" type="tel" required />
+    <button type="button" id="review">Review</button>
+  </div>
+  <div class="step" data-step="3" hidden>
+    <h2>Step 3 — Ready</h2>
+    <p id="ready-msg">Application ready for review</p>
+    <button type="submit" id="submit">Submit application</button>
+  </div>
+</form>
+<script>
+(function () {
+  function show(n) {
+    document.querySelectorAll('.step').forEach(function (s) {
+      s.hidden = String(s.getAttribute('data-step')) !== String(n);
+    });
+    document.getElementById('app').setAttribute('data-step', String(n));
+  }
+  document.getElementById('next1').addEventListener('click', function () { show(2); });
+  document.getElementById('review').addEventListener('click', function () { show(3); });
+})();
+</script>
+</body></html>

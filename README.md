@@ -28,6 +28,13 @@ Guide covers Ashby limits, LinkedIn Easy Apply vs External Apply (PepsiCo/Riyadh
 
 Prior **1.14.1** Glassdoor Easy Apply click fix; **1.14.0** Glassdoor Easy Apply multi-step + frame-churn retry; **1.13.0** source profiles + Start gate + batch-by-source + App Settings rename.
 
+## Universal Application Workflow (v1.22)
+
+On-page and popup controls, in order: **Auto Register → Auto Fill → Auto Navigate → Auto Ready → Auto Submit**.
+
+Runs end in `COMPLETE` | `READY` | `WAITING_FOR_USER` | `MISSING_INFORMATION` | `BLOCKED` | `AUTH_REQUIRED` | `AMBIGUOUS` | `TIMEOUT`. Fill cycles honor a ~10s no-progress plateau (not a hard lifetime). Details: [`docs/UNIVERSAL_WORKFLOW.md`](docs/UNIVERSAL_WORKFLOW.md).
+
+
 ## v1.19.5 — Strengthen trial ATS dictionary (generic fill)
 
 Trial history → built-in catalog / field-map aliases so generic fill is stronger across ATS (Michael Page, NaukriGulf, Al-Futtaim/SF, Ignite, Qiddiya/Workable, Hilton, …) — not one-off adapters only:

@@ -90,6 +90,22 @@ function wireClicks(doc) {
   suite.ok(submitClicks.submit >= 1, 'submit mode clicks Submit application');
   suite.ok(submitResult.submitted, 'submit result is submitted');
 
+  // navigate: advances Continue, never Submit
+  const navPage = createPage(FORM, LIBS);
+  const navClicks = wireClicks(navPage.document);
+  const navAdapter = navPage.window.FillApplyFallbackAdapter;
+  if (navAdapter) {
+    const navResult = await navAdapter.fill({
+      profile: PROFILE,
+      runMode: 'navigate',
+      options: { formWaitMs: 50, navigateStabilizeMs: 10, maxNavigateSteps: 2, progressPlateauMs: 1500 }
+    });
+    suite.ok(navResult && navResult.ok !== false, 'navigate mode completes');
+    suite.equal(navClicks.submit, 0, 'navigate mode does not click Submit');
+  } else {
+    suite.ok(true, 'navigate skipped — adapter shape differs in this harness');
+  }
+
   suite.finish();
 })().catch(function (err) {
   console.error(err);

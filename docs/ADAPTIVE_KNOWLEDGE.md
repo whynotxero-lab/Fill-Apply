@@ -1,4 +1,6 @@
-# Adaptive applicant knowledge / Field Memory (v1.21)
+# Adaptive applicant knowledge / Field Memory (v1.21+)
+
+> v1.22 wires Field Memory into the universal Register / Fill / Navigate / Ready / Submit workflow — see [`UNIVERSAL_WORKFLOW.md`](UNIVERSAL_WORKFLOW.md).
 
 User-oriented, persistent, two-tier knowledge for Fill & Apply.
 

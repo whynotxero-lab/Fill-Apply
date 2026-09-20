@@ -61,7 +61,7 @@ chrome.runtime.onInstalled.addListener(function (details) {
     if (typeof cfg.autoPdfReport === 'undefined') {
       patch.autoPdfReport = true;
     }
-    if (!cfg.runMode || ['fill', 'ready', 'submit'].indexOf(cfg.runMode) === -1) {
+    if (!cfg.runMode || ['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(cfg.runMode) === -1) {
       patch.runMode = cfg.autoSubmit ? 'submit' : 'fill';
     }
     if (Object.keys(patch).length) {
@@ -153,7 +153,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
           } catch (_q) {}
         }
         var mode = message.runMode || (message.config && message.config.runMode) || 'fill';
-        if (['fill', 'ready', 'submit'].indexOf(mode) === -1) mode = 'fill';
+        if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(mode) === -1) mode = 'fill';
         return FillApplyRunner.runOnceOnTab(tabId, mode);
       })()
     );

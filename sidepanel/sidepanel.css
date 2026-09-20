@@ -150,6 +150,7 @@ body {
 }
 
 .mode-seg {
+  flex-wrap: wrap;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0;

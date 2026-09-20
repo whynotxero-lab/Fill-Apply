@@ -26,12 +26,26 @@
 
       <fieldset class="mode-fieldset">
         <legend>Run mode</legend>
-        <div class="mode-seg" role="radiogroup" aria-label="Run mode">
+                <div class="mode-seg" role="radiogroup" aria-label="Run mode">
+          <label class="mode-seg-item">
+            <input type="radio" name="runMode" value="register" />
+            <span class="mode-seg-label">
+              <strong>Register</strong>
+              <small>Sign up</small>
+            </span>
+          </label>
           <label class="mode-seg-item">
             <input type="radio" name="runMode" value="fill" checked />
             <span class="mode-seg-label">
               <strong>Fill</strong>
               <small>Fields only</small>
+            </span>
+          </label>
+          <label class="mode-seg-item">
+            <input type="radio" name="runMode" value="navigate" />
+            <span class="mode-seg-label">
+              <strong>Navigate</strong>
+              <small>Multi-step</small>
             </span>
           </label>
           <label class="mode-seg-item">
@@ -49,7 +63,7 @@
             </span>
           </label>
         </div>
-      </fieldset>
+</fieldset>
 
       <label class="row check auto-close">
         <input type="checkbox" id="autoCloseAppliedTab" checked />
