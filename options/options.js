@@ -192,12 +192,31 @@
       .filter(function (qa) { return qa.question || qa.answer; });
   }
 
+  /** Date inputs require yyyy-MM-dd; never assign free-text like "Available immediately". */
+  function valueForFormControl(el, raw) {
+    var value = raw == null ? '' : String(raw);
+    if (!el) return value;
+    var type = String(el.type || '').toLowerCase();
+    if (type === 'date' || type === 'month' || type === 'week' || type === 'time' || type === 'datetime-local') {
+      if (!value) return '';
+      // Native date: yyyy-MM-dd; month: yyyy-MM; datetime-local: yyyy-MM-ddThh:mm
+      if (type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+      if (type === 'month' && /^\d{4}-\d{2}$/.test(value)) return value;
+      if (type === 'datetime-local' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+        return value.slice(0, 16);
+      }
+      // Non-conforming text (e.g. notice phrases parked on availableFrom) → leave blank
+      return '';
+    }
+    return value;
+  }
+
   function fillForm(profile) {
     suppressDirty = true;
     loadedProfile = profile || {};
     TEXT_FIELDS.forEach(function (name) {
       const el = form.elements.namedItem(name);
-      if (el) el.value = profile[name] || '';
+      if (el) el.value = valueForFormControl(el, profile[name]);
     });
     qaList.innerHTML = '';
     const list = Array.isArray(profile.customQA) ? profile.customQA : [];
