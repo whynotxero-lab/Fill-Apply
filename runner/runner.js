@@ -312,7 +312,13 @@
       else await chrome.storage.local.set({ 'fillApply.pauseState': state });
     } catch (_e) {}
     try {
-      chrome.runtime.sendMessage({ type: 'FILL_APPLY_MISSING_FIELDS', data: state });
+      try {
+        chrome.runtime.sendMessage({ type: 'FILL_APPLY_MISSING_FIELDS', data: state }, function () {
+          void chrome.runtime.lastError;
+        });
+      } catch (_e) {
+        /* Options / panel may not be open — ignore */
+      }
     } catch (_e2) {}
     try {
       if (state.tabId != null && chrome.sidePanel && chrome.sidePanel.open) {

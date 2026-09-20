@@ -1140,34 +1140,70 @@
    * confirmed user knowledge → profile → built-in). Otherwise the original
    * field-map / customAnswers / customQA lookup runs unchanged.
    */
-  function answerFor(profile, descriptor, map) {
-    const K = global.FillApplyKnowledge;
-    if (K && typeof K.resolve === 'function') {
-      return K.resolve(profile, descriptor, map);
-    }
+  function answerLooksLikeEmail(v) {
+    return /@/.test(String(v || '')) && !/\b(sar|aed|usd|gbp)\b/i.test(String(v || ''));
+  }
 
+  function answerLooksLikePhone(v) {
+    return /[0-9]{6,}/.test(String(v || '').replace(/\D/g, ''));
+  }
+
+  function answerFor(profile, descriptor, map) {
     const label = descriptor.label || '';
     const labLower = label.toLowerCase();
-
-    let key = map.bestKeyForField(descriptor);
     var inputType = String(descriptor.type || '').toLowerCase();
-    // Typed controls win over fuzzy label matches (stops salary→email, name→title).
-    if (inputType === 'email') key = 'email';
-    else if (inputType === 'tel' || inputType === 'phone') {
-      if (key !== 'phoneCountry') key = 'phone';
-    }
-    if (descriptorLooksLikePhoneCountry(descriptor, null) && resolveValue(profile, 'phoneCountry')) {
-      key = 'phoneCountry';
-    }
-    var labExact = String(descriptor.label || '').trim().toLowerCase();
-    if (labExact === 'title' || labExact === 'title *') {
-      if (key === 'firstName' || key === 'fullName' || key === 'currentTitle' || key === 'salaryText') {
-        key = resolveValue(profile, 'salutation') ? 'salutation' : 'title';
+
+    function mapFallback() {
+      let key = map.bestKeyForField(descriptor);
+      // Typed controls win over fuzzy label matches (stops salary→email, name→title).
+      if (inputType === 'email') key = 'email';
+      else if (inputType === 'tel' || inputType === 'phone') {
+        if (key !== 'phoneCountry') key = 'phone';
       }
+      if (descriptorLooksLikePhoneCountry(descriptor, null) && resolveValue(profile, 'phoneCountry')) {
+        key = 'phoneCountry';
+      }
+      var labExact = String(descriptor.label || '').trim().toLowerCase();
+      if (labExact === 'title' || labExact === 'title *') {
+        if (key === 'firstName' || key === 'fullName' || key === 'currentTitle' || key === 'salaryText') {
+          key = resolveValue(profile, 'salutation') ? 'salutation' : 'title';
+        }
+      }
+      let value = resolveValue(profile, key);
+      if (key === 'title' && !value) value = resolveValue(profile, 'salutation');
+      if (key === 'salutation' && !value) value = resolveValue(profile, 'title');
+      if (key === 'phone' && !value) {
+        value =
+          resolveValue(profile, 'phoneFull') ||
+          resolveValue(profile, 'phoneE164') ||
+          '';
+      }
+      if (value) return { key: key, value: value, source: 'fieldMap' };
+      return null;
     }
+
+    const K = global.FillApplyKnowledge;
+    if (K && typeof K.resolve === 'function') {
+      var resolved = K.resolve(profile, descriptor, map);
+      var rv = resolved && resolved.value != null ? String(resolved.value).trim() : '';
+      var blocked = resolved && (resolved.action === 'DO_NOT_FILL' || resolved.ambiguous);
+      var badTyped =
+        (inputType === 'email' && rv && !answerLooksLikeEmail(rv)) ||
+        ((inputType === 'tel' || inputType === 'phone') && rv && !answerLooksLikePhone(rv)) ||
+        ((inputType === 'tel' || inputType === 'phone' || inputType === 'email') && (blocked || !rv));
+      if (!badTyped && resolved && (rv || resolved.action === 'DO_NOT_FILL')) {
+        return resolved;
+      }
+      // Typed identity controls: never stay empty because knowledge blocked or mismatched.
+      var fb = mapFallback();
+      if (fb) return fb;
+      if (resolved) return resolved;
+    }
+
+    var mapped = mapFallback();
+    if (mapped) return mapped;
+    let key = map.bestKeyForField(descriptor);
     let value = resolveValue(profile, key);
-    if (key === 'title' && !value) value = resolveValue(profile, 'salutation');
-    if (key === 'salutation' && !value) value = resolveValue(profile, 'title');
     if (value) return { key: key, value: value, source: 'fieldMap' };
 
     if (/authoriz|eligible.*work|legally.*work|work.*auth|right to work|permitted to work/.test(labLower)) {
@@ -1476,9 +1512,41 @@
    * controls. Returns null when the caller supplied none, so a report can tell
    * "nothing to attach" apart from "could not attach".
    */
+  async function loadDocumentsFromExtensionStorage() {
+    return new Promise(function (resolve) {
+      try {
+        if (!global.chrome || !chrome.storage || !chrome.storage.local) {
+          resolve(null);
+          return;
+        }
+        chrome.storage.local.get(['fillApply.documents'], function (bag) {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            resolve(null);
+            return;
+          }
+          resolve((bag && bag['fillApply.documents']) || null);
+        });
+      } catch (_e) {
+        resolve(null);
+      }
+    });
+  }
+
+  async function ensureRunDocuments(options) {
+    options = options || {};
+    var docs = options.documents || null;
+    if (docs && (docs.resume || docs.cover)) return docs;
+    var stored = await loadDocumentsFromExtensionStorage();
+    if (stored && (stored.resume || stored.cover)) {
+      options.documents = stored;
+      return stored;
+    }
+    return docs;
+  }
+
   async function attachStoredDocuments(options) {
     options = options || {};
-    const documents = options.documents;
+    const documents = (await ensureRunDocuments(options)) || options.documents;
     const files = global.FillApplyFiles;
     if (!documents || !files) return null;
     if (!documents.resume && !documents.cover) return null;
@@ -1725,12 +1793,34 @@
 
     // A form with its own country-code control needs the national number in the
     // phone box; one without it needs the full international number.
-        const hasPhoneCountryField = fields.some(function (el) {
-      const fmt = global.FillApplyFormat;
-      const descriptor = D && D.describeField ? D.describeField(el) : legacyDescriptor(el);
-      if (descriptorLooksLikePhoneCountry(descriptor, el)) return true;
-      return !!fmt && fmt.fieldKind(descriptor, null) === 'phoneCountry';
-    });
+    function pageHasIntlTelCountryWidget(root) {
+      try {
+        var scope = root || document;
+        if (scope.querySelector && scope.querySelector('.iti, .iti__flag-container, [class*="iti__"]')) {
+          return true;
+        }
+        var buttons = scope.querySelectorAll
+          ? scope.querySelectorAll('button[aria-label*="country" i], button[aria-label*="Selected country" i]')
+          : [];
+        for (var bi = 0; bi < buttons.length; bi++) {
+          var btn = buttons[bi];
+          var wrap = btn.closest ? btn.closest('div, form, label, span') : null;
+          if (wrap && wrap.querySelector && wrap.querySelector('input[type="tel"], input[type="phone"]')) {
+            return true;
+          }
+        }
+      } catch (_e) {}
+      return false;
+    }
+
+    const hasPhoneCountryField =
+      pageHasIntlTelCountryWidget(document) ||
+      fields.some(function (el) {
+        const fmt = global.FillApplyFormat;
+        const descriptor = D && D.describeField ? D.describeField(el) : legacyDescriptor(el);
+        if (descriptorLooksLikePhoneCountry(descriptor, el)) return true;
+        return !!fmt && fmt.fieldKind(descriptor, null) === 'phoneCountry';
+      });
 
     let filled = 0;
     let unmatched = 0;
