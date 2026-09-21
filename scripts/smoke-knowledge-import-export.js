@@ -11,6 +11,7 @@ const suite = createSuite('smoke-knowledge-import-export');
 const LIBS = [
   'lib/control-adapter.js',
   'lib/ats-faq-seed.js',
+  'lib/knowledge-policy.js',
   'lib/knowledge-canonical.js',
   'lib/knowledge-store.js'
 ];

@@ -19,6 +19,7 @@ const FILL_LIBS = [
   'lib/field-map.js',
   'lib/control-adapter.js',
   'lib/ats-faq-seed.js',
+  'lib/knowledge-policy.js',
   'lib/knowledge-canonical.js',
   'lib/knowledge-store.js',
   'lib/knowledge-resolver.js',
@@ -198,8 +199,8 @@ function fixture(name) {
   // I) Version
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-  suite.ok(/^1\.22\./.test(pkg.version), 'package version 1.22.x (got ' + pkg.version + ')');
-  suite.ok(/^1\.22\./.test(man.version), 'manifest version 1.22.x (got ' + man.version + ')');
+  suite.ok(/^1\.2[23]\./.test(pkg.version), 'package version 1.22+/1.23 (got ' + pkg.version + ')');
+  suite.ok(/^1\.2[23]\./.test(man.version), 'manifest version 1.22+/1.23 (got ' + man.version + ')');
 
   suite.finish();
 })().catch(function (err) {

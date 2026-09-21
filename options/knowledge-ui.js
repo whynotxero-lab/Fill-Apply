@@ -1,6 +1,7 @@
 /**
- * App Settings — Adaptive knowledge review / edit.
- * Primary model: Key — Aliases — Type — Value.
+ * App Settings — Adaptive Dictionary (compact searchable cards).
+ * Model: Question + Answer + Type + Semantic identity + Aliases.
+ * No meaningless % confidence. source=user_confirmed; usage on fill only.
  */
 (function () {
   'use strict';
@@ -8,6 +9,8 @@
   var listEl = document.getElementById('knowledgeList');
   var emptyEl = document.getElementById('knowledgeEmpty');
   var filterEl = document.getElementById('knowledgeFilter');
+  var typeFilterEl = document.getElementById('knowledgeTypeFilter');
+  var sortEl = document.getElementById('knowledgeSort');
   var statusEl = document.getElementById('knowledgeStatus');
   var countEl = document.getElementById('knowledgeCountHint');
   var enabledEl = document.getElementById('knowledgeLearningEnabled');
@@ -24,6 +27,7 @@
 
   var cache = [];
   var conflictCache = [];
+  var expanded = {};
 
   function setStatus(msg, kind) {
     if (!statusEl) return;
@@ -56,7 +60,16 @@
     return C && C.toUserFieldType ? C.toUserFieldType(t) : String(t || 'string');
   }
 
-  function matchesFilter(rec, q) {
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function matchesFilter(rec, q, typeF) {
+    if (typeF && toUserType(rec.fieldType) !== typeF) return false;
     if (!q) return true;
     var hay = [
       rec.canonicalKey,
@@ -72,12 +85,30 @@
     return hay.indexOf(q) !== -1;
   }
 
+  function sorted(list) {
+    var mode = sortEl ? sortEl.value : 'updated';
+    var out = list.slice();
+    out.sort(function (a, b) {
+      if (mode === 'key') {
+        return String(a.canonicalKey || '').localeCompare(String(b.canonicalKey || ''));
+      }
+      if (mode === 'usage') {
+        return (b.usageCount || 0) - (a.usageCount || 0);
+      }
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+    return out;
+  }
+
   function render() {
     var q = filterEl ? String(filterEl.value || '').trim().toLowerCase() : '';
+    var typeF = typeFilterEl ? String(typeFilterEl.value || '') : '';
     listEl.innerHTML = '';
-    var shown = cache.filter(function (rec) {
-      return matchesFilter(rec, q);
-    });
+    var shown = sorted(
+      cache.filter(function (rec) {
+        return matchesFilter(rec, q, typeF);
+      })
+    );
     if (countEl) {
       countEl.textContent = cache.length ? '(' + cache.length + ')' : '';
     }
@@ -85,7 +116,7 @@
       emptyEl.hidden = shown.length > 0;
       if (!cache.length) {
         emptyEl.textContent =
-          'No learned facts yet. Answer unknown questions via Complete Missing Information, then return here.';
+          'No learned facts yet. Confirm answers via Save on forms or Complete Missing Information.';
       } else if (!shown.length) {
         emptyEl.hidden = false;
         emptyEl.textContent = 'No facts match this filter.';
@@ -98,62 +129,57 @@
 
   function cardFor(rec) {
     var card = document.createElement('article');
-    card.className = 'knowledge-card';
+    card.className = 'knowledge-card knowledge-card-compact';
     card.dataset.id = rec.id;
-
-    var aliases = (rec.aliases || []).join(', ');
+    var isOpen = !!expanded[rec.id];
+    var question =
+      (rec.aliases && rec.aliases[0]) || rec.lastSeenLabel || rec.canonicalKey || '';
+    var answer = rec.displayValue != null ? rec.displayValue : rec.value || '';
     var used = rec.usageCount || 0;
-    var conf = Math.round((rec.confidence || 0) * 100);
     var userType = toUserType(rec.fieldType);
 
     card.innerHTML =
-      '<div class="k-model" aria-label="Key Aliases Type Value">' +
-      '<label class="k-row"><span class="k-label">Key</span><input class="k-key-input" readonly /></label>' +
-      '<label class="k-row"><span class="k-label">Aliases</span><input class="k-alias-edit" placeholder="Wording variants, comma-separated" /></label>' +
+      '<button type="button" class="k-summary" aria-expanded="' +
+      (isOpen ? 'true' : 'false') +
+      '">' +
+      '<span class="k-summary-q">' +
+      escapeHtml(question) +
+      '</span>' +
+      '<span class="k-summary-a">' +
+      escapeHtml(answer) +
+      '</span>' +
+      '<span class="k-summary-meta">' +
+      escapeHtml(userType) +
+      ' · ' +
+      escapeHtml(rec.canonicalKey || '') +
+      (used ? ' · used ' + used + '×' : '') +
+      '</span>' +
+      '</button>' +
+      '<div class="k-expand" ' +
+      (isOpen ? '' : 'hidden') +
+      '>' +
+      '<div class="k-model">' +
+      '<label class="k-row"><span class="k-label">Semantic key</span><input class="k-key-input" readonly /></label>' +
+      '<label class="k-row"><span class="k-label">Question / aliases</span><input class="k-alias-edit" placeholder="Wording variants, comma-separated" /></label>' +
       '<div class="k-row-grid">' +
       '<label class="k-row"><span class="k-label">Type</span><select class="k-type"></select></label>' +
-      '<label class="k-row"><span class="k-label">Value</span><input class="k-value" /></label>' +
+      '<label class="k-row"><span class="k-label">Answer</span><input class="k-value" /></label>' +
       '</div>' +
       '</div>' +
       '<p class="k-meta-line"></p>' +
       '<div class="k-actions">' +
       '<button type="button" class="primary k-save">Save</button>' +
       '<button type="button" class="ghost k-delete">Delete</button>' +
+      '</div>' +
       '</div>';
 
     card.querySelector('.k-key-input').value = rec.canonicalKey || '';
-    card.querySelector('.k-value').value = rec.displayValue != null ? rec.displayValue : rec.value || '';
-    card.querySelector('.k-alias-edit').value = aliases;
-    var prov = rec.provenance || {};
-    var ctxBits = [];
-    if (prov.host) ctxBits.push(prov.host);
-    if (prov.originalLabel && prov.originalLabel !== (rec.aliases || [])[0]) {
-      ctxBits.push('q: ' + prov.originalLabel);
-    }
-    if (rec.lastSeenLabel && ctxBits.indexOf('q: ' + rec.lastSeenLabel) === -1) {
-      /* lastSeenLabel often duplicates aliases — show only if useful */
-    }
-    function fmtTs(t) {
-      if (!t) return '';
-      try {
-        return new Date(t).toLocaleString();
-      } catch (_e) {
-        return String(t);
-      }
-    }
-    var first = fmtTs(rec.createdAt);
-    var last = fmtTs(rec.updatedAt || rec.lastUsedAt);
+    card.querySelector('.k-value').value = answer;
+    card.querySelector('.k-alias-edit').value = (rec.aliases || []).join(', ');
     card.querySelector('.k-meta-line').textContent =
-      (rec.source || 'user') +
-      ' · ' +
-      conf +
-      '% · used ' +
-      used +
-      '×' +
+      (rec.source || 'user_confirmed') +
       (rec.status && rec.status !== 'confirmed' ? ' · ' + rec.status : '') +
-      (ctxBits.length ? ' · ' + ctxBits.join(' · ') : '') +
-      (first ? ' · first ' + first : '') +
-      (last ? ' · last ' + last : '');
+      (used ? ' · used ' + used + '× on fill' : ' · not yet used on fill');
 
     var typeSel = card.querySelector('.k-type');
     userTypes().forEach(function (t) {
@@ -164,6 +190,10 @@
       typeSel.appendChild(opt);
     });
 
+    card.querySelector('.k-summary').addEventListener('click', function () {
+      expanded[rec.id] = !expanded[rec.id];
+      render();
+    });
     card.querySelector('.k-save').addEventListener('click', function () {
       saveCard(card, rec);
     });
@@ -188,8 +218,8 @@
       value: value,
       fieldType: card.querySelector('.k-type').value,
       aliases: aliases,
-      source: 'user_edit',
-      confidence: 1,
+      source: 'user_confirmed',
+      confidence: 0,
       status: 'confirmed',
       updatedAt: Date.now()
     });
@@ -215,7 +245,6 @@
     }
   }
 
-
   function renderConflicts() {
     if (!conflictListEl) return;
     conflictListEl.innerHTML = '';
@@ -225,7 +254,7 @@
         ? conflictCache.length +
           ' pending conflict' +
           (conflictCache.length === 1 ? '' : 's') +
-          ' — choose Keep old, Replace, or Add alias. Confirmed answers are never overwritten silently.'
+          ' — Keep / Replace / Add alias / Cancel.'
         : '';
     }
     if (conflictEmptyEl) {
@@ -259,9 +288,10 @@
       '</div></div>' +
       '</div>' +
       '<div class="k-actions">' +
-      '<button type="button" class="ghost k-keep">Keep old</button>' +
+      '<button type="button" class="ghost k-keep">Keep</button>' +
       '<button type="button" class="primary k-replace">Replace</button>' +
-      '<button type="button" class="ghost k-alias">Add alias</button>' +
+      '<button type="button" class="ghost k-alias">Add Alias</button>' +
+      '<button type="button" class="ghost k-cancel">Cancel</button>' +
       '</div>';
     card.querySelector('.k-keep').addEventListener('click', function () {
       resolveConflictRow(row.id, 'keep');
@@ -272,29 +302,33 @@
     card.querySelector('.k-alias').addEventListener('click', function () {
       resolveConflictRow(row.id, 'alias');
     });
+    card.querySelector('.k-cancel').addEventListener('click', function () {
+      resolveConflictRow(row.id, 'cancel');
+    });
     return card;
-  }
-
-  function escapeHtml(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
   }
 
   async function resolveConflictRow(id, action) {
     var S = store();
     if (!S || !S.resolveConflict) return;
     try {
-      var res = await S.resolveConflict(id, action);
+      var res = await S.resolveConflict(id, action === 'cancel' ? 'keep' : action);
+      if (action === 'cancel' && S.deleteConflict) {
+        try {
+          await S.deleteConflict(id);
+        } catch (_e) {
+          /* fall through — keep resolves + dismisses */
+        }
+      }
       if (!res || !res.ok) {
         setStatus('Conflict resolve failed: ' + ((res && res.reason) || 'unknown'), 'err');
         return;
       }
       setStatus(
-        action === 'keep'
-          ? 'Kept stored answer'
+        action === 'keep' || action === 'cancel'
+          ? action === 'cancel'
+            ? 'Cancelled'
+            : 'Kept stored answer'
           : action === 'replace'
             ? 'Replaced with proposed answer'
             : 'Added question wording as alias (value unchanged)',
@@ -313,10 +347,12 @@
       return;
     }
     try {
+      if (S.migrateAndSanitizeKnowledge) {
+        try {
+          await S.migrateAndSanitizeKnowledge();
+        } catch (_m) { /* non-fatal */ }
+      }
       cache = await S.listKnowledge();
-      cache.sort(function (a, b) {
-        return (b.updatedAt || 0) - (a.updatedAt || 0);
-      });
       render();
       if (S.listConflicts) {
         conflictCache = await S.listConflicts();
@@ -332,11 +368,17 @@
   async function addFact() {
     var S = store();
     if (!S) return;
-    var key = prompt('Key (canonical id, e.g. sap_experience)', '');
+    var key = prompt('Semantic key (e.g. sap_experience)', '');
     if (!key) return;
-    var value = prompt('Value', '');
+    var Policy = globalThis.FillApplyKnowledgePolicy;
+    if (Policy && Policy.normalizeSemanticKey) key = Policy.normalizeSemanticKey(key);
+    if (Policy && Policy.isRejectedGeneratedKey && Policy.isRejectedGeneratedKey(key)) {
+      setStatus('Rejected generated key', 'err');
+      return;
+    }
+    var value = prompt('Answer', '');
     if (value == null || String(value).trim() === '') return;
-    var label = prompt('Alias / question wording (optional)', key.replace(/_/g, ' '));
+    var label = prompt('Question wording (optional)', key.replace(/_/g, ' '));
     var type = prompt('Type (boolean|string|number|date|select|multiselect)', 'string') || 'string';
     try {
       await S.putKnowledge({
@@ -348,8 +390,8 @@
         displayValue: value,
         fieldType: type,
         aliases: label ? [label] : [],
-        source: 'user_edit',
-        confidence: 1,
+        source: 'user_confirmed',
+        confidence: 0,
         status: 'confirmed',
         lastSeenLabel: label || ''
       });
@@ -433,6 +475,8 @@
   if (btnRefresh) btnRefresh.addEventListener('click', load);
   if (btnAdd) btnAdd.addEventListener('click', addFact);
   if (filterEl) filterEl.addEventListener('input', render);
+  if (typeFilterEl) typeFilterEl.addEventListener('change', render);
+  if (sortEl) sortEl.addEventListener('change', render);
   if (btnExport) btnExport.addEventListener('click', exportKnowledge);
   if (btnImport && importFile) {
     btnImport.addEventListener('click', function () {

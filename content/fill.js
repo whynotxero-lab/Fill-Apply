@@ -967,6 +967,17 @@
     return { ok: true, action: 'FILL', value: answer.value, controlType: controlType, knowledgeType: knowledgeType };
   }
 
+  function serializeProfileValue(value) {
+    var F = global.FillApplyFormat;
+    if (F && typeof F.serializeAnswer === 'function') return F.serializeAnswer(value);
+    if (value == null) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value) || typeof value === 'object') {
+      try { return JSON.stringify(value); } catch (_e) { return ''; }
+    }
+    return String(value);
+  }
+
   function resolveValue(profile, key) {
     if (!key) return '';
     // Name fields: prefer explicit first/last. When only fullName is set,
@@ -1005,6 +1016,21 @@
       if (key === 'firstName') return parts.first || '';
       if (key === 'lastName') return parts.last || '';
       if (key === 'middleName') return parts.middle || profile.middleName || '';
+    }
+    if (key === 'street' || key === 'addressLine1' || key === 'addressLine2' || key === 'address' || key === 'addressFull') {
+      var fmtAddr = global.FillApplyFormat;
+      if (key === 'address' || key === 'addressFull') {
+        if (fmtAddr && typeof fmtAddr.composeAddress === 'function') {
+          return fmtAddr.composeAddress(profile, key === 'addressFull' ? 'multiline' : 'single');
+        }
+      }
+      if (key === 'addressLine1' || key === 'street') {
+        return profile.addressLine1 || profile.street || (fmtAddr && fmtAddr.composeAddress ? fmtAddr.composeAddress(profile, 'parts').line1 : '') || '';
+      }
+      if (key === 'addressLine2') return profile.addressLine2 || '';
+    }
+    if (key === 'countryOfResidence' || key === 'residenceCountry') {
+      return profile.countryOfResidence || profile.residenceCountry || profile.addressCountry || profile.country || '';
     }
     if (key === 'dateOfBirth' || key === 'birthYear' || key === 'birthMonth' || key === 'birthDay') {
       // Always return canonical ISO; formatDate extracts year/month/day from the control.
@@ -1130,7 +1156,7 @@
       );
     }
     const v = profile[key];
-    return v == null ? '' : String(v);
+    return v == null ? '' : serializeProfileValue(v);
   }
 
   /**
@@ -1191,10 +1217,12 @@
         (inputType === 'email' && rv && !answerLooksLikeEmail(rv)) ||
         ((inputType === 'tel' || inputType === 'phone') && rv && !answerLooksLikePhone(rv)) ||
         ((inputType === 'tel' || inputType === 'phone' || inputType === 'email') && (blocked || !rv));
-      if (!badTyped && resolved && (rv || resolved.action === 'DO_NOT_FILL')) {
+      // Typed identity controls (email/tel): empty/blocked/ambiguous still fall back to profile.
+      // Other ambiguous fields stay blank. Empty DO_NOT_FILL must not block address/DOB parts.
+      if (resolved && resolved.ambiguous && inputType !== 'email' && inputType !== 'tel' && inputType !== 'phone') {
         return resolved;
       }
-      // Typed identity controls: never stay empty because knowledge blocked or mismatched.
+      if (!badTyped && resolved && rv) return resolved;
       var fb = mapFallback();
       if (fb) return fb;
       if (resolved) return resolved;
