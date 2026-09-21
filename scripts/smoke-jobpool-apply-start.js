@@ -242,11 +242,7 @@ function fixtureHtml() {
   const fetchCalls = [];
   backendPage.window.fetch = async function (url) {
     fetchCalls.push(String(url));
-    return {
-      ok: true,
-      status: 200,
-      json: async function () {
-        return {
+    const payload = {
           jobs: [
             {
               id: 'jp-42',
@@ -264,9 +260,16 @@ function fixtureHtml() {
             }
           ]
         };
+    const body = JSON.stringify(payload);
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: function () { return 'application/json'; } },
+      json: async function () {
+        return payload;
       },
       text: async function () {
-        return '';
+        return body;
       }
     };
   };

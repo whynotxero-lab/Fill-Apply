@@ -2422,8 +2422,13 @@
         try {
           job = await B.getNextJob();
         } catch (e) {
-          await S.appendSessionLog({ type: 'error', error: String(e.message || e) });
-          await S.setQueueStatus({ lastError: String(e.message || e) });
+          var em = String(e && e.message ? e.message : e);
+          if (/DOCTYPE|not valid JSON|returned HTML|HTTP 404/i.test(em)) {
+            em =
+              'JobPool API unavailable (HTML/404). Open Applications, click Load from JobPool, then Start — or run Single on the Applications tab.';
+          }
+          await S.appendSessionLog({ type: 'error', error: em });
+          await S.setQueueStatus({ lastError: em });
           break;
         }
 
