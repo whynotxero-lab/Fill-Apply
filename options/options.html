@@ -88,12 +88,30 @@
           <p class="hint" id="knowledgeConflictHint" hidden></p>
           <div id="knowledgeConflictList" class="knowledge-list knowledge-conflict-list"></div>
           <p class="hint" id="knowledgeConflictEmpty">No pending conflicts.</p>
-          <div class="grid">
-            <label class="span2">Filter
-              <input type="search" id="knowledgeFilter" placeholder="Search key, value, or question wording" />
+          <div class="grid knowledge-toolbar">
+            <label class="span2">Search
+              <input type="search" id="knowledgeFilter" placeholder="Search question, key, or answer" />
+            </label>
+            <label>Type
+              <select id="knowledgeTypeFilter">
+                <option value="">All types</option>
+                <option value="boolean">boolean</option>
+                <option value="string">string</option>
+                <option value="number">number</option>
+                <option value="date">date</option>
+                <option value="select">select</option>
+                <option value="multiselect">multiselect</option>
+              </select>
+            </label>
+            <label>Sort
+              <select id="knowledgeSort">
+                <option value="updated">Recently updated</option>
+                <option value="key">Key A–Z</option>
+                <option value="usage">Most used</option>
+              </select>
             </label>
           </div>
-          <div id="knowledgeList" class="knowledge-list"></div>
+          <div id="knowledgeList" class="knowledge-list knowledge-list-compact"></div>
           <p class="hint" id="knowledgeEmpty">No learned facts yet. Fill an unknown question on an application, then return here.</p>
           <div class="actions">
             <button type="button" id="btnKnowledgeRefresh" class="ghost">Refresh</button>
@@ -103,6 +121,52 @@
             <input type="file" id="importKnowledgeFile" accept="application/json,.json" hidden />
             <span id="knowledgeStatus" class="status" role="status"></span>
             <p class="hint" id="knowledgeIoHint">Export downloads JSON (no passwords). Import offers merge or replace — empty / secret keys are skipped; values are never invented.</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="sec" id="sec-question-bank" data-sec="questionBank">
+        <summary>Question Bank <span class="section-sub" id="questionBankCountHint"></span></summary>
+        <div class="sec-body">
+          <p class="hint">
+            Authored Q→A with aliases. Used after Adaptive confirmed answers and before generic fill.
+            Never overrides the current user answer or Profile.
+          </p>
+          <div class="grid">
+            <label class="span2">Search
+              <input type="search" id="qbFilter" placeholder="Search questions or answers" />
+            </label>
+          </div>
+          <div id="qbList" class="knowledge-list knowledge-list-compact"></div>
+          <p class="hint" id="qbEmpty">No question-bank entries yet.</p>
+          <div class="actions">
+            <button type="button" id="btnQbAdd" class="ghost">+ Add</button>
+            <button type="button" id="btnQbRefresh" class="ghost">Refresh</button>
+            <button type="button" id="btnQbExport" class="ghost">Export</button>
+            <button type="button" id="btnQbImport" class="ghost">Import</button>
+            <input type="file" id="importQbFile" accept="application/json,.json" hidden />
+            <span id="qbStatus" class="status" role="status"></span>
+          </div>
+        </div>
+      </details>
+
+      <details class="sec" id="sec-environment" data-sec="environment">
+        <summary>Environment</summary>
+        <div class="sec-body">
+          <p class="hint">
+            Registration password for Auto Register (Email / Confirm Email / Password / Confirm Password)
+            together with <strong>Profile.email</strong>. Stored only here — never in Adaptive Dictionary,
+            Question Bank, exports, logs, or fixtures.
+          </p>
+          <div class="grid">
+            <label class="span2">Registration password
+              <input type="password" id="envRegistrationPassword" autocomplete="new-password" placeholder="••••••••" />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="button" id="btnEnvSave" class="primary">Save environment</button>
+            <button type="button" id="btnEnvClear" class="danger">Clear password</button>
+            <span id="envStatus" class="status" role="status"></span>
           </div>
         </div>
       </details>
@@ -189,12 +253,10 @@
             <h3 class="subhead">Links</h3>
             <div class="grid">
               <label class="span2">LinkedIn <input name="linkedin" type="url" placeholder="https://linkedin.com/in/…" /></label>
-              <label class="span2">Portfolio <input name="portfolio" type="url" /></label>
-              <label class="span2">Website <input name="website" type="url" /></label>
-              <label class="span2">GitHub <input name="github" type="url" /></label>
-              <label class="span2">Resume URL <input name="resumeUrl" type="url" /></label>
-              <label class="span2">Cover URL <input name="coverUrl" type="url" /></label>
             </div>
+            <p class="hint">Social: LinkedIn only. Portfolio / Website / GitHub / Resume URL / Cover URL are not edited here.</p>
+            <div id="educationStructured" class="structured-list"></div>
+            <div id="certificationsStructured" class="structured-list"></div>
 
             <h3 class="subhead">Summaries</h3>
             <label>Resume / professional summary
@@ -413,13 +475,18 @@
     <script src="../lib/profile-io.js"></script>
     <script src="../lib/source-profiles.js"></script>
     <script src="../lib/storage.js"></script>
+    <script src="../lib/knowledge-policy.js"></script>
     <script src="../lib/knowledge-canonical.js"></script>
     <script src="../lib/knowledge-store.js"></script>
     <script src="../lib/knowledge-learn.js"></script>
+    <script src="../lib/environment-store.js"></script>
+    <script src="../lib/question-bank-store.js"></script>
     <script src="../lib/format.js"></script>
     <script src="../lib/files.js"></script>
     <script src="../lib/report.js"></script>
     <script src="knowledge-ui.js"></script>
+    <script src="question-bank-ui.js"></script>
+    <script src="environment-ui.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

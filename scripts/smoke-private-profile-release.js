@@ -274,6 +274,7 @@ function assertNoPasswordLeak(label, text) {
       label: SYNTH_ALIAS,
       value: SYNTH_VALUE,
       fieldType: 'string',
+      kind: 'confirm',
       confirmed: true,
       source: 'user'
     });

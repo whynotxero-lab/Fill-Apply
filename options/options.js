@@ -75,7 +75,7 @@
     'highestEducation', 'degree', 'school', 'fieldOfStudy', 'graduationYear', 'gpa',
     'noticePeriod', 'availableFrom', 'willingToRelocate', 'remotePreference',
     'driversLicense', 'currentSalary', 'expectedSalary', 'salaryCurrency', 'referralSource',
-    'linkedin', 'portfolio', 'website', 'github', 'resumeUrl', 'coverUrl',
+    'linkedin',
     'resumeSummary', 'workHistory', 'education', 'coverLetter'
   ];
 
@@ -194,7 +194,16 @@
 
   /** Date inputs require yyyy-MM-dd; never assign free-text like "Available immediately". */
   function valueForFormControl(el, raw) {
+    // Structured arrays/objects must not stringify to "[object Object]"
+    if (raw != null && typeof raw === 'object') {
+      if (Array.isArray(raw)) {
+        raw = formatStructuredList(raw);
+      } else {
+        raw = formatStructuredItem(raw);
+      }
+    }
     var value = raw == null ? '' : String(raw);
+    if (value === '[object Object]') value = '';
     if (!el) return value;
     var type = String(el.type || '').toLowerCase();
     if (type === 'date' || type === 'month' || type === 'week' || type === 'time' || type === 'datetime-local') {
@@ -209,6 +218,70 @@
       return '';
     }
     return value;
+  }
+
+  function formatStructuredItem(row) {
+    if (!row || typeof row !== 'object') return '';
+    if (row.name || row.issuer) {
+      return [row.name, row.issuer, row.year].filter(Boolean).join(' — ');
+    }
+    if (row.degree || row.school) {
+      return [row.degree, row.school, row.endYear || row.end || row.graduationYear]
+        .filter(Boolean)
+        .join(' · ');
+    }
+    try {
+      return Object.keys(row)
+        .map(function (k) {
+          var v = row[k];
+          if (v == null || v === '') return '';
+          if (typeof v === 'object') return '';
+          return String(v);
+        })
+        .filter(Boolean)
+        .join(' · ');
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  function formatStructuredList(list) {
+    if (!Array.isArray(list)) return '';
+    return list
+      .map(formatStructuredItem)
+      .filter(Boolean)
+      .join('; ');
+  }
+
+  function renderStructuredBlock(elementId, title, entries, describe) {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    var list = Array.isArray(entries) ? entries : [];
+    if (!list.length) {
+      el.innerHTML = '';
+      return;
+    }
+    var items = list
+      .map(function (row) {
+        var line = describe(row);
+        if (!line) return '';
+        return '<li>' + escapeHtmlLite(line) + '</li>';
+      })
+      .filter(Boolean)
+      .join('');
+    el.innerHTML =
+      '<h3 class="subhead">' +
+      title +
+      '</h3><ul class="structured-ul">' +
+      items +
+      '</ul>';
+  }
+
+  function escapeHtmlLite(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
   function fillForm(profile) {
@@ -228,8 +301,28 @@
         .join(' · ');
     }, 'roles');
     renderEntriesHint('educationEntriesHint', profile.educationEntries, function (row) {
-      return [row.degree, row.school, row.end].filter(Boolean).join(' · ');
+      return [row.degree, row.school, row.end || row.endYear].filter(Boolean).join(' · ');
     }, 'degrees');
+    renderStructuredBlock(
+      'educationStructured',
+      'Education (structured)',
+      profile.educationEntries && profile.educationEntries.length
+        ? profile.educationEntries
+        : profile.education,
+      function (row) {
+        if (typeof row === 'string') return row;
+        return formatStructuredItem(row);
+      }
+    );
+    renderStructuredBlock(
+      'certificationsStructured',
+      'Certifications (structured)',
+      profile.certifications,
+      function (row) {
+        if (typeof row === 'string') return row;
+        return formatStructuredItem(row);
+      }
+    );
     renderCompleteness(profile);
     suppressDirty = false;
     clearDirty();

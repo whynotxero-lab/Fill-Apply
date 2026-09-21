@@ -14,6 +14,7 @@ const LIBS = [
   'lib/field-map.js',
   'lib/control-adapter.js',
   'lib/ats-faq-seed.js',
+  'lib/knowledge-policy.js',
   'lib/knowledge-canonical.js',
   'lib/knowledge-store.js',
   'lib/knowledge-resolver.js',
@@ -158,13 +159,16 @@ function pageWith(html) {
     });
     suite.equal(eeo.accepted, false, 'EEO questions are not learned');
 
-    const ok = await Learn.learn({
+    const proposed = await Learn.learn({
       label: 'Do you have SAP experience?',
       value: 'Yes',
       fieldType: 'boolean',
       kind: 'observe'
     });
-    suite.ok(ok.accepted, 'explicit SAP answer is learned');
+    suite.ok(proposed.pending, 'observe proposes Save/Don\'t Save (does not auto-persist)');
+    suite.equal((await S.listKnowledge()).length, 0, 'not persisted before confirm');
+    const ok = await Learn.confirmProposal(proposed.proposal.id);
+    suite.ok(ok.accepted, 'Save confirms SAP answer into Adaptive Dictionary');
     suite.equal(ok.record.canonicalKey, 'sap_experience', 'learned under sap_experience');
 
     const reuse = K.resolve(
@@ -188,19 +192,21 @@ function pageWith(html) {
       label: 'Are you willing to relocate?',
       value: 'No',
       fieldType: 'boolean',
-      kind: 'observe'
+      kind: 'confirm',
+      confirmed: true
     });
     const corrected = await Learn.learn({
       label: 'Would you relocate?',
       value: 'Yes',
       fieldType: 'boolean',
-      kind: 'correct',
+      kind: 'confirm',
+      confirmed: true,
       autofilled: true,
       previousValue: 'No'
     });
-    suite.ok(corrected.accepted, 'correction of an autofilled value is accepted');
+    suite.ok(corrected.accepted, 'confirmed correction of an autofilled value is accepted');
     suite.equal(corrected.record.displayValue, 'Yes', 'correction overwrites the stored value');
-    suite.equal(corrected.record.source, 'user_correction', 'provenance is user_correction');
+    suite.equal(corrected.record.source, 'user_confirmed', 'source is user_confirmed');
   })();
 
   await (async function fillEngineUsesSnapshot() {
@@ -390,8 +396,8 @@ function pageWith(html) {
     await page.window.__fillApply.run(profile, {});
     suite.equal(
       page.document.getElementById('np').value,
-      'Immediate',
-      'confirmed user knowledge is not overridden by the profile / built-in notice period'
+      '30 days',
+      'profile precedes adaptive confirmed (notice period)'
     );
   })();
 
@@ -1231,7 +1237,7 @@ function pageWith(html) {
     });
     suite.ok(first.accepted, 'Field Memory: first confirm learned');
     suite.equal(first.record.status, 'confirmed', 'Field Memory: confirmed status');
-    suite.ok((first.record.confidence || 0) >= 0.9, 'Field Memory: high confidence');
+    suite.equal(first.record.source, 'user_confirmed', 'Field Memory: source user_confirmed');
 
     const clash = await Learn.learn({
       label: 'Have you used SAP?',

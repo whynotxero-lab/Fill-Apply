@@ -19,6 +19,7 @@ const FILL_LIBS = [
   'lib/field-map.js',
   'lib/control-adapter.js',
   'lib/ats-faq-seed.js',
+  'lib/knowledge-policy.js',
   'lib/knowledge-canonical.js',
   'lib/knowledge-store.js',
   'lib/knowledge-resolver.js',

@@ -31,6 +31,7 @@ const SUITES = [
   'smoke-jobpool-status.js',
   'smoke-run-modes.js',
   'smoke-knowledge.js',
+  'smoke-repair-knowledge.js',
   'smoke-knowledge-import-export.js',
   'smoke-backend-jobpool.js',
   'smoke-jobpool-apply-start.js',

@@ -202,7 +202,8 @@ function run(page, options) {
       label: 'Gender',
       value: 'Male',
       fieldType: 'select',
-      kind: 'observe',
+      kind: 'confirm',
+      confirmed: true,
       host: 'jobs.hilton.com'
     });
     suite.ok(genderLearn.accepted, 'human gender select answer is learned (got ' + JSON.stringify(genderLearn) + ')');
@@ -215,7 +216,8 @@ function run(page, options) {
       label: 'Are you willing to relocate?',
       value: 'Yes',
       fieldType: 'select',
-      kind: 'correct',
+      kind: 'confirm',
+      confirmed: true,
       host: 'jobs.hilton.com'
     });
     suite.ok(relocateLearn.accepted, 'human correction on unknown field is learned');
