@@ -1485,7 +1485,15 @@
           'ok'
         );
       } catch (e) {
-        setStatus('JobPool load failed: ' + (e && e.message ? e.message : e), 'err');
+        var em = String((e && e.message) || e || '');
+        if (/DOCTYPE|not valid JSON|returned HTML|JSON parse failed/i.test(em)) {
+          setStatus(
+            'JobPool API returned a web page instead of jobs. Open Applications while signed in, then Load from JobPool again (scrape fallback).',
+            'err'
+          );
+        } else {
+          setStatus('JobPool load failed: ' + em, 'err');
+        }
       }
     });
   }

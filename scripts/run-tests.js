@@ -38,6 +38,8 @@ const SUITES = [
   'smoke-jobpool-apply-start.js',
   'smoke-jobpool-hub-apply-mark.js',
   'smoke-jobpool-multihop-ui.js',
+  'smoke-jobpool-live-dom.js',
+  'smoke-jobpool-html-json.js',
   'smoke-page-panel.js',
   'smoke-ats-auth.js',
   'smoke-challenges.js',

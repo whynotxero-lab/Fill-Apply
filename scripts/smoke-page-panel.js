@@ -113,4 +113,21 @@ const JOB_FORM = `
   suite.ok(style && /pointer-events:\s*auto/.test(style.textContent), 'panel CSS isolates pointer-events to itself');
 })();
 
+(function jobPoolApplicationsPanel() {
+  const page = createPage(JOB_FORM, LIBS);
+  const P = page.window.FillApplyPagePanel;
+  suite.ok(
+    P.isRelevantPage('https://zahid-jobpool.vercel.app/applications', page.document),
+    'JobPool Applications shows page panel'
+  );
+  suite.ok(
+    P.isRelevantPage('https://zahid-jobpool.vercel.app/applications?tab=ready', null),
+    'JobPool Applications relevant without DOM'
+  );
+  suite.ok(
+    P.KNOWN_HOST_RE.test('zahid-jobpool.vercel.app'),
+    'KNOWN_HOST_RE includes JobPool'
+  );
+})();
+
 suite.finish();

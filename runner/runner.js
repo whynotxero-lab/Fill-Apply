@@ -1874,6 +1874,22 @@
       if (!r || r.ok === false) return false;
       if (r.filled > 0 || r.submitted || r.needsHuman || r.jobpoolMarkedApplied) return false;
       if (r.jobpoolReturnSuccess) return false;
+      // Board job detail with Apply handoff flags or unused generic empty fill.
+      if (
+        r.adapterId &&
+        /naukrigulf|michaelpage|bayt|gulftalent/i.test(String(r.adapterId)) &&
+        !(r.filled > 0) &&
+        !r.submitted &&
+        (r.clickedApplyStart ||
+          r.handedOff ||
+          r.externalApply ||
+          r.reDetect ||
+          r.usedGenericFallback ||
+          r.step === 'standard_apply_handoff' ||
+          r.step === 'standard_apply_handoff_retry')
+      ) {
+        return true;
+      }
       return !!(
         r.deferToPageAdapter ||
         r.handedOff ||
