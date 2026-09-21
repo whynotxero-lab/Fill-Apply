@@ -65,6 +65,28 @@ if (!S.isFinalSubmitCta('Submit application')) {
   console.log('ok final:', 'Submit application');
 }
 
+// Advance CTAs (Ready mode): Review / Continue / Next
+['Review', 'Continue', 'Next', 'Review and continue'].forEach(function (t) {
+  if (!S.isContinueCta(t)) {
+    console.error('FAIL expected continue:', t);
+    failed++;
+  } else {
+    console.log('ok continue:', t);
+  }
+});
+if (typeof S.findContinueButtons !== 'function' || typeof S.findSubmitButtons !== 'function') {
+  console.error('FAIL missing findContinueButtons / findSubmitButtons');
+  failed++;
+} else {
+  console.log('ok api: findContinueButtons + findSubmitButtons');
+}
+if (!S.DATA_APPLY_START || S.DATA_APPLY_START !== 'apply-start') {
+  console.error('FAIL DATA_APPLY_START hook');
+  failed++;
+} else {
+  console.log('ok data-fill-apply hooks:', S.DATA_APPLY_START, S.DATA_CONTINUE, S.DATA_SUBMIT);
+}
+
 // Container-scoped form-open: incidental page inputs must NOT count as open
 (function () {
   // Minimal DOM stubs

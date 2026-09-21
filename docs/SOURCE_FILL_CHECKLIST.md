@@ -162,6 +162,23 @@ Mock / queue mode (default) still uses the **Application queue** URL list in App
 
 **Only `status === "submitted"` means the application was actually sent to the employer.** Do not flip JobPool to Applied because the local extension bucket is named `applied`, or because `runMode` was `submit` but `submitted` is false (the run may have paused or only filled).
 
+### Optional JobPool `data-fill-apply` hooks (follow-up)
+
+Fill & Apply prefers stable attributes when present (text heuristics remain fallback):
+
+| Attribute | Role |
+|-----------|------|
+| `data-fill-apply="apply-start"` | Open the application (Apply / Apply Now) |
+| `data-fill-apply="continue"` | Advance: Next / Continue / Review |
+| `data-fill-apply="submit"` | Final submit (Submit mode only) |
+| `data-fill-apply="jobpool-apply"` | JobPool Applications hub Ready-to-apply **Apply** |
+| `data-fill-apply="jobpool-mark-applied"` | JobPool hub **Mark as applied** (after employer submit / return) |
+| `data-job-id` / `data-jobpool-job-id` | Job id on the card (used to match Mark as applied) |
+
+JobPool (or employer pages it controls) can stamp these on CTAs so overview → form automation is unambiguous. Paid upsell (AI Auto-Apply / Upgrade / Subscribe) is never clicked even if mis-marked.
+
+**Hub Single-mode policy (v1.22.5):** on the Applications hub, Fill & Apply clicks **Apply** on the first Ready-to-apply card, fills the employer form, and clicks **Mark as applied** only after a successful employer submission or a JobPool return page that shows submit-success copy / return URL markers (`jobpool`, `returnUrl`, `return_to`, `from=jobpool`, `/applications`). Ready/Fill without submit does not auto-Mark.
+
 ### Suggested JobPool flow
 
 1. JobPool publishes apply URLs on `GET /queue` (and/or `GET /queue/next`).

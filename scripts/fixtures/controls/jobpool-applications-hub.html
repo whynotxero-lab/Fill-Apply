@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>JobPool / Intelligent Opportunity Hub</title></head>
+<body>
+  <header>
+    <h1>JobPool / Intelligent Opportunity Hub</h1>
+    <nav>Applications · Pipeline overview</nav>
+  </header>
+
+  <section id="pipeline" aria-label="Pipeline overview">
+    <h2>Pipeline overview</h2>
+    <p>Track ready packages and applied roles.</p>
+  </section>
+
+  <section id="ready" aria-label="Ready to apply" data-fill-apply-section="ready">
+    <h2>Ready to apply</h2>
+    <p>Ready-to-apply packages</p>
+
+    <article class="card ready-card" id="card-1" data-job-id="jp-101" data-jobpool-job-id="jp-101">
+      <h3 data-job-title>FP&amp;A Manager — Acme</h3>
+      <p>Job ID: jp-101</p>
+      <a id="apply-1" href="https://www.naukrigulf.com/job/apply/101" data-fill-apply="jobpool-apply">Apply</a>
+      <button type="button" id="mark-1" data-fill-apply="jobpool-mark-applied">Mark as applied</button>
+      <button type="button" id="upgrade-1">Upgrade</button>
+      <button type="button" id="ai-1">AI Auto-Apply</button>
+    </article>
+
+    <article class="card ready-card" id="card-2" data-job-id="jp-202" data-jobpool-job-id="jp-202">
+      <h3 data-job-title>Controller — Beta Co</h3>
+      <p>Job ID: jp-202</p>
+      <a id="apply-2" href="https://www.linkedin.com/jobs/view/202" data-fill-apply="jobpool-apply">Apply</a>
+      <button type="button" id="mark-2" data-fill-apply="jobpool-mark-applied">Mark as applied</button>
+    </article>
+  </section>
+
+  <script>
+  (function () {
+    window.__clicks = [];
+    function track(id) {
+      window.__clicks.push(id);
+    }
+    ['apply-1', 'apply-2', 'mark-1', 'mark-2', 'upgrade-1', 'ai-1'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+        track(id);
+      });
+    });
+  })();
+  </script>
+</body>
+</html>
