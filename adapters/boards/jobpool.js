@@ -557,15 +557,44 @@
             clickedAt: Date.now(),
             hubUrl: href
           }).then(function (saved) {
-            var ok = clickEl(applyBtn);
+            var employerUrl = '';
+            try {
+              employerUrl = String(
+                applyBtn.href || applyBtn.getAttribute('href') || ''
+              ).trim();
+            } catch (_hu) {
+              employerUrl = '';
+            }
+            var opened = false;
+            // Prefer extension tab open so Applications hub is NOT navigated away
+            // (programmatic <a target=_blank>.click() often replaces the hub tab).
+            if (/^https?:\/\//i.test(employerUrl)) {
+              try {
+                if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+                  chrome.runtime.sendMessage({
+                    type: 'FILL_APPLY_OPEN_TAB',
+                    url: employerUrl,
+                    active: true
+                  });
+                  opened = true;
+                }
+              } catch (_msg) {
+                opened = false;
+              }
+            }
+            if (!opened) {
+              opened = clickEl(applyBtn);
+            }
             return handoffResult({
-              ok: ok,
+              ok: opened,
               jobId: saved && saved.jobId,
               title: title,
               pendingMark: saved,
-              message: ok
-                ? 'Clicked JobPool Apply — opening employer URL'
-                : 'Failed to click JobPool Apply'
+              openUrl: /^https?:\/\//i.test(employerUrl) ? employerUrl : null,
+              externalApply: true,
+              message: opened
+                ? 'Opened employer Apply URL in a new tab — Applications hub kept'
+                : 'Failed to open JobPool Apply URL'
             });
           });
         });

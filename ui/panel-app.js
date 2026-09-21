@@ -1637,11 +1637,12 @@
     btnResetMock.addEventListener('click', async function () {
       try {
         const data = await send('FILL_APPLY_RESET_MOCK');
-        if (!data.remaining) {
-          setStatus('Queued empty — add https apply URLs in App Settings (Application queue).', 'warn');
-        } else {
-          setStatus('Queued rebuilt (' + data.remaining + ' jobs).', 'ok');
-        }
+        setStatus(
+          data.remaining
+            ? 'Queued rebuilt (' + data.remaining + ' jobs).'
+            : 'Queue and URLs cleared — paste URLs in App Settings → Application queue if needed.',
+          data.remaining ? 'ok' : 'warn'
+        );
         await refreshStatus();
       } catch (e) {
         setStatus('Reset failed: ' + e.message, 'err');

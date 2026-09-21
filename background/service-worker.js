@@ -357,6 +357,22 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     );
   }
 
+  if (message.type === 'FILL_APPLY_OPEN_TAB') {
+    return reply(
+      (async function () {
+        var url = String((message && message.url) || '').trim();
+        if (!/^https?:\/\//i.test(url)) {
+          return { ok: false, error: 'Invalid URL' };
+        }
+        var tab = await chrome.tabs.create({
+          url: url,
+          active: message.active !== false
+        });
+        return { ok: true, tabId: tab && tab.id, url: url };
+      })()
+    );
+  }
+
   if (message.type === 'FILL_APPLY_RESET_MOCK') {
     return reply(
       FillApplyBackend.resetMockQueue({ clearFailed: false, clearCancelled: false }).then(
