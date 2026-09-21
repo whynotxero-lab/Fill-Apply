@@ -1217,9 +1217,12 @@
         (inputType === 'email' && rv && !answerLooksLikeEmail(rv)) ||
         ((inputType === 'tel' || inputType === 'phone') && rv && !answerLooksLikePhone(rv)) ||
         ((inputType === 'tel' || inputType === 'phone' || inputType === 'email') && (blocked || !rv));
-      if (resolved && resolved.ambiguous) return resolved;
+      // Typed identity controls (email/tel): empty/blocked/ambiguous still fall back to profile.
+      // Other ambiguous fields stay blank. Empty DO_NOT_FILL must not block address/DOB parts.
+      if (resolved && resolved.ambiguous && inputType !== 'email' && inputType !== 'tel' && inputType !== 'phone') {
+        return resolved;
+      }
       if (!badTyped && resolved && rv) return resolved;
-      // Empty DO_NOT_FILL must not block field-map/profile fallback (birth year parts, address).
       var fb = mapFallback();
       if (fb) return fb;
       if (resolved) return resolved;
