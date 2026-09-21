@@ -9,9 +9,12 @@ importScripts(
   '../lib/storage.js',
   '../lib/profile.js',
   '../lib/profile-io.js',
+  '../lib/knowledge-policy.js',
   '../lib/knowledge-canonical.js',
   '../lib/knowledge-store.js',
   '../lib/knowledge-learn.js',
+  '../lib/environment-store.js',
+  '../lib/question-bank-store.js',
   '../lib/source-profiles.js',
   '../lib/backend.js',
   '../lib/report.js',
@@ -49,6 +52,16 @@ chrome.runtime.onInstalled.addListener(function (details) {
   if (typeof FillApplySourceProfiles !== 'undefined' && FillApplySourceProfiles.ensureSourceProfileShells) {
     FillApplySourceProfiles.ensureSourceProfileShells().catch(function () {});
   }
+  if (typeof FillApplyKnowledgeStore !== 'undefined' && FillApplyKnowledgeStore.migrateAndSanitizeKnowledge) {
+    FillApplyKnowledgeStore.migrateAndSanitizeKnowledge().catch(function () {});
+  }
+  if (typeof FillApplyEnvironment !== 'undefined' && FillApplyEnvironment.load) {
+    FillApplyEnvironment.load().catch(function () {});
+  }
+  if (typeof FillApplyQuestionBank !== 'undefined' && FillApplyQuestionBank.load) {
+    FillApplyQuestionBank.load().catch(function () {});
+  }
+
   FillApplyStorage.getRunConfig().then(function (cfg) {
     // Migrate autoSubmit → runMode; ensure defaults
     const patch = {};

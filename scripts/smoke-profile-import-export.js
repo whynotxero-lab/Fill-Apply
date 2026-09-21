@@ -150,6 +150,7 @@ function makePage() {
   loadScript(window, 'lib/profile.js');
   loadScript(window, 'lib/control-adapter.js',
   'lib/ats-faq-seed.js',
+  'lib/knowledge-policy.js',
   'lib/knowledge-canonical.js');
   loadScript(window, 'lib/knowledge-store.js');
   loadScript(window, 'lib/profile-io.js');
