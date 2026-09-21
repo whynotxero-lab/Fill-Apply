@@ -396,8 +396,13 @@ function pageWith(html) {
     await page.window.__fillApply.run(profile, {});
     suite.equal(
       page.document.getElementById('np').value,
-      '30 days',
-      'profile precedes adaptive confirmed (notice period)'
+      'Immediate',
+      'confirmed adaptive precedes profile for non-identity (notice period)'
+    );
+    suite.equal(
+      page.document.getElementById('em').value,
+      'zahid@example.com',
+      'identity email still from profile'
     );
   })();
 
