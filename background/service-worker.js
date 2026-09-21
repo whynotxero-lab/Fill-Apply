@@ -159,6 +159,191 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     );
   }
 
+
+  if (message.type === 'FILL_APPLY_LOAD_JOBPOOL') {
+    return reply(
+      (async function () {
+        const Types = globalThis.FillApplyTypes || {};
+        const base = String(
+          (message && message.baseUrl) ||
+            Types.JOBPOOL_DEFAULT_BASE_URL ||
+            'https://zahid-jobpool.vercel.app'
+        ).replace(/\/$/, '');
+        const appsUrl = base + '/applications';
+
+        let api = { jobs: [], source: 'none', baseUrl: base };
+        if (FillApplyBackend && FillApplyBackend.loadJobsFromJobPool) {
+          api = await FillApplyBackend.loadJobsFromJobPool({ baseUrl: base });
+        } else {
+          const prev = await FillApplyStorage.getRunConfig();
+          await FillApplyStorage.saveRunConfig(
+            Object.assign({}, prev, { backendBaseUrl: base, mockMode: false })
+          );
+        }
+
+        if (api.jobs && api.jobs.length) {
+          const counts = await FillApplyBackend.refreshCounts();
+          await FillApplyStorage.setQueueStatus({
+            remaining: api.jobs.length,
+            counts: counts,
+            lastError: null
+          });
+          return {
+            ok: true,
+            loaded: api.jobs.length,
+            source: api.source,
+            jobs: api.jobs,
+            counts: counts,
+            applicationsUrl: appsUrl
+          };
+        }
+
+        // Scrape Ready-to-apply cards from the Applications page (user session cookies).
+        let tab = null;
+        const tabs = await chrome.tabs.query({});
+        for (let i = 0; i < tabs.length; i++) {
+          const u = tabs[i] && tabs[i].url ? String(tabs[i].url) : '';
+          if (/zahid-jobpool\.vercel\.app/i.test(u) && /application/i.test(u)) {
+            tab = tabs[i];
+            break;
+          }
+        }
+        if (!tab) {
+          tab = await chrome.tabs.create({ url: appsUrl, active: true });
+          await new Promise(function (r) {
+            setTimeout(r, 2500);
+          });
+        } else {
+          await chrome.tabs.update(tab.id, { active: true });
+          await new Promise(function (r) {
+            setTimeout(r, 800);
+          });
+        }
+
+        let scraped = [];
+        try {
+          const inj = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: function () {
+              function abs(href) {
+                try {
+                  return new URL(href, location.href).href;
+                } catch (_e) {
+                  return '';
+                }
+              }
+              function isHttp(u) {
+                return /^https?:\/\//i.test(u || '');
+              }
+              function isJobPool(u) {
+                return /zahid-jobpool\.vercel\.app|\/applications/i.test(u || '');
+              }
+              var out = [];
+              var seen = {};
+              var nodes = document.querySelectorAll(
+                'a[href], button, [role="button"], [data-fill-apply="jobpool-apply"]'
+              );
+              for (var i = 0; i < nodes.length; i++) {
+                var el = nodes[i];
+                var label = String(el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+                if (!/^apply$/i.test(label) && el.getAttribute('data-fill-apply') !== 'jobpool-apply') {
+                  continue;
+                }
+                if (/mark as applied/i.test(label)) continue;
+                var href =
+                  el.getAttribute('href') ||
+                  el.getAttribute('data-href') ||
+                  el.getAttribute('data-url') ||
+                  el.getAttribute('data-apply-url') ||
+                  '';
+                if (!href && el.closest) {
+                  var a = el.closest('a[href]');
+                  if (a) href = a.getAttribute('href') || '';
+                }
+                href = abs(href);
+                if (!isHttp(href) || isJobPool(href)) continue;
+                if (seen[href]) continue;
+                seen[href] = true;
+                var card =
+                  (el.closest &&
+                    el.closest(
+                      '[data-job-id], [data-jobpool-job-id], article, li, section, [class*="card"]'
+                    )) ||
+                  el.parentElement;
+                var blob = card ? String(card.innerText || '').slice(0, 800) : '';
+                var idMatch = blob.match(/Job ID:\s*([^\s·\n]+)/i);
+                var id =
+                  (card &&
+                    (card.getAttribute('data-job-id') ||
+                      card.getAttribute('data-jobpool-job-id'))) ||
+                  (idMatch && idMatch[1]) ||
+                  'jobpool-' + (out.length + 1);
+                var titleLine = blob.split('\n').map(function (l) {
+                  return l.trim();
+                }).filter(Boolean)[0] || 'Job';
+                out.push({
+                  id: String(id),
+                  title: titleLine.slice(0, 120),
+                  url: href,
+                  status: 'queued',
+                  meta: { source: 'jobpool-scrape' }
+                });
+              }
+              return out;
+            }
+          });
+          scraped = (inj && inj[0] && inj[0].result) || [];
+        } catch (scrapeErr) {
+          return {
+            ok: false,
+            loaded: 0,
+            error: String((scrapeErr && scrapeErr.message) || scrapeErr),
+            applicationsUrl: appsUrl,
+            hint: 'Sign in to JobPool in Chrome, open Applications, then Load again.'
+          };
+        }
+
+        if (!scraped.length) {
+          return {
+            ok: false,
+            loaded: 0,
+            source: 'scrape-empty',
+            applicationsUrl: appsUrl,
+            apiError: api.error || null,
+            hint: 'Open ' + appsUrl + ' while signed in, then click Load from JobPool again.'
+          };
+        }
+
+        const jobs = FillApplyBackend.normalizeLiveQueue
+          ? FillApplyBackend.normalizeLiveQueue(scraped)
+          : scraped;
+        await FillApplyBackend.setQueued(jobs);
+        const counts = await FillApplyBackend.refreshCounts();
+        const urls = jobs.map(function (j) {
+          return j.url;
+        });
+        try {
+          await FillApplyStorage.saveMockQueueUrls(urls);
+        } catch (_e) {}
+        await FillApplyStorage.setQueueStatus({
+          remaining: jobs.length,
+          counts: counts,
+          lastError: null
+        });
+        return {
+          ok: true,
+          loaded: jobs.length,
+          source: 'scrape',
+          jobs: jobs,
+          counts: counts,
+          applicationsUrl: appsUrl
+        };
+      })()
+    );
+  }
+
   if (message.type === 'FILL_APPLY_RESET_MOCK') {
     return reply(
       FillApplyBackend.resetMockQueue({ clearFailed: false, clearCancelled: false }).then(

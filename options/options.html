@@ -236,7 +236,7 @@
           <form id="configForm" onsubmit="return false;">
             <div class="grid">
               <label class="span2">Backend base URL
-                <input name="backendBaseUrl" id="backendBaseUrl" type="url" placeholder="https://jobpool.example.com" />
+                <input name="backendBaseUrl" id="backendBaseUrl" type="url" placeholder="https://zahid-jobpool.vercel.app" />
               </label>
               <p class="hint span2">JobPool live mode: uncheck Queue mode and set this URL. The extension GETs <code>/queue</code> and <code>/queue/next</code>, then POSTs <code>/applied/:id</code> with <code>status</code>. Only <code>status=submitted</code> means the employer received the application. Fill / Ready successes are <code>filled</code> / <code>ready</code>. Stop sends <code>POST /cancelled/:id</code>.</p>
               <label class="check span2">

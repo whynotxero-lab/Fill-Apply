@@ -1862,23 +1862,40 @@
     let fillResult = packed.result;
     if (packed.tabId != null) currentTabId = packed.tabId;
 
-    if (
-      fillResult &&
-      fillResult.ok !== false &&
-      (fillResult.deferToPageAdapter ||
-        fillResult.handedOff ||
-        fillResult.externalApply ||
-        fillResult.clickedApplyStart ||
-        fillResult.reDetect) &&
-      !(fillResult.filled > 0) &&
-      !fillResult.submitted &&
-      !fillResult.needsHuman
-    ) {
+    /**
+     * Multi-hop: JobPool → board (NaukriGulf) → ATS → application form → …
+     * Keep following Apply/external handoffs until filled, submitted, blocked, or hop cap.
+     */
+    const MAX_HANDOFF_HOPS = 6;
+    function needsHandoffHop(r) {
+      if (!r || r.ok === false) return false;
+      if (r.filled > 0 || r.submitted || r.needsHuman || r.jobpoolMarkedApplied) return false;
+      if (r.jobpoolReturnSuccess) return false;
+      return !!(
+        r.deferToPageAdapter ||
+        r.handedOff ||
+        r.externalApply ||
+        r.clickedApplyStart ||
+        r.reDetect ||
+        r.jobpoolHubApply ||
+        r.jobpoolPending
+      );
+    }
+
+    for (let hop = 0; hop < MAX_HANDOFF_HOPS && needsHandoffHop(fillResult); hop++) {
       try {
-        progress('running', 'Clicked Apply — waiting for form…');
+        progress(
+          'running',
+          hop === 0
+            ? 'Clicked Apply — waiting for form…'
+            : 'Following redirect hop ' + (hop + 1) + '/' + MAX_HANDOFF_HOPS + '…'
+        );
         await sleep(500 + Math.floor(Math.random() * 400));
 
-        // New-tab Apply (NaukriGulf / Michael Page / boards): adopt child tab
+        try {
+          knownTabIds = Object.assign({}, knownTabIds, await snapshotTabIdSet());
+        } catch (_eK) {}
+
         let handedTab = null;
         try {
           handedTab = await waitForApplyHandoffTab(currentTabId, knownTabIds, 8500);
@@ -1892,11 +1909,12 @@
             fillResult.adoptedNewTab = true;
             fillResult.externalApply = true;
             fillResult.fromTabHandoff = true;
+            fillResult.handoffHop = hop + 1;
           }
           try {
             notifyPagePanel(tabId, {
               state: 'running',
-              message: 'Apply opened a new tab — continuing there'
+              message: 'Apply opened a new tab — continuing there (hop ' + (hop + 1) + ')'
             });
           } catch (_eN) {}
         } else {
@@ -1911,6 +1929,23 @@
           const postTab = await chrome.tabs.get(currentTabId);
           postUrl = (postTab && postTab.url) || '';
         } catch (_ePost) {}
+
+        // Employer may have redirected back to JobPool after submit mid-hop
+        try {
+          const Syn = global.FillApplySynonyms;
+          if (
+            Syn &&
+            typeof Syn.looksLikeJobPoolReturnUrl === 'function' &&
+            Syn.looksLikeJobPoolReturnUrl(postUrl)
+          ) {
+            if (fillResult) {
+              fillResult.jobpoolReturnSuccess = true;
+              fillResult.handoffHop = hop + 1;
+            }
+            break;
+          }
+        } catch (_eRet) {}
+
         let hostChanged = false;
         try {
           const a = preHandoffUrl ? new URL(preHandoffUrl).hostname : '';
@@ -1920,83 +1955,13 @@
           hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
         }
         const sameHostOpen = !!(
-          fillResult.clickedApplyStart ||
-          fillResult.reDetect ||
-          fillResult.adoptedNewTab
+          (fillResult && fillResult.clickedApplyStart) ||
+          (fillResult && fillResult.reDetect) ||
+          (fillResult && fillResult.adoptedNewTab) ||
+          (fillResult && fillResult.jobpoolHubApply)
         );
-        if (hostChanged || sameHostOpen || fillResult.adoptedNewTab) {
-          progress('running', 'Re-detect / fill after Apply-start…');
-          const handedPack = await injectAndFill(
-            currentTabId,
-            profile,
-            documents,
-            runMode,
-            config,
-            job,
-            { returnTabId: true, maxAttempts: 4 }
-          );
-          const handed = handedPack && handedPack.result;
-          if (handedPack && handedPack.tabId != null) currentTabId = handedPack.tabId;
-          if (handed) {
-            if (hostChanged) handed.externalApply = true;
-            if (fillResult.clickedApplyStart) handed.fromApplyStart = true;
-            handed.fromBoardHandoff = (fillResult && fillResult.adapterId) || true;
-            if (!handed.message && fillResult && fillResult.message) {
-              handed.message = fillResult.message;
-            }
-            if (
-              handed.clickedApplyStart &&
-              fillResult.clickedApplyStart &&
-              !(handed.filled > 0) &&
-              !handed.needsHuman
-            ) {
-              try {
-                await sleep(900 + Math.floor(Math.random() * 500));
-                const handed2Pack = await injectAndFill(
-                  currentTabId,
-                  profile,
-                  documents,
-                  runMode,
-                  config,
-                  job,
-                  { returnTabId: true, maxAttempts: 3 }
-                );
-                const handed2 = handed2Pack && handed2Pack.result;
-                if (handed2Pack && handed2Pack.tabId != null) currentTabId = handed2Pack.tabId;
-                if (handed2 && (handed2.filled > 0 || handed2.needsHuman || handed2.submitted)) {
-                  fillResult = handed2;
-                  if (hostChanged) fillResult.externalApply = true;
-                  fillResult.fromApplyStart = true;
-                  fillResult.fromBoardHandoff =
-                    (fillResult && fillResult.adapterId) ||
-                    (fillResult && fillResult.fromBoardHandoff) ||
-                    true;
-                } else if (handed2 && !(handed2.clickedApplyStart && !(handed2.filled > 0))) {
-                  fillResult = handed2;
-                } else {
-                  handed.ok = true;
-                  handed.clickedApplyStart = false;
-                  handed.reDetect = false;
-                  handed.message =
-                    (handed.message || fillResult.message || 'Apply clicked') +
-                    ' — form still not open; open Apply manually or check page';
-                  fillResult = handed;
-                }
-              } catch (_eExtra) {
-                handed.ok = true;
-                handed.clickedApplyStart = false;
-                handed.reDetect = false;
-                handed.message =
-                  (handed.message || fillResult.message || 'Apply clicked') +
-                  ' — form still not open; open Apply manually or check page';
-                fillResult = handed;
-              }
-            } else {
-              fillResult = handed;
-            }
-          }
-        } else if (fillResult) {
-          // Last chance: Apply may have opened a tab after our wait window
+
+        if (!(hostChanged || sameHostOpen || (fillResult && fillResult.adoptedNewTab))) {
           let late = null;
           try {
             late = await findApplyHandoffTab(currentTabId, knownTabIds);
@@ -2007,28 +1972,44 @@
             fillResult.adoptedNewTab = true;
             fillResult.externalApply = true;
             fillResult.fromTabHandoff = true;
-            progress('running', 'Re-detect / fill after new-tab Apply…');
-            const latePack = await injectAndFill(
-              currentTabId,
-              profile,
-              documents,
-              runMode,
-              config,
-              job,
-              { returnTabId: true, maxAttempts: 4 }
-            );
-            if (latePack && latePack.result) {
-              fillResult = latePack.result;
-              fillResult.adoptedNewTab = true;
-              fillResult.externalApply = true;
-              fillResult.fromTabHandoff = true;
-            }
-            if (latePack && latePack.tabId != null) currentTabId = latePack.tabId;
-          } else {
+          } else if (hop === MAX_HANDOFF_HOPS - 1 && fillResult) {
             fillResult.message =
               (fillResult.message || 'External apply handoff') +
-              ' (same-tab host unchanged — destination may have opened in another tab; continue there or paste ATS URL in queue)';
+              ' (hop ' +
+              (hop + 1) +
+              ' — host unchanged; destination may be another tab)';
+            break;
+          } else if (!fillResult.clickedApplyStart && !fillResult.jobpoolHubApply) {
+            break;
           }
+        }
+
+        preHandoffUrl = postUrl || preHandoffUrl;
+        progress('running', 'Re-detect / fill after hop ' + (hop + 1) + '…');
+        const handedPack = await injectAndFill(
+          currentTabId,
+          profile,
+          documents,
+          runMode,
+          config,
+          job,
+          { returnTabId: true, maxAttempts: 4 }
+        );
+        const handed = handedPack && handedPack.result;
+        if (handedPack && handedPack.tabId != null) currentTabId = handedPack.tabId;
+        if (handed) {
+          if (hostChanged) handed.externalApply = true;
+          if (fillResult && fillResult.clickedApplyStart) handed.fromApplyStart = true;
+          if (fillResult && fillResult.jobpoolHubApply) handed.fromJobPoolHub = true;
+          handed.fromBoardHandoff =
+            (fillResult && fillResult.adapterId) || (handed && handed.adapterId) || true;
+          handed.handoffHop = hop + 1;
+          if (!handed.message && fillResult && fillResult.message) {
+            handed.message = fillResult.message;
+          }
+          fillResult = handed;
+        } else {
+          break;
         }
       } catch (handoffErr) {
         if (fillResult && !fillResult.error) {
@@ -2036,6 +2017,7 @@
             (handoffErr && handoffErr.message) || handoffErr || 'handoff wait failed'
           );
         }
+        break;
       }
     }
 

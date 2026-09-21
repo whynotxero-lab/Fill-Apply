@@ -10,6 +10,8 @@
   const btnFill = document.getElementById('btnFill');
   const btnOptions = document.getElementById('btnOptions');
   const btnSeed = document.getElementById('btnSeed');
+  const btnLoadJobPool = document.getElementById('btnLoadJobPool');
+  const btnOpenJobPool = document.getElementById('btnOpenJobPool');
   const btnStart = document.getElementById('btnStart');
   const btnStop = document.getElementById('btnStop');
   const btnResetMock = document.getElementById('btnResetMock');
@@ -1433,6 +1435,60 @@
     }
   }
 
+
+
+  function jobPoolApplicationsUrl() {
+    var T = globalThis.FillApplyTypes || {};
+    return (
+      T.JOBPOOL_APPLICATIONS_URL ||
+      (T.JOBPOOL_DEFAULT_BASE_URL || 'https://zahid-jobpool.vercel.app') + '/applications'
+    );
+  }
+
+  if (btnOpenJobPool) {
+    btnOpenJobPool.addEventListener('click', function () {
+      var url = jobPoolApplicationsUrl();
+      try {
+        chrome.tabs.create({ url: url });
+      } catch (_e) {
+        window.open(url, '_blank');
+      }
+    });
+  }
+
+  if (btnLoadJobPool) {
+    btnLoadJobPool.addEventListener('click', async function () {
+      setStatus('Loading jobs from JobPool…', 'ok');
+      try {
+        const data = await send('FILL_APPLY_LOAD_JOBPOOL', {});
+        if (!data || data.ok === false) {
+          setStatus(
+            (data && data.hint) ||
+              (data && data.error) ||
+              'Could not load JobPool jobs. Open Applications while signed in, then retry.',
+            'err'
+          );
+          if (data && data.applicationsUrl) {
+            try {
+              chrome.tabs.create({ url: data.applicationsUrl });
+            } catch (_e2) {}
+          }
+          return;
+        }
+        await refreshSummary();
+        setStatus(
+          'Loaded ' +
+            (data.loaded || 0) +
+            ' JobPool job(s) via ' +
+            (data.source || 'jobpool') +
+            '. Start runner when ready.',
+          'ok'
+        );
+      } catch (e) {
+        setStatus('JobPool load failed: ' + (e && e.message ? e.message : e), 'err');
+      }
+    });
+  }
 
   if (btnOptions) {
     btnOptions.addEventListener('click', function () {
