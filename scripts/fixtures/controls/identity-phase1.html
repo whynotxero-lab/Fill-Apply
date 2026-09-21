@@ -1,0 +1,160 @@
+<!doctype html>
+<html><body>
+<form id="application-form">
+  <h2>Identity</h2>
+  <label for="title">Title</label>
+  <select id="title" name="title">
+    <option value="">Select</option>
+    <option value="Mr">Mr</option>
+    <option value="Ms">Ms</option>
+    <option value="Mrs">Mrs</option>
+  </select>
+  <label for="full">Full name</label>
+  <input id="full" name="full_name" />
+  <label for="first">Given name</label>
+  <input id="first" name="given_name" autocomplete="given-name" />
+  <label for="last">Surname</label>
+  <input id="last" name="surname" autocomplete="family-name" />
+  <label for="email">Email address</label>
+  <input id="email" name="email" type="email" />
+  <label for="job">Job title</label>
+  <input id="job" name="job_title" />
+
+  <h2>Phone</h2>
+  <label for="cc">Country code</label>
+  <select id="cc" name="phone_country">
+    <option value="">Code</option>
+    <option value="+966">+966 Saudi Arabia</option>
+    <option value="+966-SA">KSA (+966)</option>
+    <option value="+971">+971 UAE</option>
+    <option value="+92">+92 Pakistan</option>
+  </select>
+  <label for="phone">Mobile number</label>
+  <input id="phone" name="phone_number" type="tel" />
+  <label for="phone_e164">Phone (single)</label>
+  <input id="phone_e164" name="phone_full" type="tel" placeholder="+966#########" />
+
+  <h2>Address</h2>
+  <label for="addr_single">Address</label>
+  <input id="addr_single" name="address" />
+  <label for="addr_multi">Full mailing address</label>
+  <textarea id="addr_multi" name="address_multiline" rows="3"></textarea>
+  <label for="line1">Address line 1</label>
+  <input id="line1" name="address_line1" />
+  <label for="line2">Address line 2</label>
+  <input id="line2" name="address_line2" />
+  <label for="city">City</label>
+  <input id="city" name="city" />
+  <label for="country">Country</label>
+  <select id="country" name="country">
+    <option value="">Select</option>
+    <option value="Saudi Arabia">Saudi Arabia</option>
+    <option value="Pakistan">Pakistan</option>
+    <option value="United Arab Emirates">United Arab Emirates</option>
+  </select>
+  <label for="nat">Nationality</label>
+  <select id="nat" name="nationality">
+    <option value="">Select</option>
+    <option value="Pakistani">Pakistani</option>
+    <option value="Pakistan">Pakistan</option>
+    <option value="Saudi">Saudi</option>
+  </select>
+  <label for="res">Country of residence</label>
+  <select id="res" name="residence_country">
+    <option value="">Select</option>
+    <option value="Saudi Arabia">Saudi Arabia</option>
+    <option value="Pakistan">Pakistan</option>
+  </select>
+  <label for="loc">Current location</label>
+  <input id="loc" name="current_location" />
+
+  <h2>Gender / DOB</h2>
+  <label for="gender_sel">Gender</label>
+  <select id="gender_sel" name="gender">
+    <option value="">Select</option>
+    <option value="man">Man</option>
+    <option value="woman">Woman</option>
+    <option value="m">M</option>
+    <option value="Male">Male</option>
+  </select>
+  <fieldset>
+    <legend>Sex</legend>
+    <label><input type="radio" name="sex" value="Male" /> Male</label>
+    <label><input type="radio" name="sex" value="Female" /> Female</label>
+  </fieldset>
+  <label for="dob_iso">Date of birth</label>
+  <input id="dob_iso" name="dob" type="date" />
+  <label for="dob_mdy">Date of Birth</label>
+  <input id="dob_mdy" name="date_of_birth_mdy" placeholder="MM/DD/YYYY" />
+  <label for="dob_dmy">Date of birth</label>
+  <input id="dob_dmy" name="date_of_birth_dmy" placeholder="DD/MM/YYYY" />
+  <label for="dob_amb">Birthday</label>
+  <input id="dob_amb" name="birthday_plain" type="text" />
+  <label for="by">Birth year</label>
+  <input id="by" name="birth_year" />
+  <label for="bm">Birth month</label>
+  <input id="bm" name="birth_month" />
+  <label for="bd">Birth day</label>
+  <input id="bd" name="birth_day" />
+
+  <div class="field" data-calendar="1">
+    <label for="dob_cal">Date of birth (picker)</label>
+    <input id="dob_cal" name="dob_picker" type="text" readonly data-format="YYYY-MM-DD" />
+    <div class="datepicker" role="dialog" hidden>
+      <select aria-label="Year" class="cal-year">
+        <option value="1989">1989</option>
+        <option value="1990">1990</option>
+        <option value="1991">1991</option>
+      </select>
+      <select aria-label="Month" class="cal-month">
+        <option value="1">January</option>
+        <option value="2">February</option>
+        <option value="3">March</option>
+      </select>
+      <div role="grid">
+        <button type="button" role="gridcell" data-day="14">14</button>
+        <button type="button" role="gridcell" data-day="15">15</button>
+        <button type="button" role="gridcell" data-day="16">16</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>Education / salary</h2>
+  <label for="edu">Education history</label>
+  <textarea id="edu" name="education" rows="4"></textarea>
+  <label for="certs">Certifications</label>
+  <textarea id="certs" name="certifications" rows="3"></textarea>
+  <label for="edu_level">Highest education</label>
+  <select id="edu_level" name="highest_education">
+    <option value="">Select</option>
+    <option value="bcom">B.Com</option>
+    <option value="bachelor">Bachelor's Degree</option>
+    <option value="emba">EMBA</option>
+    <option value="mba">MBA</option>
+    <option value="masters">Master's Degree</option>
+  </select>
+  <label for="cur_sal">Current Salary</label>
+  <input id="cur_sal" name="current_salary" />
+  <label for="exp_sal">Expected Salary</label>
+  <input id="exp_sal" name="expected_salary" />
+</form>
+<script>
+  (function () {
+    var input = document.getElementById('dob_cal');
+    var dialog = document.querySelector('.datepicker');
+    if (!input || !dialog) return;
+    input.addEventListener('click', function () {
+      dialog.hidden = false;
+    });
+    dialog.querySelectorAll('[data-day]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var y = dialog.querySelector('.cal-year').value;
+        var m = dialog.querySelector('.cal-month').value;
+        var d = btn.getAttribute('data-day');
+        input.value = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+        dialog.hidden = true;
+      });
+    });
+  })();
+</script>
+</body></html>
