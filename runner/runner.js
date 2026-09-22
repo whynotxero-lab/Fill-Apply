@@ -1874,6 +1874,22 @@
       if (!r || r.ok === false) return false;
       if (r.filled > 0 || r.submitted || r.needsHuman || r.jobpoolMarkedApplied) return false;
       if (r.jobpoolReturnSuccess) return false;
+      // Board job detail with Apply handoff flags or unused generic empty fill.
+      if (
+        r.adapterId &&
+        /naukrigulf|michaelpage|bayt|gulftalent/i.test(String(r.adapterId)) &&
+        !(r.filled > 0) &&
+        !r.submitted &&
+        (r.clickedApplyStart ||
+          r.handedOff ||
+          r.externalApply ||
+          r.reDetect ||
+          r.usedGenericFallback ||
+          r.step === 'standard_apply_handoff' ||
+          r.step === 'standard_apply_handoff_retry')
+      ) {
+        return true;
+      }
       return !!(
         r.deferToPageAdapter ||
         r.handedOff ||
@@ -2101,6 +2117,20 @@
           profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
         } catch (_kbErr) {
           /* fill without adaptive snapshot */
+        }
+      }
+
+      if (global.FillApplyQuestionBank && global.FillApplyQuestionBank.exportSnapshot) {
+        try {
+          if (global.FillApplyQuestionBank.load) {
+            await global.FillApplyQuestionBank.load();
+          }
+          const qbSnap = global.FillApplyQuestionBank.exportSnapshot();
+          if (qbSnap && Array.isArray(qbSnap.records) && qbSnap.records.length) {
+            profile = Object.assign({}, profile, { __questionBank: qbSnap });
+          }
+        } catch (_qbStamp) {
+          /* fill without QB stamp */
         }
       }
 
@@ -2406,8 +2436,13 @@
         try {
           job = await B.getNextJob();
         } catch (e) {
-          await S.appendSessionLog({ type: 'error', error: String(e.message || e) });
-          await S.setQueueStatus({ lastError: String(e.message || e) });
+          var em = String(e && e.message ? e.message : e);
+          if (/DOCTYPE|not valid JSON|returned HTML|HTTP 404/i.test(em)) {
+            em =
+              'JobPool API unavailable (HTML/404). Open Applications, click Load from JobPool, then Start — or run Single on the Applications tab.';
+          }
+          await S.appendSessionLog({ type: 'error', error: em });
+          await S.setQueueStatus({ lastError: em });
           break;
         }
 
@@ -2572,6 +2607,19 @@
               profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
             } catch (_kbErr) {
               /* fill without adaptive snapshot */
+            }
+          }
+          if (global.FillApplyQuestionBank && global.FillApplyQuestionBank.exportSnapshot) {
+            try {
+              if (global.FillApplyQuestionBank.load) {
+                await global.FillApplyQuestionBank.load();
+              }
+              const qbSnap = global.FillApplyQuestionBank.exportSnapshot();
+              if (qbSnap && Array.isArray(qbSnap.records) && qbSnap.records.length) {
+                profile = Object.assign({}, profile, { __questionBank: qbSnap });
+              }
+            } catch (_qbStamp) {
+              /* fill without QB stamp */
             }
           }
           documents = await B.getDocuments();

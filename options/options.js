@@ -1032,19 +1032,20 @@
   });
 
   btnResetMock.addEventListener('click', async function () {
+    if (
+      !confirm(
+        'Clear all Application queue URLs and empty the queued list? Applied history is kept.'
+      )
+    ) {
+      return;
+    }
     try {
       const data = await send('FILL_APPLY_RESET_MOCK');
-      setStatus(
-        mockUrlsStatus,
-        data.remaining
-          ? 'Queued reset (' + data.remaining + ' jobs). Applied history kept.'
-          : 'Queued empty — save https URLs first.',
-        data.remaining ? 'ok' : 'err'
-      );
-      mockUrlsMeta.textContent = data.remaining
-        ? data.remaining + ' job(s) ready in queued.'
-        : 'No URLs configured.';
+      mockQueueUrlsEl.value = '';
+      setStatus(mockUrlsStatus, 'Queue and URLs cleared. Applied history kept.', 'ok');
+      mockUrlsMeta.textContent = 'No URLs configured.';
       await refreshBucketCounts();
+      void data;
     } catch (e) {
       setStatus(mockUrlsStatus, e.message, 'err');
     }

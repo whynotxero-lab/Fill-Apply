@@ -34,10 +34,10 @@
   var MARGIN = 16;
 
   var KNOWN_HOST_RE =
-    /linkedin\.com|indeed\.com|greenhouse\.io|ashbyhq\.com|lever\.co|workable\.com|myworkdayjobs\.com|workdayjobs\.com|workday\.com|smartrecruiters\.com|icims\.com|teamtailor\.com|naukrigulf\.com|glassdoor\.com|efinancialcareers\.com|wellfound\.com|angel\.co|remoteok\.(com|io)|weworkremotely\.com|workingnomads\.com|jooble\.org|swooped\.co|bayt\.com|gulftalent\.com|flexjobs\.com|remote\.co|remotive\.(com|io)|himalayas\.app|otta\.com|jobgether\.com|ycombinator\.com|workatastartup\.com|builtin\.com|upwork\.com|freehire\.com|catsone\.com|recruitee\.com|michaelpage\.|hays\.com|roberthalf\.com|cooperfitch\.com|charterhouse\.|robertwalters\.com|jivaropartners\.com|lhh\.com/i;
+    /linkedin\.com|indeed\.com|greenhouse\.io|ashbyhq\.com|lever\.co|workable\.com|myworkdayjobs\.com|workdayjobs\.com|workday\.com|smartrecruiters\.com|icims\.com|teamtailor\.com|naukrigulf\.com|glassdoor\.com|efinancialcareers\.com|wellfound\.com|angel\.co|remoteok\.(com|io)|weworkremotely\.com|workingnomads\.com|jooble\.org|swooped\.co|bayt\.com|gulftalent\.com|flexjobs\.com|remote\.co|remotive\.(com|io)|himalayas\.app|otta\.com|jobgether\.com|ycombinator\.com|workatastartup\.com|builtin\.com|upwork\.com|freehire\.com|catsone\.com|recruitee\.com|michaelpage\.|hays\.com|roberthalf\.com|cooperfitch\.com|charterhouse\.|robertwalters\.com|jivaropartners\.com|lhh\.com|zahid-jobpool\.vercel\.app|jobpool/i;
 
   var JOB_PATH_RE =
-    /\/jobs?(\/|$)|\/careers?(\/|$)|\/apply(\/|$)|\/application|\/vacanc|\/opening|\/positions?(\/|$)|\/easy-apply|\/job-listing|\/jobid|\/viewjob|\/posting/i;
+    /\/jobs?(\/|$)|\/careers?(\/|$)|\/apply(\/|$)|\/applications?(?:\/|$)|\/application|\/vacanc|\/opening|\/positions?(\/|$)|\/easy-apply|\/job-listing|\/jobid|\/viewjob|\/posting/i;
 
   var CTA_TEXT_RE =
     /\b(apply(\s+now)?|easy\s+apply|start\s+(your\s+)?application|start\s+apply|submit(\s+application)?|finish\s+application)\b/i;
@@ -142,6 +142,11 @@
     if (/(^|\.)indeed\.com$/i.test(host)) {
       if (/\/viewjob|\/apply|\/jobs?(\/|$)|\/job\//i.test(path)) return true;
       return pageLooksLikeApplication(doc);
+    }
+    // JobPool hub — always show panel on Applications (SPA may hydrate late).
+    if (/zahid-jobpool\.vercel\.app/i.test(host) || /jobpool/i.test(host)) {
+      if (/\/applications?/i.test(path) || /intelligent\s+opportunity\s+hub/i.test(path)) return true;
+      return true; // JobPool origin is the apply hub for this extension
     }
     if (KNOWN_HOST_RE.test(host) || KNOWN_HOST_RE.test(parsed.href)) return true;
     if (JOB_PATH_RE.test(path)) return true;

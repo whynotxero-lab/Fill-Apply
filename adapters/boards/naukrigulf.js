@@ -74,6 +74,21 @@
     return b + Math.floor(Math.random() * 300);
   }
 
+  function clickApplyControl(el) {
+    if (!el) return false;
+    try {
+      if (global.FillApplyDom && typeof global.FillApplyDom.realClick === 'function') {
+        if (global.FillApplyDom.realClick(el)) return true;
+      }
+    } catch (_rc) {}
+    try {
+      el.click();
+      return true;
+    } catch (_c) {
+      return false;
+    }
+  }
+
   function visible(el) {
     if (!el) return false;
     try {
@@ -1234,13 +1249,12 @@
         var applyBtn = findEasyApplyButton(doc);
         if (applyBtn) {
           try {
-            applyBtn.click();
-            advanced = true;
-            await sleep(humanDelay(500));
+            if (clickApplyControl(applyBtn)) advanced = true;
+            await sleep(humanDelay(700));
           } catch (_e2) {
             /* ignore */
           }
-          modal = await waitForModal(doc, 5500);
+          modal = await waitForModal(doc, 8000);
         } else {
           // Maybe modal already open after navigation
           modal = await waitForModal(doc, 1500);
@@ -1256,14 +1270,13 @@
         var standardBtn = findStandardApplyButton(doc);
         if (standardBtn) {
           try {
-            standardBtn.click();
-            advanced = true;
-            await sleep(humanDelay(500));
+            if (clickApplyControl(standardBtn)) advanced = true;
+            await sleep(humanDelay(700));
           } catch (_stdClick) {
             /* ignore */
           }
           // Re-check: some Apply CTAs still open the Easy Apply modal
-          modal = await waitForModal(doc, 2500);
+          modal = await waitForModal(doc, 4500);
           if (!modal) {
             return {
               ok: true,
@@ -1285,7 +1298,46 @@
               error: null
             };
           }
-        } else if (global.__fillApply && typeof global.__fillApply.run === 'function') {
+        } else {
+          // SPA hydrate retry — JobPool→NG often paints Apply after first paint
+          await sleep(humanDelay(900));
+          var retryEasy = findEasyApplyButton(doc);
+          if (retryEasy) {
+            if (clickApplyControl(retryEasy)) advanced = true;
+            await sleep(humanDelay(700));
+            modal = await waitForModal(doc, 8000);
+          }
+          if (!modal) {
+            var retryStd = findStandardApplyButton(doc);
+            if (retryStd) {
+              if (clickApplyControl(retryStd)) advanced = true;
+              await sleep(humanDelay(700));
+              modal = await waitForModal(doc, 4500);
+              if (!modal) {
+                return {
+                  ok: true,
+                  adapterId: 'naukrigulf',
+                  clickedApplyStart: true,
+                  reDetect: true,
+                  handedOff: true,
+                  deferToPageAdapter: true,
+                  externalApply: true,
+                  filled: 0,
+                  unmatched: 0,
+                  total: 0,
+                  advanced: true,
+                  submitted: false,
+                  step: 'standard_apply_handoff_retry',
+                  message:
+                    'Clicked Apply after SPA wait — waiting for apply form or company site',
+                  runMode: runMode,
+                  error: null
+                };
+              }
+            }
+          }
+        }
+        if (!modal && global.__fillApply && typeof global.__fillApply.run === 'function') {
           // Form may already be on the page (or generic Apply-start can open it)
           try {
             var generic = await global.__fillApply.run(profile, {
@@ -1297,7 +1349,16 @@
                 { kind: 'cover', match: 'cover' }
               ]
             });
-            if (generic && (generic.filled > 0 || generic.clickedApplyStart || generic.ok)) {
+            // Do NOT treat empty ok:true generic fills as success — that aborted
+            // JobPool→NG Apply handoff when the posting had Apply but no form yet.
+            if (
+              generic &&
+              (generic.filled > 0 ||
+                generic.clickedApplyStart ||
+                generic.submitted ||
+                generic.handedOff ||
+                generic.externalApply)
+            ) {
               generic.adapterId = 'naukrigulf';
               generic.usedGenericFallback = true;
               generic.advanced = advanced || !!generic.clickedApplyStart;
