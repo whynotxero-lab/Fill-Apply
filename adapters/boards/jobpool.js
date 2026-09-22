@@ -95,6 +95,8 @@
       return true;
     }
     if (/Ready-to-apply\s+packages/i.test(text)) return true;
+    if (/Fill-?Apply\s+queue/i.test(text) && /Open\s+Application/i.test(text)) return true;
+    if (/\/fill-apply/i.test(String(url || ''))) return true;
     return false;
   }
 

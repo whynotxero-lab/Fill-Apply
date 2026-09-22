@@ -1468,15 +1468,85 @@
       args: [profile, documents, runMode || 'fill', preferIndeedApply, focusHud, paceCfg]
     });
 
-    return (
-      pickBestFrameResult(results) || {
+    var best = pickBestFrameResult(results);
+    if (best) return best;
+
+    // Retry main frame only — some SPAs (JobPool/Vercel) yield empty allFrames results.
+    try {
+      const mainResults = await chrome.scripting.executeScript({
+        target: { tabId: tabId, allFrames: false },
+        world: 'ISOLATED',
+        func: async function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg, focusHudArg, paceArg) {
+          // Re-use same body via nested call is impossible here; mirror thin path:
+          // Prefer registry detect + fill when scripts already injected.
+          try {
+            if (globalThis.FillApplyRegistry && globalThis.FillApplyRegistry.detect) {
+              var adapter = globalThis.FillApplyRegistry.detect(
+                String((typeof location !== 'undefined' && location.href) || ''),
+                typeof document !== 'undefined' ? document : null
+              );
+              if (adapter && typeof adapter.fill === 'function') {
+                return await adapter.fill({
+                  profile: profileArg,
+                  documents: documentsArg,
+                  runMode: runModeArg || 'fill',
+                  options: { runMode: runModeArg || 'fill', preferIndeedApply: preferIndeedApplyArg }
+                });
+              }
+            }
+            if (globalThis.__fillApply && typeof globalThis.__fillApply.run === 'function') {
+              return await globalThis.__fillApply.run(profileArg, {
+                highlightUnmatched: false,
+                runMode: runModeArg || 'fill',
+                documents: documentsArg
+              });
+            }
+          } catch (e) {
+            return {
+              ok: false,
+              error: String((e && e.message) || e),
+              filled: 0,
+              unmatched: 0,
+              total: 0
+            };
+          }
+          return {
+            ok: false,
+            error: 'No adapter or fill engine in page',
+            filled: 0,
+            unmatched: 0,
+            total: 0
+          };
+        },
+        args: [profile, documents, runMode || 'fill', preferIndeedApply, focusHud, paceCfg]
+      });
+      best = pickBestFrameResult(mainResults);
+      if (best) {
+        best.injectRetriedMainFrame = true;
+        return best;
+      }
+    } catch (retryErr) {
+      return {
         ok: false,
-        error: 'No result from inject',
+        error: 'No result from inject (main-frame retry failed: ' + String((retryErr && retryErr.message) || retryErr) + ')',
         filled: 0,
         unmatched: 0,
         total: 0
-      }
-    );
+      };
+    }
+
+    const n = Array.isArray(results) ? results.length : 0;
+    return {
+      ok: false,
+      error:
+        'No result from inject (' +
+        n +
+        ' frame(s)). On JobPool Fill-Apply use Start to Open Application; if this persists, refresh the tab after Load unpacked.',
+      filled: 0,
+      unmatched: 0,
+      total: 0,
+      injectFrameCount: n
+    };
   }
 
   /**
