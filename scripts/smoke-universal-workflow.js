@@ -72,7 +72,7 @@ function fixture(name) {
   });
   suite.ok(/PROGRESS_PLATEAU_MS\s*=\s*10000/.test(typesSrc), 'plateau 10000ms');
 
-  // B) Page panel five controls
+  // B) Page panel Auto Apply Start / Stop (always open)
   const flowHtml = fixture('application-flow.html').replace(/<script>[\s\S]*?<\/script>/g, '');
   const panelPage = createPage(flowHtml, ['content/page-panel.js']);
   const P = panelPage.window.FillApplyPagePanel;
@@ -81,12 +81,12 @@ function fixture(name) {
   suite.equal(P.normalizeRunMode('Auto Navigate'), 'navigate', 'normalize navigate');
   const host = P.mount(panelPage.document);
   const shadow = host.shadowRoot;
-  const modes = ['register', 'fill', 'navigate', 'ready', 'submit'];
-  const labels = ['Auto Register', 'Auto Fill', 'Auto Navigate', 'Auto Ready', 'Auto Submit'];
-  modes.forEach(function (m, i) {
-    const btn = shadow.querySelector('[data-mode="' + m + '"]');
-    suite.ok(btn && btn.textContent === labels[i], labels[i] + ' present');
-  });
+  const start = shadow.querySelector('[data-action="start"]');
+  const stop = shadow.querySelector('[data-action="stop"]');
+  suite.ok(start && start.textContent === 'Start', 'Start present');
+  suite.ok(stop && stop.textContent === 'Stop', 'Stop present');
+  suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No multi-mode Register');
+  suite.ok(!shadow.querySelector('.wrap.collapsed'), 'Panel always expanded');
 
   // C) Plateau tracker
   const fillPage = createPage('<form></form>', ['content/fill.js']);
@@ -199,8 +199,8 @@ function fixture(name) {
   // I) Version
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-  suite.ok(/^1\.2[23]\./.test(pkg.version), 'package version 1.22+/1.23 (got ' + pkg.version + ')');
-  suite.ok(/^1\.2[23]\./.test(man.version), 'manifest version 1.22+/1.23 (got ' + man.version + ')');
+  suite.ok(/^1\.2[2-9]\./.test(pkg.version), 'package version 1.22+ (got ' + pkg.version + ')');
+  suite.ok(/^1\.2[2-9]\./.test(man.version), 'manifest version 1.22+ (got ' + man.version + ')');
 
   suite.finish();
 })().catch(function (err) {

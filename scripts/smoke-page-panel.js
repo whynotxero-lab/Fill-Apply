@@ -97,16 +97,14 @@ const JOB_FORM = `
   suite.ok(host.style.position === 'fixed', 'host is position:fixed (not a page overlay)');
 
   const shadow = host.shadowRoot;
-  const register = shadow.querySelector('[data-mode="register"]');
-  const fill = shadow.querySelector('[data-mode="fill"]');
-  const navigate = shadow.querySelector('[data-mode="navigate"]');
-  const ready = shadow.querySelector('[data-mode="ready"]');
-  const submit = shadow.querySelector('[data-mode="submit"]');
-  suite.ok(register && register.textContent === 'Auto Register', 'Auto Register button');
-  suite.ok(fill && fill.textContent === 'Auto Fill', 'Auto Fill button');
-  suite.ok(navigate && navigate.textContent === 'Auto Navigate', 'Auto Navigate button');
-  suite.ok(ready && ready.textContent === 'Auto Ready', 'Auto Ready button');
-  suite.ok(submit && submit.textContent === 'Auto Submit', 'Auto Submit button');
+  const start = shadow.querySelector('[data-action="start"]');
+  const stop = shadow.querySelector('[data-action="stop"]');
+  suite.ok(start && start.textContent === 'Start', 'Start button');
+  suite.ok(stop && stop.textContent === 'Stop', 'Stop button');
+  suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No Auto Register mode button');
+  suite.ok(!shadow.querySelector('[data-mode="fill"]'), 'No Auto Fill mode button');
+  const wrap = shadow.querySelector('.wrap');
+  suite.ok(wrap && !wrap.classList.contains('collapsed'), 'Panel always expanded');
   suite.ok(!!shadow.querySelector('.status'), 'status line is present');
 
   const style = shadow.querySelector('style');
