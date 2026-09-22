@@ -40,6 +40,8 @@ const SUITES = [
   'smoke-jobpool-multihop-ui.js',
   'smoke-jobpool-live-dom.js',
   'smoke-queue-clear-urls.js',
+  'smoke-qb-load-on-fill.js',
+  'smoke-docs-local-not-jobpool.js',
   'smoke-jobpool-html-json.js',
   'smoke-page-panel.js',
   'smoke-ats-auth.js',

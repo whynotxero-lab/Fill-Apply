@@ -1706,6 +1706,28 @@
     if (global.FillApplyKnowledge && profile.__adaptiveKnowledge) {
       global.FillApplyKnowledge.hydrate(profile.__adaptiveKnowledge);
     }
+    // Question Bank lives in chrome.storage; content-script inject starts empty.
+    // Load before any resolve() so authored Q→A apply on this Auto Fill pass.
+    try {
+      if (global.FillApplyQuestionBank && typeof global.FillApplyQuestionBank.load === 'function') {
+        await global.FillApplyQuestionBank.load();
+      }
+    } catch (_qbLoad) {
+      /* fill without QB */
+    }
+    if (
+      global.FillApplyQuestionBank &&
+      profile.__questionBank &&
+      typeof global.FillApplyQuestionBank.importSnapshot === 'function'
+    ) {
+      try {
+        await global.FillApplyQuestionBank.importSnapshot(profile.__questionBank, {
+          mode: 'merge'
+        });
+      } catch (_qbImp) {
+        /* ignore */
+      }
+    }
     const highlightUnmatched = !!options.highlightUnmatched;
     const map = global.FillApplyFieldMap;
     const syn = global.FillApplySynonyms;

@@ -2120,6 +2120,20 @@
         }
       }
 
+      if (global.FillApplyQuestionBank && global.FillApplyQuestionBank.exportSnapshot) {
+        try {
+          if (global.FillApplyQuestionBank.load) {
+            await global.FillApplyQuestionBank.load();
+          }
+          const qbSnap = global.FillApplyQuestionBank.exportSnapshot();
+          if (qbSnap && Array.isArray(qbSnap.records) && qbSnap.records.length) {
+            profile = Object.assign({}, profile, { __questionBank: qbSnap });
+          }
+        } catch (_qbStamp) {
+          /* fill without QB stamp */
+        }
+      }
+
       const config = await S.getRunConfig();
       let documents = await B.getDocuments();
       try {
@@ -2593,6 +2607,19 @@
               profile = await global.FillApplyKnowledgeStore.attachToProfile(profile);
             } catch (_kbErr) {
               /* fill without adaptive snapshot */
+            }
+          }
+          if (global.FillApplyQuestionBank && global.FillApplyQuestionBank.exportSnapshot) {
+            try {
+              if (global.FillApplyQuestionBank.load) {
+                await global.FillApplyQuestionBank.load();
+              }
+              const qbSnap = global.FillApplyQuestionBank.exportSnapshot();
+              if (qbSnap && Array.isArray(qbSnap.records) && qbSnap.records.length) {
+                profile = Object.assign({}, profile, { __questionBank: qbSnap });
+              }
+            } catch (_qbStamp) {
+              /* fill without QB stamp */
             }
           }
           documents = await B.getDocuments();
