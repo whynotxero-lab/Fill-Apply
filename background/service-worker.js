@@ -182,7 +182,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             Types.JOBPOOL_DEFAULT_BASE_URL ||
             'https://zahid-jobpool.vercel.app'
         ).replace(/\/$/, '');
-        const appsUrl = base + '/applications';
+        const appsUrl = (Types.JOBPOOL_FILL_APPLY_URL) || (base + '/fill-apply');
 
         let api = { jobs: [], source: 'none', baseUrl: base };
         if (FillApplyBackend && FillApplyBackend.loadJobsFromJobPool) {
@@ -211,14 +211,23 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
           };
         }
 
-        // Scrape Ready-to-apply cards from the Applications page (user session cookies).
+        // Scrape Fill-Apply queue (or legacy Applications) using the signed-in JobPool tab.
         let tab = null;
         const tabs = await chrome.tabs.query({});
         for (let i = 0; i < tabs.length; i++) {
           const u = tabs[i] && tabs[i].url ? String(tabs[i].url) : '';
-          if (/zahid-jobpool\.vercel\.app/i.test(u) && /application/i.test(u)) {
+          if (/zahid-jobpool\.vercel\.app/i.test(u) && /\/fill-apply/i.test(u)) {
             tab = tabs[i];
             break;
+          }
+        }
+        if (!tab) {
+          for (let j = 0; j < tabs.length; j++) {
+            const u2 = tabs[j] && tabs[j].url ? String(tabs[j].url) : '';
+            if (/zahid-jobpool\.vercel\.app/i.test(u2) && /applications?/i.test(u2)) {
+              tab = tabs[j];
+              break;
+            }
           }
         }
         if (!tab) {
@@ -249,7 +258,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                 return /^https?:\/\//i.test(u || '');
               }
               function isJobPool(u) {
-                return /zahid-jobpool\.vercel\.app|\/applications/i.test(u || '');
+                return /zahid-jobpool\.vercel\.app|\/fill-apply|\/applications/i.test(u || '');
               }
               var out = [];
               var seen = {};
@@ -261,10 +270,14 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                 var label = String(el.innerText || el.textContent || el.getAttribute('aria-label') || '')
                   .replace(/\s+/g, ' ')
                   .trim();
-                if (!/^apply$/i.test(label) && el.getAttribute('data-fill-apply') !== 'jobpool-apply') {
+                if (
+                  !/^apply$/i.test(label) &&
+                  !/^open\s*application$/i.test(label) &&
+                  el.getAttribute('data-fill-apply') !== 'jobpool-apply'
+                ) {
                   continue;
                 }
-                if (/mark as applied/i.test(label)) continue;
+                if (/mark as applied|applied successfully|application issue|^blocked$/i.test(label)) continue;
                 var href =
                   el.getAttribute('href') ||
                   el.getAttribute('data-href') ||
@@ -325,7 +338,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             source: 'scrape-empty',
             applicationsUrl: appsUrl,
             apiError: api.error || null,
-            hint: 'Open ' + appsUrl + ' while signed in, then click Load from JobPool again.'
+            hint: 'Open ' + appsUrl + ' (Fill-Apply queue) while signed in, then click Load from JobPool again.'
           };
         }
 
