@@ -1437,17 +1437,18 @@
 
 
 
-  function jobPoolApplicationsUrl() {
+  function jobPoolHubUrl() {
     var T = globalThis.FillApplyTypes || {};
     return (
-      T.JOBPOOL_APPLICATIONS_URL ||
-      (T.JOBPOOL_DEFAULT_BASE_URL || 'https://zahid-jobpool.vercel.app') + '/applications'
+      T.JOBPOOL_HUB_URL ||
+      T.JOBPOOL_FILL_APPLY_URL ||
+      (T.JOBPOOL_DEFAULT_BASE_URL || 'https://zahid-jobpool.vercel.app') + '/fill-apply'
     );
   }
 
   if (btnOpenJobPool) {
     btnOpenJobPool.addEventListener('click', function () {
-      var url = jobPoolApplicationsUrl();
+      var url = jobPoolHubUrl();
       try {
         chrome.tabs.create({ url: url });
       } catch (_e) {
@@ -1465,7 +1466,7 @@
           setStatus(
             (data && data.hint) ||
               (data && data.error) ||
-              'Could not load JobPool jobs. Open Applications while signed in, then retry.',
+              'Could not load JobPool jobs. Open Fill-Apply while signed in, then retry.',
             'err'
           );
           if (data && data.applicationsUrl) {
@@ -1485,7 +1486,15 @@
           'ok'
         );
       } catch (e) {
-        setStatus('JobPool load failed: ' + (e && e.message ? e.message : e), 'err');
+        var em = String((e && e.message) || e || '');
+        if (/DOCTYPE|not valid JSON|returned HTML|JSON parse failed/i.test(em)) {
+          setStatus(
+            'JobPool API returned a web page instead of jobs. Open Fill-Apply while signed in, then Load from JobPool again (scrape fallback).',
+            'err'
+          );
+        } else {
+          setStatus('JobPool load failed: ' + em, 'err');
+        }
       }
     });
   }
@@ -1629,11 +1638,12 @@
     btnResetMock.addEventListener('click', async function () {
       try {
         const data = await send('FILL_APPLY_RESET_MOCK');
-        if (!data.remaining) {
-          setStatus('Queued empty — add https apply URLs in App Settings (Application queue).', 'warn');
-        } else {
-          setStatus('Queued rebuilt (' + data.remaining + ' jobs).', 'ok');
-        }
+        setStatus(
+          data.remaining
+            ? 'Queued rebuilt (' + data.remaining + ' jobs).'
+            : 'Queue and URLs cleared — paste URLs in App Settings → Application queue if needed.',
+          data.remaining ? 'ok' : 'warn'
+        );
         await refreshStatus();
       } catch (e) {
         setStatus('Reset failed: ' + e.message, 'err');

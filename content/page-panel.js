@@ -1,5 +1,5 @@
 /**
- * On-page floating control panel — Auto Register / Auto Fill / Auto Navigate / Auto Ready / Auto Submit.
+ * On-page floating control panel — Auto Apply (Start / Stop). Always expanded.
  *
  * Injected as a top-frame content script on http(s) job/application pages.
  * Isolated via Shadow DOM + `all: initial` on the host so page CSS cannot
@@ -27,17 +27,17 @@
 
   var HOST_ID = 'fill-apply-page-panel-host';
   var ATTR = 'data-fill-apply-page-panel';
-  var PANEL_WIDTH = 216;
-  var PANEL_HEIGHT = 248;
+  var PANEL_WIDTH = 200;
+  var PANEL_HEIGHT = 120;
   var COLLAPSED_WIDTH = 156;
   var COLLAPSED_HEIGHT = 36;
   var MARGIN = 16;
 
   var KNOWN_HOST_RE =
-    /linkedin\.com|indeed\.com|greenhouse\.io|ashbyhq\.com|lever\.co|workable\.com|myworkdayjobs\.com|workdayjobs\.com|workday\.com|smartrecruiters\.com|icims\.com|teamtailor\.com|naukrigulf\.com|glassdoor\.com|efinancialcareers\.com|wellfound\.com|angel\.co|remoteok\.(com|io)|weworkremotely\.com|workingnomads\.com|jooble\.org|swooped\.co|bayt\.com|gulftalent\.com|flexjobs\.com|remote\.co|remotive\.(com|io)|himalayas\.app|otta\.com|jobgether\.com|ycombinator\.com|workatastartup\.com|builtin\.com|upwork\.com|freehire\.com|catsone\.com|recruitee\.com|michaelpage\.|hays\.com|roberthalf\.com|cooperfitch\.com|charterhouse\.|robertwalters\.com|jivaropartners\.com|lhh\.com/i;
+    /linkedin\.com|indeed\.com|greenhouse\.io|ashbyhq\.com|lever\.co|workable\.com|myworkdayjobs\.com|workdayjobs\.com|workday\.com|smartrecruiters\.com|icims\.com|teamtailor\.com|naukrigulf\.com|glassdoor\.com|efinancialcareers\.com|wellfound\.com|angel\.co|remoteok\.(com|io)|weworkremotely\.com|workingnomads\.com|jooble\.org|swooped\.co|bayt\.com|gulftalent\.com|flexjobs\.com|remote\.co|remotive\.(com|io)|himalayas\.app|otta\.com|jobgether\.com|ycombinator\.com|workatastartup\.com|builtin\.com|upwork\.com|freehire\.com|catsone\.com|recruitee\.com|michaelpage\.|hays\.com|roberthalf\.com|cooperfitch\.com|charterhouse\.|robertwalters\.com|jivaropartners\.com|lhh\.com|zahid-jobpool\.vercel\.app|jobpool/i;
 
   var JOB_PATH_RE =
-    /\/jobs?(\/|$)|\/careers?(\/|$)|\/apply(\/|$)|\/application|\/vacanc|\/opening|\/positions?(\/|$)|\/easy-apply|\/job-listing|\/jobid|\/viewjob|\/posting/i;
+    /\/jobs?(\/|$)|\/careers?(\/|$)|\/apply(\/|$)|\/applications?(?:\/|$)|\/application|\/vacanc|\/opening|\/positions?(\/|$)|\/easy-apply|\/job-listing|\/jobid|\/viewjob|\/posting/i;
 
   var CTA_TEXT_RE =
     /\b(apply(\s+now)?|easy\s+apply|start\s+(your\s+)?application|start\s+apply|submit(\s+application)?|finish\s+application)\b/i;
@@ -142,6 +142,10 @@
     if (/(^|\.)indeed\.com$/i.test(host)) {
       if (/\/viewjob|\/apply|\/jobs?(\/|$)|\/job\//i.test(path)) return true;
       return pageLooksLikeApplication(doc);
+    }
+    // JobPool hub — Fill-Apply + Applications.
+    if (/zahid-jobpool\.vercel\.app/i.test(host) || /jobpool/i.test(host)) {
+      return true;
     }
     if (KNOWN_HOST_RE.test(host) || KNOWN_HOST_RE.test(parsed.href)) return true;
     if (JOB_PATH_RE.test(path)) return true;
@@ -382,24 +386,26 @@
     ].join('');
   }
 
-  function setCollapsed(on) {
-    collapsed = !!on;
-    if (shadowRoot) {
-      var wrap = shadowRoot.querySelector('.wrap');
-      if (wrap) wrap.classList.toggle('collapsed', collapsed);
-      var tog = shadowRoot.querySelector('.toggle');
-      if (tog) {
-        tog.textContent = collapsed ? '▸' : '▾';
-        tog.setAttribute('aria-label', collapsed ? 'Expand Fill & Apply' : 'Collapse Fill & Apply');
-      }
-    }
+  function setCollapsed(_on) {
+    // Always open — Start/Stop must stay visible (user product requirement).
+    collapsed = false;
     try {
-      if (global.chrome && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.set({ 'fillApply.pagePanel.collapsed': collapsed });
+      var wrap = shadowRoot && shadowRoot.querySelector('.wrap');
+      if (wrap) wrap.classList.remove('collapsed');
+      var tog = shadowRoot && shadowRoot.querySelector('.toggle');
+      if (tog) {
+        tog.style.display = 'none';
+        tog.setAttribute('aria-hidden', 'true');
       }
     } catch (_e) {}
+    try {
+      if (global.chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ 'fillApply.pagePanel.collapsed': false });
+      }
+    } catch (_s) {}
     scheduleReposition();
   }
+
 
   function setBusy(on) {
     busy = !!on;
@@ -450,15 +456,15 @@
     if (state === STATUS.done) return 'Done';
     if (state === STATUS.error) return 'Error';
     if (state === STATUS.DETECTING) return 'Detecting…';
-    if (state === STATUS.REGISTERING) return 'Auto Register — Signing up…';
-    if (state === STATUS.FILLING) return 'Auto Fill — Filling…';
-    if (state === STATUS.NAVIGATING) return 'Auto Navigate — Next step…';
+    if (state === STATUS.REGISTERING) return 'Auto Apply — Registering…';
+    if (state === STATUS.FILLING) return 'Auto Apply — Filling…';
+    if (state === STATUS.NAVIGATING) return 'Auto Apply — Navigating…';
     if (state === STATUS.WAITING_FOR_DEPENDENT_FIELDS) return 'Waiting for dependent fields…';
     if (state === STATUS.VALIDATING) return 'Validating…';
     if (state === STATUS.MISSING_INFORMATION) return 'Missing information';
     if (state === STATUS.BLOCKED) return 'Blocked';
     if (state === STATUS.READY) return 'Ready';
-    if (state === STATUS.SUBMITTING) return 'Auto Submit — Submitting…';
+    if (state === STATUS.SUBMITTING) return 'Auto Apply — Submitting…';
     if (state === STATUS.COMPLETE) return 'Complete';
     if (state === STATUS.WAITING_FOR_USER) return 'Waiting for user…';
     if (state === STATUS.AUTH_REQUIRED) return 'Sign in required';
@@ -467,54 +473,73 @@
     return 'Idle — current tab';
   }
 
-  function sendRun(runMode) {
-    var mode = normalizeRunMode(runMode);
-    var startLabel = {
-      register: 'Auto Register — Starting…',
-      fill: 'Auto Fill — Filling…',
-      navigate: 'Auto Navigate — Starting…',
-      ready: 'Auto Ready — Starting…',
-      submit: 'Auto Submit — Starting…'
-    };
-    setStatus(STATUS.running, startLabel[mode] || ('Starting ' + mode + '…'));
+  function startAutoApply() {
+    setStatus(STATUS.SUBMITTING, 'Auto Apply — Starting…');
+    if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      setStatus(STATUS.error, 'Extension background unavailable');
+      return;
+    }
+    busy = true;
+    try {
+      chrome.runtime.sendMessage(
+        { type: 'FILL_APPLY_FILL_ONCE', runMode: 'submit', autoApply: true },
+        function (res) {
+          if (chrome.runtime.lastError) {
+            busy = false;
+            var errMsg = chrome.runtime.lastError.message || 'Message failed';
+            if (isContextDeadError(errMsg)) {
+              setStatus(
+                STATUS.error,
+                'Extension was reloaded — refresh this tab, then try again (Load unpacked / Update).'
+              );
+              return;
+            }
+            setStatus(STATUS.error, errMsg);
+            return;
+          }
+          busy = false;
+          if (!res || res.ok === false) {
+            var err = (res && res.error) || 'Request failed';
+            if (/captcha|cloudflare/i.test(err)) {
+              setStatus(STATUS.BLOCKED, 'Blocked — CAPTCHA…');
+            } else if (/auth|sign in|log in|register/i.test(err)) {
+              setStatus(STATUS.AUTH_REQUIRED, err);
+            } else if (/paused|missing profile|action needed|waiting for user/i.test(err)) {
+              setStatus(STATUS.WAITING_FOR_USER, err);
+            } else if (/timeout|no progress|plateau/i.test(err)) {
+              setStatus(STATUS.TIMEOUT, err);
+            } else if (/ambiguous/i.test(err)) {
+              setStatus(STATUS.AMBIGUOUS, err);
+            } else {
+              setStatus(STATUS.error, err);
+            }
+            return;
+          }
+          applyResult(res.data || res);
+        }
+      );
+    } catch (e) {
+      busy = false;
+      setStatus(STATUS.error, String((e && e.message) || e));
+    }
+  }
+
+  function stopAutoApply() {
     if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
       setStatus(STATUS.error, 'Extension background unavailable');
       return;
     }
     try {
-      chrome.runtime.sendMessage({ type: 'FILL_APPLY_FILL_ONCE', runMode: mode }, function (res) {
+      chrome.runtime.sendMessage({ type: 'FILL_APPLY_STOP' }, function (res) {
+        busy = false;
         if (chrome.runtime.lastError) {
-          var errMsg = chrome.runtime.lastError.message || 'Message failed';
-          if (isContextDeadError(errMsg)) {
-            setStatus(
-              STATUS.error,
-              'Extension was reloaded — refresh this tab, then try again (Load unpacked / Update).'
-            );
-            return;
-          }
-          setStatus(STATUS.error, errMsg);
+          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Stop failed');
           return;
         }
-        if (!res || res.ok === false) {
-          var err = (res && res.error) || 'Request failed';
-          if (/captcha|cloudflare/i.test(err)) {
-            setStatus(STATUS.BLOCKED, 'Blocked — CAPTCHA…');
-          } else if (/auth|sign in|log in|register/i.test(err)) {
-            setStatus(STATUS.AUTH_REQUIRED, err);
-          } else if (/paused|missing profile|action needed|waiting for user/i.test(err)) {
-            setStatus(STATUS.WAITING_FOR_USER, err);
-          } else if (/timeout|no progress|plateau/i.test(err)) {
-            setStatus(STATUS.TIMEOUT, err);
-          } else if (/ambiguous/i.test(err)) {
-            setStatus(STATUS.AMBIGUOUS, err);
-          } else {
-            setStatus(STATUS.error, err);
-          }
-          return;
-        }
-        applyResult(res.data || res);
+        setStatus(STATUS.idle, 'Stopped — Auto Apply idle');
       });
     } catch (e) {
+      busy = false;
       setStatus(STATUS.error, String((e && e.message) || e));
     }
   }
@@ -554,13 +579,11 @@
       shadowRoot = existing.shadowRoot;
       if (shadowRoot) {
         statusEl = shadowRoot.querySelector('.status');
-        buttons.register = shadowRoot.querySelector('[data-mode="register"]');
-        buttons.fill = shadowRoot.querySelector('[data-mode="fill"]');
-        buttons.navigate = shadowRoot.querySelector('[data-mode="navigate"]');
-        buttons.ready = shadowRoot.querySelector('[data-mode="ready"]');
-        buttons.submit = shadowRoot.querySelector('[data-mode="submit"]');
+        buttons.start = shadowRoot.querySelector('[data-action="start"]');
+        buttons.stop = shadowRoot.querySelector('[data-action="stop"]');
       }
       existing.hidden = false;
+      setCollapsed(false);
       scheduleReposition();
       return existing;
     }
@@ -569,7 +592,7 @@
     host.id = HOST_ID;
     host.setAttribute(ATTR, '1');
     host.setAttribute('role', 'region');
-    host.setAttribute('aria-label', 'Fill & Apply');
+    host.setAttribute('aria-label', 'Fill & Apply — Auto Apply');
     host.style.cssText = [
       'all: initial',
       'position: fixed',
@@ -593,55 +616,59 @@
     shadow.appendChild(style);
 
     var wrap = doc.createElement('div');
-    wrap.className = 'wrap' + (collapsed ? ' collapsed' : '');
+    wrap.className = 'wrap';
 
     var bar = doc.createElement('div');
     bar.className = 'bar';
     var brand = doc.createElement('div');
     brand.className = 'brand';
-    brand.textContent = 'Fill & Apply';
+    brand.textContent = 'Auto Apply';
     var toggle = doc.createElement('button');
     toggle.type = 'button';
     toggle.className = 'toggle';
-    toggle.textContent = collapsed ? '▸' : '▾';
-    toggle.setAttribute('aria-label', collapsed ? 'Expand Fill & Apply' : 'Collapse Fill & Apply');
-    toggle.addEventListener('click', function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      setCollapsed(!collapsed);
-    });
+    toggle.style.display = 'none';
+    toggle.setAttribute('aria-hidden', 'true');
+    toggle.textContent = '▾';
     bar.appendChild(brand);
     bar.appendChild(toggle);
     wrap.appendChild(bar);
 
     var btns = doc.createElement('div');
     btns.className = 'btns';
-    [
-      { mode: 'register', label: 'Auto Register' },
-      { mode: 'fill', label: 'Auto Fill' },
-      { mode: 'navigate', label: 'Auto Navigate' },
-      { mode: 'ready', label: 'Auto Ready' },
-      { mode: 'submit', label: 'Auto Submit' }
-    ].forEach(function (def) {
-      var b = doc.createElement('button');
-      b.type = 'button';
-      b.className = 'act';
-      b.setAttribute('data-mode', def.mode);
-      b.textContent = def.label;
-      b.addEventListener('click', function (ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (busy) return;
-        sendRun(def.mode);
-      });
-      buttons[def.mode] = b;
-      btns.appendChild(b);
+
+    var startBtn = doc.createElement('button');
+    startBtn.type = 'button';
+    startBtn.className = 'act';
+    startBtn.setAttribute('data-action', 'start');
+    startBtn.setAttribute('data-mode', 'submit');
+    startBtn.textContent = 'Start';
+    startBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (busy) return;
+      startAutoApply();
     });
+    buttons.start = startBtn;
+    btns.appendChild(startBtn);
+
+    var stopBtn = doc.createElement('button');
+    stopBtn.type = 'button';
+    stopBtn.className = 'act';
+    stopBtn.setAttribute('data-action', 'stop');
+    stopBtn.textContent = 'Stop';
+    stopBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      stopAutoApply();
+    });
+    buttons.stop = stopBtn;
+    btns.appendChild(stopBtn);
+
     wrap.appendChild(btns);
 
     var st = doc.createElement('div');
     st.className = 'status idle';
-    st.textContent = 'Idle — current tab';
+    st.textContent = 'Idle — Auto Apply';
     wrap.appendChild(st);
     shadow.appendChild(wrap);
 
@@ -650,6 +677,7 @@
     hostEl = host;
     shadowRoot = shadow;
     statusEl = st;
+    collapsed = false;
     scheduleReposition();
     return host;
   }
@@ -730,9 +758,8 @@
     } catch (_e) {}
     try {
       if (global.chrome && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(['fillApply.pagePanel.collapsed'], function (res) {
-          if (res && res['fillApply.pagePanel.collapsed']) setCollapsed(true);
-        });
+        chrome.storage.local.set({ 'fillApply.pagePanel.collapsed': false });
+        setCollapsed(false);
       }
     } catch (_s) {}
   }
