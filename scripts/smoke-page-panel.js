@@ -33,6 +33,8 @@ const JOB_FORM = `
   suite.equal(P.normalizeRunMode('Auto Navigate'), 'navigate', 'Auto Navigate maps to navigate');
   suite.equal(P.normalizeRunMode('Auto Ready'), 'ready', 'Auto Ready maps to ready');
   suite.equal(P.normalizeRunMode('Auto Submit'), 'submit', 'Auto Submit maps to submit');
+  suite.equal(P.normalizeRunMode('companion'), 'companion', 'companion stays companion');
+  suite.equal(P.normalizeRunMode('Simplify Companion'), 'companion', 'Simplify Companion maps');
   suite.equal(P.normalizeRunMode('ready'), 'ready', 'ready stays ready');
   suite.equal(P.normalizeRunMode('nope'), 'fill', 'unknown mode falls back to fill');
 
@@ -100,6 +102,8 @@ const JOB_FORM = `
   const start = shadow.querySelector('[data-action="start"]');
   const stop = shadow.querySelector('[data-action="stop"]');
   suite.ok(start && start.textContent === 'Start', 'Start button');
+  const companion = shadow.querySelector('[data-action="companion"]');
+  suite.ok(companion && companion.textContent === 'Companion', 'Companion button');
   suite.ok(stop && stop.textContent === 'Stop', 'Stop button');
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No Auto Register mode button');
   suite.ok(!shadow.querySelector('[data-mode="fill"]'), 'No Auto Fill mode button');
@@ -115,8 +119,12 @@ const JOB_FORM = `
   const page = createPage(JOB_FORM, LIBS);
   const P = page.window.FillApplyPagePanel;
   suite.ok(
+    P.isRelevantPage('https://zahid-jobpool.vercel.app/fill-apply', page.document),
+    'JobPool /fill-apply hub shows page panel'
+  );
+  suite.ok(
     P.isRelevantPage('https://zahid-jobpool.vercel.app/applications', page.document),
-    'JobPool Applications shows page panel'
+    'JobPool Applications shows page panel (legacy)'
   );
   suite.ok(
     P.isRelevantPage('https://zahid-jobpool.vercel.app/applications?tab=ready', null),

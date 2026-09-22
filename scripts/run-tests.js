@@ -45,6 +45,7 @@ const SUITES = [
   'smoke-docs-local-not-jobpool.js',
   'smoke-jobpool-html-json.js',
   'smoke-page-panel.js',
+  'smoke-companion-nav.js',
   'smoke-ats-auth.js',
   'smoke-challenges.js',
   'smoke-control-adapter.js',

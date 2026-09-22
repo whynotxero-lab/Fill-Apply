@@ -5,7 +5,8 @@
  * move to applied/failed OR pause for human → prune old submitted tabs? → delay.
  * Honors STOP and RESUME (after Cloudflare/CAPTCHA / form drift).
  *
- * runMode: register | fill | navigate | ready | submit
+ * runMode: register | fill | navigate | ready | submit | companion
+ * companion: settle → click Continue/Next → grace (never fill/upload; Simplify sidepanel opaque).
  * Auto-close: Submit mode + submitted success only; keeps last N tabs (keepRecentTabs).
  * PDF report: on successful submit when autoPdfReport is ON.
  */
@@ -42,6 +43,7 @@
     'lib/dom-deep.js',
     'lib/format.js',
     'lib/synonyms.js',
+    'lib/companion-nav.js',
     'lib/pace.js',
     'lib/field-map.js',
     'lib/control-adapter.js',
@@ -99,6 +101,8 @@
 
   let loopActive = false;
   let currentTabRunActive = false;
+  /** Abort flag for companion / current-tab runs (STOP). */
+  let currentTabAbort = false;
   let delayTimer = null;
   let currentJobId = null;
   let pausedTabId = null;
@@ -2049,6 +2053,349 @@
     return /^(chrome|edge|about|devtools|view-source):/i.test(url);
   }
 
+
+  /**
+   * Simplify companion — navigate-only loop on the current tab.
+   * Never fills fields or uploads documents. Host-page DOM settle only
+   * (chrome-extension:// Simplify sidepanel is opaque / unreadable).
+   * After each Continue click, grace period so Simplify can auto-start.
+   * Honors STOP via currentTabAbort.
+   */
+  async function runCompanionOnTab(tabId, config) {
+    const S = global.FillApplyStorage;
+    config = config || {};
+    const settleMs =
+      config.companionSettleMs != null
+        ? config.companionSettleMs
+        : (config.settleMs != null ? config.settleMs : 12000);
+    const maxWaitMs =
+      config.companionMaxWaitMs != null ? config.companionMaxWaitMs : 12 * 60 * 1000;
+    const graceMs = config.companionGraceMs != null ? config.companionGraceMs : 4000;
+    const maxSteps = config.companionMaxSteps != null ? config.companionMaxSteps : 40;
+
+    currentTabAbort = false;
+    let steps = 0;
+    let lastClick = null;
+    let stopped = false;
+
+    function aborted() {
+      return currentTabAbort;
+    }
+
+    async function injectCompanionLibs() {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId, allFrames: false },
+        files: ['lib/synonyms.js', 'lib/companion-nav.js']
+      });
+    }
+
+    async function settleOnce() {
+      notifyPagePanel(tabId, {
+        state: 'NAVIGATING',
+        phase: 'NAVIGATING',
+        message: 'Waiting for Simplify…'
+      });
+      await injectCompanionLibs();
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId, allFrames: false },
+        func: function (settleMsArg, maxWaitMsArg) {
+          var C = globalThis.FillApplyCompanionNav;
+          if (!C || typeof C.waitForSettle !== 'function') {
+            return Promise.resolve({ settled: false, error: 'companion-nav not loaded' });
+          }
+          return C.waitForSettle({ settleMs: settleMsArg, maxWaitMs: maxWaitMsArg });
+        },
+        args: [settleMs, maxWaitMs]
+      });
+      return (results && results[0] && results[0].result) || { settled: false };
+    }
+
+    async function clickNavOnce() {
+      await injectCompanionLibs();
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId, allFrames: false },
+        func: function () {
+          var C = globalThis.FillApplyCompanionNav;
+          if (!C || typeof C.clickCompanionNav !== 'function') {
+            return { clicked: false, error: 'companion-nav not loaded' };
+          }
+          var before = C.stepFingerprint ? C.stepFingerprint(document) : '';
+          var click = C.clickCompanionNav(document);
+          return {
+            clicked: !!(click && click.clicked),
+            text: (click && click.text) || null,
+            before: before
+          };
+        }
+      });
+      return (results && results[0] && results[0].result) || { clicked: false };
+    }
+
+    async function waitStep(beforeFp) {
+      await injectCompanionLibs();
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId, allFrames: false },
+        func: function (beforeArg) {
+          var C = globalThis.FillApplyCompanionNav;
+          if (!C || typeof C.waitForStepChange !== 'function') {
+            return Promise.resolve({ changed: false });
+          }
+          return C.waitForStepChange({ before: beforeArg, timeoutMs: 15000 });
+        },
+        args: [beforeFp || '']
+      });
+      return (results && results[0] && results[0].result) || { changed: false };
+    }
+
+    notifyPagePanel(tabId, {
+      state: 'running',
+      phase: 'NAVIGATING',
+      message: 'Companion — navigate only (no fill)'
+    });
+    await S.appendSessionLog({
+      type: 'companion_start',
+      tabId: tabId,
+      settleMs: settleMs,
+      maxWaitMs: maxWaitMs
+    });
+
+    while (steps < maxSteps) {
+      if (aborted()) {
+        stopped = true;
+        break;
+      }
+
+      let settle;
+      try {
+        settle = await settleOnce();
+      } catch (e) {
+        if (aborted()) {
+          stopped = true;
+          break;
+        }
+        notifyPagePanel(tabId, {
+          state: 'error',
+          message: String((e && e.message) || e)
+        });
+        return {
+          state: 'error',
+          runMode: 'companion',
+          companion: true,
+          filled: 0,
+          submitted: false,
+          advanced: steps > 0,
+          navigateSteps: steps,
+          error: String((e && e.message) || e),
+          result: {
+            ok: false,
+            companion: true,
+            filled: 0,
+            submitted: false,
+            error: String((e && e.message) || e)
+          }
+        };
+      }
+
+      if (aborted()) {
+        stopped = true;
+        break;
+      }
+
+      if (settle && settle.timedOut) {
+        notifyPagePanel(tabId, {
+          state: 'WAITING_FOR_USER',
+          phase: 'WAITING_FOR_USER',
+          message: 'Settled timeout — pause for human (Simplify still filling?)'
+        });
+        await S.appendSessionLog({
+          type: 'companion_settle_timeout',
+          waited: settle.waited,
+          tabId: tabId
+        });
+        return {
+          state: 'WAITING_FOR_USER',
+          runMode: 'companion',
+          companion: true,
+          filled: 0,
+          submitted: false,
+          advanced: steps > 0,
+          navigateSteps: steps,
+          needsHuman: true,
+          pauseReason: 'companion_settle_timeout',
+          message: 'Companion wait exceeded — complete Simplify fill or click Continue manually',
+          result: {
+            ok: true,
+            companion: true,
+            filled: 0,
+            submitted: false,
+            needsHuman: true,
+            navigateSteps: steps,
+            advanced: steps > 0
+          }
+        };
+      }
+
+      notifyPagePanel(tabId, {
+        state: 'NAVIGATING',
+        phase: 'NAVIGATING',
+        message: 'Settled — looking for Continue…'
+      });
+
+      if (aborted()) {
+        stopped = true;
+        break;
+      }
+
+      let click;
+      try {
+        click = await clickNavOnce();
+      } catch (e2) {
+        if (aborted()) {
+          stopped = true;
+          break;
+        }
+        click = { clicked: false, error: String((e2 && e2.message) || e2) };
+      }
+
+      if (!click || !click.clicked) {
+        notifyPagePanel(tabId, {
+          state: 'done',
+          phase: 'COMPLETE',
+          message: steps
+            ? 'Companion done — no more Continue/Next (' + steps + ' step' + (steps === 1 ? '' : 's') + ')'
+            : 'Companion idle — no Continue/Next found'
+        });
+        await S.appendSessionLog({
+          type: 'companion_complete',
+          navigateSteps: steps,
+          lastClick: lastClick,
+          tabId: tabId
+        });
+        return {
+          state: 'done',
+          runMode: 'companion',
+          companion: true,
+          filled: 0,
+          submitted: false,
+          advanced: steps > 0,
+          navigateSteps: steps,
+          message: 'No more nav CTA',
+          result: {
+            ok: true,
+            companion: true,
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            submitted: false,
+            advanced: steps > 0,
+            navigateSteps: steps,
+            lastNavClick: lastClick
+          }
+        };
+      }
+
+      lastClick = click.text;
+      steps += 1;
+      notifyPagePanel(tabId, {
+        state: 'NAVIGATING',
+        phase: 'NAVIGATING',
+        message: 'Navigating… ' + (click.text || 'Continue')
+      });
+      await S.appendSessionLog({
+        type: 'companion_nav',
+        text: click.text,
+        step: steps,
+        tabId: tabId
+      });
+
+      if (aborted()) {
+        stopped = true;
+        break;
+      }
+
+      try {
+        await waitStep(click.before);
+      } catch (_w) {}
+
+      if (aborted()) {
+        stopped = true;
+        break;
+      }
+
+      // Grace so Simplify Copilot can auto-start on the new step (cannot force API).
+      notifyPagePanel(tabId, {
+        state: 'NAVIGATING',
+        phase: 'NAVIGATING',
+        message: 'Waiting for Simplify…'
+      });
+      var graceLeft = graceMs;
+      while (graceLeft > 0) {
+        if (aborted()) {
+          stopped = true;
+          break;
+        }
+        var slice = Math.min(400, graceLeft);
+        await sleep(slice);
+        graceLeft -= slice;
+      }
+      if (stopped) break;
+    }
+
+    if (stopped || aborted()) {
+      notifyPagePanel(tabId, {
+        state: 'idle',
+        message: 'Stopped — Companion idle'
+      });
+      await S.appendSessionLog({
+        type: 'companion_stop',
+        navigateSteps: steps,
+        tabId: tabId
+      });
+      return {
+        state: 'idle',
+        runMode: 'companion',
+        companion: true,
+        filled: 0,
+        submitted: false,
+        advanced: steps > 0,
+        navigateSteps: steps,
+        stopped: true,
+        message: 'Stopped by user',
+        result: {
+          ok: true,
+          companion: true,
+          filled: 0,
+          submitted: false,
+          advanced: steps > 0,
+          navigateSteps: steps,
+          stopped: true
+        }
+      };
+    }
+
+    notifyPagePanel(tabId, {
+      state: 'done',
+      message: 'Companion step limit reached (' + steps + ')'
+    });
+    return {
+      state: 'done',
+      runMode: 'companion',
+      companion: true,
+      filled: 0,
+      submitted: false,
+      advanced: steps > 0,
+      navigateSteps: steps,
+      result: {
+        ok: true,
+        companion: true,
+        filled: 0,
+        submitted: false,
+        advanced: steps > 0,
+        navigateSteps: steps
+      }
+    };
+  }
+
   /**
    * Single current-tab run for the on-page panel (and FILL_APPLY_FILL_ONCE).
    * Reuses injectAndFill + Apply-start retries. Does not consume the queue
@@ -2072,7 +2419,7 @@
     let mode = runMode;
     if (global.FillApplyTypes && global.FillApplyTypes.RUN_MODES) {
       if (global.FillApplyTypes.RUN_MODES.indexOf(mode) === -1) mode = 'fill';
-    } else if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(mode) === -1) {
+    } else if (['register', 'fill', 'navigate', 'ready', 'submit', 'companion'].indexOf(mode) === -1) {
       mode = 'fill';
     }
 
@@ -2087,9 +2434,31 @@
     };
 
     currentTabRunActive = true;
+    currentTabAbort = false;
     notifyPagePanel(tabId, { state: 'running', message: 'Starting ' + mode + '…' });
 
     try {
+      // Companion: navigate-only — skip profile/docs/fill entirely.
+      if (mode === 'companion') {
+        const cfgCompanion = await S.getRunConfig();
+        const mergedCfg = Object.assign({}, cfgCompanion || {}, {
+          simplifyCompanion: true,
+          companionSettleMs:
+            (cfgCompanion && cfgCompanion.companionSettleMs) != null
+              ? cfgCompanion.companionSettleMs
+              : 12000,
+          companionMaxWaitMs:
+            (cfgCompanion && cfgCompanion.companionMaxWaitMs) != null
+              ? cfgCompanion.companionMaxWaitMs
+              : 12 * 60 * 1000,
+          companionGraceMs:
+            (cfgCompanion && cfgCompanion.companionGraceMs) != null
+              ? cfgCompanion.companionGraceMs
+              : 4000
+        });
+        return await runCompanionOnTab(tabId, mergedCfg);
+      }
+
       if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.assertSelectedSourceComplete) {
         const gate = await global.FillApplySourceProfiles.assertSelectedSourceComplete();
         if (!gate.ok) {
@@ -2385,6 +2754,7 @@
     const S = global.FillApplyStorage;
     const B = global.FillApplyBackend;
     const jobId = currentJobId;
+    currentTabAbort = true;
     await S.setRunning(false);
     if (S.clearPausedForHuman) await S.clearPausedForHuman();
     await clearMissingFieldsPauseState();
@@ -3165,6 +3535,7 @@
     injectAndFill: injectAndFill,
     fillTabWithApplyStart: fillTabWithApplyStart,
     runOnceOnTab: runOnceOnTab,
+    runCompanionOnTab: runCompanionOnTab,
     attemptAtsGoogleAuthLifecycle: attemptAtsGoogleAuthLifecycle,
     pickApplyHandoffTab: pickApplyHandoffTab,
     findApplyHandoffTab: findApplyHandoffTab,

@@ -166,7 +166,8 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
           } catch (_q) {}
         }
         var mode = message.runMode || (message.config && message.config.runMode) || 'fill';
-        if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(mode) === -1) mode = 'fill';
+        if (message.companion === true) mode = 'companion';
+        if (['register', 'fill', 'navigate', 'ready', 'submit', 'companion'].indexOf(mode) === -1) mode = 'fill';
         return FillApplyRunner.runOnceOnTab(tabId, mode);
       })()
     );

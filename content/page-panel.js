@@ -1,5 +1,6 @@
 /**
- * On-page floating control panel — Auto Apply (Start / Stop). Always expanded.
+ * On-page floating control panel — Auto Apply (Start / Companion / Stop). Always expanded.
+ * Companion = Simplify navigate-only (settle → Continue/Next; never fill/upload).
  *
  * Injected as a top-frame content script on http(s) job/application pages.
  * Isolated via Shadow DOM + `all: initial` on the host so page CSS cannot
@@ -28,7 +29,7 @@
   var HOST_ID = 'fill-apply-page-panel-host';
   var ATTR = 'data-fill-apply-page-panel';
   var PANEL_WIDTH = 200;
-  var PANEL_HEIGHT = 120;
+  var PANEL_HEIGHT = 158;
   var COLLAPSED_WIDTH = 156;
   var COLLAPSED_HEIGHT = 36;
   var MARGIN = 16;
@@ -37,7 +38,7 @@
     /linkedin\.com|indeed\.com|greenhouse\.io|ashbyhq\.com|lever\.co|workable\.com|myworkdayjobs\.com|workdayjobs\.com|workday\.com|smartrecruiters\.com|icims\.com|teamtailor\.com|naukrigulf\.com|glassdoor\.com|efinancialcareers\.com|wellfound\.com|angel\.co|remoteok\.(com|io)|weworkremotely\.com|workingnomads\.com|jooble\.org|swooped\.co|bayt\.com|gulftalent\.com|flexjobs\.com|remote\.co|remotive\.(com|io)|himalayas\.app|otta\.com|jobgether\.com|ycombinator\.com|workatastartup\.com|builtin\.com|upwork\.com|freehire\.com|catsone\.com|recruitee\.com|michaelpage\.|hays\.com|roberthalf\.com|cooperfitch\.com|charterhouse\.|robertwalters\.com|jivaropartners\.com|lhh\.com|zahid-jobpool\.vercel\.app|jobpool/i;
 
   var JOB_PATH_RE =
-    /\/jobs?(\/|$)|\/careers?(\/|$)|\/apply(\/|$)|\/applications?(?:\/|$)|\/application|\/vacanc|\/opening|\/positions?(\/|$)|\/easy-apply|\/job-listing|\/jobid|\/viewjob|\/posting/i;
+    /\/jobs?(\/|$)|\/careers?(\/|$)|\/apply(\/|$)|\/fill-apply(?:\/|$)|\/applications?(?:\/|$)|\/application|\/vacanc|\/opening|\/positions?(\/|$)|\/easy-apply|\/job-listing|\/jobid|\/viewjob|\/posting/i;
 
   var CTA_TEXT_RE =
     /\b(apply(\s+now)?|easy\s+apply|start\s+(your\s+)?application|start\s+apply|submit(\s+application)?|finish\s+application)\b/i;
@@ -94,6 +95,7 @@
     if (m === 'navigate' || m === 'autonavigate' || m === 'nav') return 'navigate';
     if (m === 'ready' || m === 'autoready') return 'ready';
     if (m === 'submit' || m === 'autosubmit') return 'submit';
+    if (m === 'companion' || m === 'simplifycompanion' || m === 'simplify') return 'companion';
     if (m === 'fill' || m === 'autofill') return 'fill';
     return 'fill';
   }
@@ -378,6 +380,9 @@
       'button[data-mode="navigate"]{background:#0369a1;color:#fff;}',
       'button[data-mode="ready"]{background:#0f766e;color:#fff;}',
       'button[data-mode="submit"]{background:#b45309;color:#fff;}',
+      'button[data-mode="companion"]{background:#0e7490;color:#fff;}',
+      '.btns-row{display:flex;gap:4px;}',
+      '.btns-row button.act{flex:1;}',
       '.status{margin-top:6px;font-size:11px;line-height:1.3;color:#94a3b8;min-height:2.6em;}',
       '.status.running{color:#93c5fd;}',
       '.status.paused{color:#fbbf24;}',
@@ -410,7 +415,13 @@
   function setBusy(on) {
     busy = !!on;
     Object.keys(buttons).forEach(function (k) {
-      if (buttons[k]) buttons[k].disabled = busy;
+      if (!buttons[k]) return;
+      // Stop must always work during companion / Auto Apply.
+      if (k === 'stop') {
+        buttons[k].disabled = false;
+        return;
+      }
+      buttons[k].disabled = busy;
     });
   }
 
@@ -458,7 +469,7 @@
     if (state === STATUS.DETECTING) return 'Detecting…';
     if (state === STATUS.REGISTERING) return 'Auto Apply — Registering…';
     if (state === STATUS.FILLING) return 'Auto Apply — Filling…';
-    if (state === STATUS.NAVIGATING) return 'Auto Apply — Navigating…';
+    if (state === STATUS.NAVIGATING) return 'Navigating…';
     if (state === STATUS.WAITING_FOR_DEPENDENT_FIELDS) return 'Waiting for dependent fields…';
     if (state === STATUS.VALIDATING) return 'Validating…';
     if (state === STATUS.MISSING_INFORMATION) return 'Missing information';
@@ -513,6 +524,55 @@
             } else {
               setStatus(STATUS.error, err);
             }
+            return;
+          }
+          applyResult(res.data || res);
+        }
+      );
+    } catch (e) {
+      busy = false;
+      setStatus(STATUS.error, String((e && e.message) || e));
+    }
+  }
+
+
+  function startCompanion() {
+    setStatus(STATUS.NAVIGATING, 'Waiting for Simplify…');
+    if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      setStatus(STATUS.error, 'Extension background unavailable');
+      return;
+    }
+    busy = true;
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: 'FILL_APPLY_FILL_ONCE',
+          runMode: 'companion',
+          companion: true,
+          autoApply: false
+        },
+        function (res) {
+          if (chrome.runtime.lastError) {
+            busy = false;
+            var errMsg = chrome.runtime.lastError.message || 'Message failed';
+            if (isContextDeadError(errMsg)) {
+              setStatus(
+                STATUS.error,
+                'Extension was reloaded — refresh this tab, then try again (Load unpacked / Update).'
+              );
+              return;
+            }
+            setStatus(STATUS.error, errMsg);
+            return;
+          }
+          busy = false;
+          if (!res || res.ok === false) {
+            var err = (res && res.error) || 'Companion failed';
+            if (/stopped/i.test(err)) {
+              setStatus(STATUS.idle, 'Stopped — Companion idle');
+              return;
+            }
+            setStatus(STATUS.error, err);
             return;
           }
           applyResult(res.data || res);
@@ -580,6 +640,7 @@
       if (shadowRoot) {
         statusEl = shadowRoot.querySelector('.status');
         buttons.start = shadowRoot.querySelector('[data-action="start"]');
+        buttons.companion = shadowRoot.querySelector('[data-action="companion"]');
         buttons.stop = shadowRoot.querySelector('[data-action="stop"]');
       }
       existing.hidden = false;
@@ -650,6 +711,22 @@
     });
     buttons.start = startBtn;
     btns.appendChild(startBtn);
+
+    var companionBtn = doc.createElement('button');
+    companionBtn.type = 'button';
+    companionBtn.className = 'act';
+    companionBtn.setAttribute('data-action', 'companion');
+    companionBtn.setAttribute('data-mode', 'companion');
+    companionBtn.setAttribute('title', 'Simplify companion: navigate-only (no fill/upload)');
+    companionBtn.textContent = 'Companion';
+    companionBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (busy) return;
+      startCompanion();
+    });
+    buttons.companion = companionBtn;
+    btns.appendChild(companionBtn);
 
     var stopBtn = doc.createElement('button');
     stopBtn.type = 'button';
@@ -798,6 +875,8 @@
     hide: hide,
     maybeShow: maybeShow,
     setStatus: setStatus,
+    startCompanion: startCompanion,
+    startAutoApply: startAutoApply,
     setCollapsed: setCollapsed,
     reposition: reposition,
     boot: boot
