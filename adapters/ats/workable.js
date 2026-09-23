@@ -18,6 +18,8 @@
   function detect(url, doc) {
     url = String(url || '');
     if (/apply\.workable\.com|jobs\.workable\.com|workable\.com/i.test(url)) return true;
+    // webook.com careers (Workable-hosted) e.g. entertainment / venue roles
+    if (/webook\.com/i.test(url)) return true;
     if (/qiddiya\.com/i.test(url)) return true;
     if (doc && doc.querySelector('[data-ui="application-form"], .job-application, #job-application')) {
       return true;
@@ -101,10 +103,57 @@
 
     if (isBlank(out.yearsExperience)) {
       out.yearsExperience =
-        answers.years_of_relevant_experience || answers.years_experience || '15';
+        answers.years_of_relevant_experience ||
+        answers.years_experience ||
+        answers['Years of experience'] ||
+        '15';
+    }
+    // Prefer +15 / 10–15 style answers for Workable comboboxes (15+ finance years).
+    var yeNum = parseInt(String(out.yearsExperience).replace(/[^0-9]/g, ''), 10);
+    if (!isFinite(yeNum) || yeNum < 1) yeNum = 15;
+    if (yeNum >= 15) {
+      // Use 15+ so bucket matcher prefers "+15 years" over closed "10–15".
+      out.yearsExperience = '15+';
+      answers['Years of relevant experience'] = answers['Years of relevant experience'] || '15+';
+      answers['Years of experience'] = answers['Years of experience'] || '+15 years';
+      answers.years_of_experience_bucket = answers.years_of_experience_bucket || '+15 years';
+    } else if (yeNum >= 10) {
+      out.yearsExperience = String(yeNum);
+      answers['Years of experience'] = answers['Years of experience'] || '10-15';
+      answers.years_of_experience_bucket = answers.years_of_experience_bucket || '10-15';
     }
     answers['Years of relevant experience'] =
       answers['Years of relevant experience'] || out.yearsExperience || '15';
+
+    // Entertainment industry objections → No (webook / venue Workable forms)
+    if (
+      isBlank(answers.entertainment_industry) &&
+      isBlank(answers['Entertainment industry']) &&
+      isBlank(answers['Do you have any objections to working in the entertainment industry'])
+    ) {
+      answers.entertainment_industry = 'No';
+      answers['Entertainment industry'] = 'No';
+      answers['Do you have any objections to working in the entertainment industry'] = 'No';
+      answers['objections to working in the entertainment industry'] = 'No';
+    }
+    out.entertainmentIndustry = out.entertainmentIndustry || answers.entertainment_industry || 'No';
+
+    // Address defaults for KSA Workable (leave line1/line2 empty when unknown)
+    if (isBlank(out.city)) out.city = answers.city || answers.current_location || 'Riyadh';
+    if (isBlank(out.zip) && isBlank(out.postalCode)) {
+      out.zip = answers.zip || answers.postalCode || answers.postal || '12791';
+      out.postalCode = out.zip;
+    }
+    if (isBlank(out.addressCountry) && isBlank(out.countryOfResidence)) {
+      out.addressCountry = answers.addressCountry || 'Saudi Arabia';
+      out.countryOfResidence = out.countryOfResidence || 'Saudi Arabia';
+    }
+    // Never seed Address Line 1/2 from a composed city/country dump
+    if (out.address && /riyadh/i.test(String(out.address)) && /,/.test(String(out.address))) {
+      if (isBlank(out.addressLine1)) out.address = '';
+    }
+    if (isBlank(out.addressLine1)) out.addressLine1 = '';
+    if (isBlank(out.addressLine2)) out.addressLine2 = '';
 
     // Screening defaults from portfolio — never invent salary or PIF.
     if (isBlank(answers.conflict_of_interest) && isBlank(answers['Conflict of interest'])) {
@@ -244,8 +293,25 @@
     {
       key: 'yearsExperience',
       autocomplete: [],
-      names: ['years_of_relevant_experience'],
-      labels: ['years of relevant experience', 'years of experience'],
+      names: ['years_of_relevant_experience', 'years_of_experience'],
+      labels: [
+        'years of relevant experience',
+        'years of experience',
+        'how many years of experience',
+        'total years of experience'
+      ],
+      placeholders: []
+    },
+    {
+      key: 'entertainmentIndustry',
+      autocomplete: [],
+      names: ['entertainment_industry', 'entertainment'],
+      labels: [
+        'entertainment industry',
+        'objections to working in the entertainment industry',
+        'do you have any objections to working in the entertainment industry',
+        'working in the entertainment industry'
+      ],
       placeholders: []
     },
     {

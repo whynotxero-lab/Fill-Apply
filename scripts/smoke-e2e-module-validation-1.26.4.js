@@ -22,8 +22,8 @@ function record(module, ok, detail) {
 (async function main() {
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  record('manifest.version', manif.version === '1.26.4', 'got ' + manif.version);
-  record('package.version', pkg.version === '1.26.4', 'got ' + pkg.version);
+  record('manifest.version', /^1\.26\.(4|5)$/.test(manif.version), 'got ' + manif.version);
+  record('package.version', /^1\.26\.(4|5)$/.test(pkg.version), 'got ' + pkg.version);
   record(
     'manifest.desc_start',
     /Start|Pause|Cancel/i.test(manif.description || ''),

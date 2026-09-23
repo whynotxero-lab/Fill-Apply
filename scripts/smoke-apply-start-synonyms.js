@@ -26,9 +26,19 @@ const expectTrue = [
   'Apply for this Job',
   'Apply for this Role',
   'Apply here',
-  'APPLY FOR THIS JOB'
+  'APPLY FOR THIS JOB',
+  'Apply with CV',
+  'Apply with Resume',
+  'Apply Manually',
+  'Autofill with Resume'
 ];
 const expectFalse = [
+  'Saudi Arabia',
+  'SHORTLIST',
+  'Riyadh',
+  'Apply With LinkedIn',
+  'Use My Last Application',
+
   'Auto-Apply with AI',
   'AI Auto-Apply',
   'Auto-Apply',

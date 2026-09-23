@@ -65,7 +65,9 @@ const SUITES = [
   'smoke-nav-first-icims.js',
   'smoke-icims-profile-fill.js',
   'smoke-auto-apply-entries.js',
-  'smoke-panel-start-pause.js'
+  'smoke-panel-start-pause.js',
+  'smoke-1.26.5-stuck-bayt-workable.js',
+  'smoke-e2e-module-validation-1.26.5.js'
 ];
 
 let failed = 0;

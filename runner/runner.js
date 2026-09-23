@@ -95,6 +95,7 @@
     'adapters/ats/lever.js',
     'adapters/ats/ashby.js',
     'adapters/ats/workday.js',
+    'adapters/ats/oraclecloud.js',
     'adapters/ats/smartrecruiters.js',
     'adapters/ats/workable.js',
     'adapters/ats/icims.js',
@@ -217,6 +218,26 @@
       clearTimeout(delayTimer);
       delayTimer = null;
     }
+  }
+
+  function isCurrentTabAborted() {
+    return !!currentTabAbort;
+  }
+
+  function throwIfAborted() {
+    if (currentTabAbort) {
+      const err = new Error('Cancelled by user');
+      err.code = 'ABORTED';
+      throw err;
+    }
+  }
+
+  /**
+   * Cancel / Stop must always unlock Start. A hung inject must not leave
+   * currentTabRunActive stuck forever after the panel returns to idle.
+   */
+  function clearCurrentTabRunLock() {
+    currentTabRunActive = false;
   }
 
   /** Frame/tab invalidated after Easy Apply Continue / navigation. */
@@ -2116,10 +2137,36 @@
      * Keep following Apply/external handoffs until filled, submitted, blocked, or hop cap.
      */
     const MAX_HANDOFF_HOPS = 6;
+    /** Failures / unknown / auth must stay on the active tab — never hop. */
+    function isFailureOrHumanPause(r) {
+      if (!r) return false;
+      if (r.ok === false) return true;
+      if (r.needsHuman) return true;
+      if (r.pauseReason) return true;
+      if (r.aborted || r.cancelled) return true;
+      return false;
+    }
+    /** Workday modal / Oracle email step: re-inject same tab — do not hunt other job tabs. */
+    function isSameTabRedetect(r) {
+      if (!r) return false;
+      if (r.stayOnTab) return true;
+      if (r.externalApply || r.handedOff || r.adoptedNewTab || r.jobpoolHubApply) return false;
+      if (r.reDetect && r.handedOff === false && r.externalApply === false) return true;
+      if (
+        r.reDetect &&
+        /workday|oraclecloud/i.test(String(r.adapterId || '')) &&
+        !r.externalApply
+      ) {
+        return true;
+      }
+      return false;
+    }
     function needsHandoffHop(r) {
       if (!r || r.ok === false) return false;
       if (r.submitted || r.needsHuman || r.jobpoolMarkedApplied) return false;
       if (r.jobpoolReturnSuccess) return false;
+      if (isFailureOrHumanPause(r)) return false;
+      if (r.aborted || r.cancelled) return false;
       // Nav-first: after Apply-start OR Next/Continue advance, keep going even if
       // this hop filled N fields (welcome 2/2 + Next must not Idle).
       if (
@@ -2235,19 +2282,32 @@
       if (packed.tabId != null) currentTabId = packed.tabId;
       setActiveRunTargetTabId(currentTabId);
 
-      // After Open Application / Apply click during inject: adopt newest related tab.
-      const childAfterFirst = await resolveChildAfterClick(
-        // Prefer original hub as opener when hub flags set
-        fillResult && (fillResult.jobpoolHubApply || fillResult.jobpoolAlreadyOpened || fillResult.jobpoolPending)
-          ? hubTabId
-          : currentTabId
-      );
-      if (childAfterFirst) {
-        await adoptIfNew(childAfterFirst, fillResult, 0);
+      throwIfAborted();
+
+      // After intentional Open/Apply only — never adopt another job tab on failure/unknown/auth.
+      const intentionalOpen =
+        !!(fillResult &&
+          (fillResult.clickedApplyStart ||
+            fillResult.jobpoolHubApply ||
+            fillResult.jobpoolAlreadyOpened ||
+            fillResult.jobpoolPending ||
+            fillResult.handedOff ||
+            fillResult.externalApply ||
+            fillResult.adoptedNewTab));
+      if (intentionalOpen && !isFailureOrHumanPause(fillResult)) {
+        const childAfterFirst = await resolveChildAfterClick(
+          fillResult && (fillResult.jobpoolHubApply || fillResult.jobpoolAlreadyOpened || fillResult.jobpoolPending)
+            ? hubTabId
+            : currentTabId
+        );
+        if (childAfterFirst) {
+          await adoptIfNew(childAfterFirst, fillResult, 0);
+        }
       }
 
       for (let hop = 0; hop < MAX_HANDOFF_HOPS && needsHandoffHop(fillResult); hop++) {
         try {
+          throwIfAborted();
           progress(
             'running',
             hop === 0
@@ -2255,12 +2315,16 @@
               : 'Following redirect hop ' + (hop + 1) + '/' + MAX_HANDOFF_HOPS + '…'
           );
           await sleep(500 + Math.floor(Math.random() * 400));
+          throwIfAborted();
 
           // CRITICAL: do NOT merge a fresh full tab snapshot into knownTabIds here —
           // that would hide the just-opened child and stall on the opener tab.
           if (currentTabId != null) knownTabIds[currentTabId] = true;
 
-          let handedTab = await resolveChildAfterClick(currentTabId);
+          let handedTab = null;
+          if (!isSameTabRedetect(fillResult)) {
+            handedTab = await resolveChildAfterClick(currentTabId);
+          }
           if (handedTab && handedTab.id != null && handedTab.id !== currentTabId) {
             await adoptIfNew(handedTab, fillResult, hop + 1);
           } else {
@@ -2313,12 +2377,18 @@
             try {
               late = await findApplyHandoffTab(currentTabId, knownTabIds);
             } catch (_eLate) {}
-            if (!late) {
+            if (
+              !late &&
+              intentionalOpen &&
+              !isFailureOrHumanPause(fillResult) &&
+              !isSameTabRedetect(fillResult)
+            ) {
               try {
+                // Only after intentional Open Application / Apply — never on failure.
                 late = await pickEmployerTabAfterHubOpen(hubTabId);
               } catch (_eLate2) {}
             }
-            if (late && late.id != null && late.id !== currentTabId) {
+            if (late && late.id != null && late.id !== currentTabId && !isFailureOrHumanPause(fillResult)) {
               await adoptIfNew(late, fillResult, hop + 1);
             } else if (hop === MAX_HANDOFF_HOPS - 1 && fillResult) {
               fillResult.message =
@@ -2357,9 +2427,12 @@
           setActiveRunTargetTabId(currentTabId);
 
           // Mid-hop: Apply inside inject may have opened another tab/popup.
-          const midChild = await resolveChildAfterClick(currentTabId);
-          if (midChild && midChild.id != null && midChild.id !== currentTabId) {
-            await adoptIfNew(midChild, handed || fillResult, hop + 1);
+          // Skip when adapter asked to stay on the same Workday/Oracle tab.
+          if (!isSameTabRedetect(handed || fillResult)) {
+            const midChild = await resolveChildAfterClick(currentTabId);
+            if (midChild && midChild.id != null && midChild.id !== currentTabId) {
+              await adoptIfNew(midChild, handed || fillResult, hop + 1);
+            }
           }
 
           if (handed) {
@@ -2468,6 +2541,10 @@
     }
     if (loopActive || (await S.isRunning())) {
       throw new Error('Queue runner is busy. Stop the batch first.');
+    }
+    // Stale lock after Cancel / failed hang: never permanently block Start.
+    if (currentTabRunActive && currentTabAbort) {
+      clearCurrentTabRunLock();
     }
     if (currentTabRunActive) {
       throw new Error('A current-tab run is already in progress.');
@@ -2745,11 +2822,21 @@
       };
     } catch (e) {
       const msg = String((e && e.message) || e);
+      if (e && (e.code === 'ABORTED' || /cancelled by user/i.test(msg))) {
+        notifyPagePanel(tabId, { state: 'idle', message: 'Cancelled — Auto Apply idle' });
+        await S.appendSessionLog({ type: 'stop', error: msg, runMode: mode, source: 'page_panel' });
+        return {
+          state: 'idle',
+          message: 'Cancelled — Auto Apply idle',
+          runMode: mode,
+          result: { ok: false, aborted: true, cancelled: true, error: msg }
+        };
+      }
       notifyPagePanel(tabId, { state: 'error', message: msg });
       await S.appendSessionLog({ type: 'error', error: msg, runMode: mode, source: 'page_panel' });
       throw e;
     } finally {
-      currentTabRunActive = false;
+      clearCurrentTabRunLock();
     }
   }
 
@@ -2805,6 +2892,8 @@
     const B = global.FillApplyBackend;
     const jobId = currentJobId;
     currentTabAbort = true;
+    // Unlock Start immediately — do not wait for in-flight inject finally.
+    clearCurrentTabRunLock();
     await S.setRunning(false);
     if (S.clearPausedForHuman) await S.clearPausedForHuman();
     await clearMissingFieldsPauseState();
@@ -3772,6 +3861,8 @@
     getStatus: getStatusSnapshot,
     injectAndFill: injectAndFill,
     fillTabWithApplyStart: fillTabWithApplyStart,
+    clearCurrentTabRunLock: clearCurrentTabRunLock,
+    isCurrentTabAborted: isCurrentTabAborted,
     runOnceOnTab: runOnceOnTab,
     attemptAtsGoogleAuthLifecycle: attemptAtsGoogleAuthLifecycle,
     stampRegistrationPassword: stampRegistrationPassword,

@@ -1076,9 +1076,32 @@
         }
       }
       if (key === 'addressLine1' || key === 'street') {
-        return profile.addressLine1 || profile.street || (fmtAddr && fmtAddr.composeAddress ? fmtAddr.composeAddress(profile, 'parts').line1 : '') || '';
+        var line1 =
+          profile.addressLine1 ||
+          profile.street ||
+          (fmtAddr && fmtAddr.composeAddress ? fmtAddr.composeAddress(profile, 'parts').line1 : '') ||
+          '';
+        // Leave empty when unknown — never dump "Riyadh, Riyadh 12791, Saudi Arabia, …"
+        if (
+          fmtAddr &&
+          typeof fmtAddr.looksLikeComposedAddressJunk === 'function' &&
+          fmtAddr.looksLikeComposedAddressJunk(line1)
+        ) {
+          return '';
+        }
+        return line1;
       }
-      if (key === 'addressLine2') return profile.addressLine2 || '';
+      if (key === 'addressLine2') {
+        var line2 = profile.addressLine2 || '';
+        if (
+          fmtAddr &&
+          typeof fmtAddr.looksLikeComposedAddressJunk === 'function' &&
+          fmtAddr.looksLikeComposedAddressJunk(line2)
+        ) {
+          return '';
+        }
+        return line2;
+      }
     }
     if (key === 'countryOfResidence' || key === 'residenceCountry') {
       return profile.countryOfResidence || profile.residenceCountry || profile.addressCountry || profile.country || '';
@@ -1972,11 +1995,73 @@
           };
         }
       }
+      // Prefer visible Apply / Apply with CV / Apply for this Job over "no fields".
       const startButtons = syn && syn.findApplyStartButtons ? syn.findApplyStartButtons(document) : [];
+      let gateCta = null;
+      const gateNodes = document.querySelectorAll(
+        'a, button, input[type="button"], input[type="submit"], [role="button"], [role="link"]'
+      );
+      for (let gi = 0; gi < gateNodes.length; gi++) {
+        const gel = gateNodes[gi];
+        try {
+          const gr = gel.getBoundingClientRect();
+          if (gr.width < 2 || gr.height < 2) continue;
+        } catch (_gv) {
+          continue;
+        }
+        const gt = String(
+          (gel.innerText || gel.textContent || '') +
+            ' ' +
+            (gel.value || '') +
+            ' ' +
+            (gel.getAttribute('aria-label') || '')
+        )
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!gt) continue;
+        if (
+          /apply with (cv|resume|curriculum)/i.test(gt) ||
+          /apply for this (job|role|position)/i.test(gt) ||
+          /^apply now$/i.test(gt) ||
+          /^APPLY$/i.test(gt)
+        ) {
+          if (syn && syn.isExcludedApplyCta && syn.isExcludedApplyCta(gt)) continue;
+          gateCta = { el: gel, text: gt };
+          break;
+        }
+      }
+      if (gateCta && gateCta.el) {
+        try {
+          gateCta.el.click();
+        } catch (_gc) {}
+        return {
+          ok: true,
+          clickedApplyStart: true,
+          reDetect: true,
+          handedOff: true,
+          deferToPageAdapter: true,
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          message:
+            'Clicked "' +
+            (gateCta.text || 'Apply') +
+            '" — waiting for application form (same tab/popup)',
+          applyStartText: gateCta.text || 'Apply',
+          filesAttached: uploadOnly,
+          formSignals: formSignals,
+          inspection: summarizeInspection(inspectForm())
+        };
+      }
       if (startButtons.length) {
+        // Stay on this tab/popup — pause-style signal, do not hop.
         return {
           ok: false,
-          error: 'Apply button found but could not click / form did not open — not stopping as filled 0/0',
+          needsHuman: true,
+          pauseReason: 'apply_cta_visible',
+          error:
+            'Apply / Apply with CV visible but form did not open — stay on this tab, then Resume',
           filled: 0,
           unmatched: 0,
           total: 0,
@@ -1989,7 +2074,9 @@
       }
       return {
         ok: false,
-        error: 'No application form fields found on this page',
+        needsHuman: true,
+        pauseReason: 'no_form_fields',
+        error: 'No application form fields found on this page — paused on same tab',
         filled: 0,
         unmatched: 0,
         total: 0,

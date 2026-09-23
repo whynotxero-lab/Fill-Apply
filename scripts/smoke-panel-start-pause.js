@@ -109,6 +109,15 @@ const JOB_FORM = `
   suite.ok(/needsHuman:\s*true/.test(fb), 'fallback can set needsHuman');
 })();
 
+(function cancelClearsRunLock() {
+  const runner = fs.readFileSync(path.join(ROOT, 'runner/runner.js'), 'utf8');
+  suite.ok(/clearCurrentTabRunLock/.test(runner), 'clearCurrentTabRunLock');
+  const stopIdx = runner.indexOf('async function stopRunner');
+  const slice = stopIdx >= 0 ? runner.slice(stopIdx, stopIdx + 800) : '';
+  suite.ok(slice.indexOf('clearCurrentTabRunLock') !== -1, 'Cancel/stop clears currentTabRunActive lock');
+  suite.ok(/isFailureOrHumanPause/.test(runner), 'no tab-hop on failure helper');
+})();
+
 (function resumeLearnHook() {
   const runner = fs.readFileSync(path.join(ROOT, 'runner/runner.js'), 'utf8');
   suite.ok(/async function learnUnmatchedFieldsInTab/.test(runner), 'learnUnmatchedFieldsInTab defined');
