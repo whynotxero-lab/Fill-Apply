@@ -1,12 +1,13 @@
 /**
  * MV3 service worker — owns the runner state machine and message API.
- * Also configures chrome.sidePanel so the toolbar action opens the right sidebar.
+ * Toolbar action opens the Chrome side panel (profile import + controls).
  */
 /* global importScripts, FillApplyTypes, FillApplyStorage, FillApplyProfile, FillApplyBackend, FillApplyReport, FillApplyRunner, FillApplyKnowledgeStore, FillApplyKnowledgeLearn */
 
 importScripts(
   '../lib/types.js',
   '../lib/storage.js',
+  '../lib/private-zahid-seed.js',
   '../lib/profile.js',
   '../lib/profile-io.js',
   '../lib/knowledge-policy.js',
@@ -23,6 +24,10 @@ importScripts(
   '../runner/runner.js'
 );
 
+/* SLICE 1 tab/popup follow: FillApplyRunner arms chrome.tabs.onCreated +
+ * chrome.windows.onCreated while Apply / Open Application may open a child;
+ * active run target switches to that tab. JobPool hub tab is kept open. */
+
 var SIDE_PANEL_PATH = 'sidepanel/sidepanel.html';
 
 function configureSidePanel() {
@@ -33,7 +38,6 @@ function configureSidePanel() {
     console.warn('[Fill & Apply] sidePanel.setOptions failed:', e);
   }
   try {
-    // Toolbar click opens the Chrome right sidebar (no tiny popup).
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   } catch (e) {
     console.warn('[Fill & Apply] sidePanel.setPanelBehavior failed:', e);
@@ -46,8 +50,20 @@ chrome.runtime.onInstalled.addListener(function (details) {
   configureSidePanel();
   if (details.reason === 'install') {
     console.log(
-      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Add https job apply URLs in App Settings (Application queue), then Start.'
+      '[Fill & Apply] Installed. Zahid profile seeded as active — Start works immediately. Click the toolbar icon for Auto Apply (Start / Pause·Resume / Cancel).'
     );
+  }
+  // Private seed: Zahid sole built-in active profile + Environments password + QB/adaptive
+  if (typeof FillApplyPrivateZahidSeed !== 'undefined' && FillApplyPrivateZahidSeed.ensureInstalled) {
+    FillApplyPrivateZahidSeed.ensureInstalled({
+      force: details.reason === 'install' || details.reason === 'update'
+    }).then(function (r) {
+      console.log('[Fill & Apply] Private Zahid seed:', (r && r.detail) || 'ok');
+    }).catch(function (e) {
+      console.warn('[Fill & Apply] Private Zahid seed failed:', e);
+    });
+  } else if (typeof FillApplyProfile !== 'undefined' && FillApplyProfile.ensureDefaultProfiles) {
+    FillApplyProfile.ensureDefaultProfiles({ forceZahidActive: true }).catch(function () {});
   }
   if (typeof FillApplySourceProfiles !== 'undefined' && FillApplySourceProfiles.ensureSourceProfileShells) {
     FillApplySourceProfiles.ensureSourceProfileShells().catch(function () {});
@@ -91,6 +107,9 @@ chrome.runtime.onInstalled.addListener(function (details) {
 
 chrome.runtime.onStartup.addListener(function () {
   configureSidePanel();
+  if (typeof FillApplyPrivateZahidSeed !== 'undefined' && FillApplyPrivateZahidSeed.ensureInstalled) {
+    FillApplyPrivateZahidSeed.ensureInstalled({ force: false }).catch(function () {});
+  }
 });
 
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
@@ -144,6 +163,10 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     return reply(FillApplyRunner.stop());
   }
 
+  if (message.type === MSG.PAUSE || message.type === 'FILL_APPLY_PAUSE') {
+    return reply(FillApplyRunner.pause());
+  }
+
   if (message.type === MSG.RESUME || message.type === 'FILL_APPLY_RESUME') {
     return reply(FillApplyRunner.resume());
   }
@@ -152,9 +175,65 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     return reply(FillApplyRunner.getStatus());
   }
 
+  async function ensureJobPoolHubTab() {
+    const Types = globalThis.FillApplyTypes || {};
+    const hubUrl =
+      Types.JOBPOOL_HUB_URL ||
+      Types.JOBPOOL_FILL_APPLY_URL ||
+      'https://zahid-jobpool.vercel.app/fill-apply';
+    let tab = null;
+    const tabs = await chrome.tabs.query({});
+    for (let i = 0; i < tabs.length; i++) {
+      const u = tabs[i] && tabs[i].url ? String(tabs[i].url) : '';
+      if (/zahid-jobpool\.vercel\.app/i.test(u) && /\/fill-apply/i.test(u)) {
+        tab = tabs[i];
+        break;
+      }
+    }
+    if (!tab) {
+      for (let j = 0; j < tabs.length; j++) {
+        const u2 = tabs[j] && tabs[j].url ? String(tabs[j].url) : '';
+        if (/zahid-jobpool\.vercel\.app/i.test(u2) && /applications?/i.test(u2)) {
+          tab = tabs[j];
+          break;
+        }
+      }
+    }
+    if (!tab) {
+      tab = await chrome.tabs.create({ url: hubUrl, active: true });
+      await new Promise(function (r) {
+        setTimeout(r, 2500);
+      });
+    } else {
+      // Prefer Fill-Apply hub path when we only found Applications.
+      const cur = tab.url ? String(tab.url) : '';
+      if (!/\/fill-apply/i.test(cur)) {
+        await chrome.tabs.update(tab.id, { url: hubUrl, active: true });
+        await new Promise(function (r) {
+          setTimeout(r, 2000);
+        });
+      } else {
+        await chrome.tabs.update(tab.id, { active: true });
+        await new Promise(function (r) {
+          setTimeout(r, 600);
+        });
+      }
+    }
+    return tab && tab.id != null ? tab.id : null;
+  }
+
   if (message.type === MSG.FILL_ONCE || message.type === 'FILL_APPLY_FILL_ONCE') {
     return reply(
       (async function () {
+        var entry = String(message.entry || '').toLowerCase();
+        if (entry === 'jobpool' || entry === 'hub') {
+          var hubTabId = await ensureJobPoolHubTab();
+          if (hubTabId == null) {
+            throw new Error('Could not open JobPool /fill-apply hub');
+          }
+          return FillApplyRunner.runOnceOnTab(hubTabId, 'submit');
+        }
+
         var tabId = message.tabId;
         if (tabId == null && sender && sender.tab && sender.tab.id != null) {
           tabId = sender.tab.id;
@@ -165,8 +244,9 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             if (tabs && tabs[0] && tabs[0].id != null) tabId = tabs[0].id;
           } catch (_q) {}
         }
-        var mode = message.runMode || (message.config && message.config.runMode) || 'fill';
-        if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(mode) === -1) mode = 'fill';
+        var mode = message.runMode || (message.config && message.config.runMode) || 'submit';
+        if (message.autoApply === true) mode = 'submit';
+        if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(mode) === -1) mode = 'submit';
         return FillApplyRunner.runOnceOnTab(tabId, mode);
       })()
     );
@@ -182,7 +262,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             Types.JOBPOOL_DEFAULT_BASE_URL ||
             'https://zahid-jobpool.vercel.app'
         ).replace(/\/$/, '');
-        const appsUrl = base + '/applications';
+        const appsUrl = (Types.JOBPOOL_FILL_APPLY_URL) || (base + '/fill-apply');
 
         let api = { jobs: [], source: 'none', baseUrl: base };
         if (FillApplyBackend && FillApplyBackend.loadJobsFromJobPool) {
@@ -211,14 +291,23 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
           };
         }
 
-        // Scrape Ready-to-apply cards from the Applications page (user session cookies).
+        // Scrape Fill-Apply queue (or legacy Applications) using the signed-in JobPool tab.
         let tab = null;
         const tabs = await chrome.tabs.query({});
         for (let i = 0; i < tabs.length; i++) {
           const u = tabs[i] && tabs[i].url ? String(tabs[i].url) : '';
-          if (/zahid-jobpool\.vercel\.app/i.test(u) && /application/i.test(u)) {
+          if (/zahid-jobpool\.vercel\.app/i.test(u) && /\/fill-apply/i.test(u)) {
             tab = tabs[i];
             break;
+          }
+        }
+        if (!tab) {
+          for (let j = 0; j < tabs.length; j++) {
+            const u2 = tabs[j] && tabs[j].url ? String(tabs[j].url) : '';
+            if (/zahid-jobpool\.vercel\.app/i.test(u2) && /applications?/i.test(u2)) {
+              tab = tabs[j];
+              break;
+            }
           }
         }
         if (!tab) {
@@ -249,7 +338,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                 return /^https?:\/\//i.test(u || '');
               }
               function isJobPool(u) {
-                return /zahid-jobpool\.vercel\.app|\/applications/i.test(u || '');
+                return /zahid-jobpool\.vercel\.app|\/fill-apply|\/applications/i.test(u || '');
               }
               var out = [];
               var seen = {};
@@ -261,10 +350,14 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                 var label = String(el.innerText || el.textContent || el.getAttribute('aria-label') || '')
                   .replace(/\s+/g, ' ')
                   .trim();
-                if (!/^apply$/i.test(label) && el.getAttribute('data-fill-apply') !== 'jobpool-apply') {
+                if (
+                  !/^apply$/i.test(label) &&
+                  !/^open\s*application$/i.test(label) &&
+                  el.getAttribute('data-fill-apply') !== 'jobpool-apply'
+                ) {
                   continue;
                 }
-                if (/mark as applied/i.test(label)) continue;
+                if (/mark as applied|applied successfully|application issue|^blocked$/i.test(label)) continue;
                 var href =
                   el.getAttribute('href') ||
                   el.getAttribute('data-href') ||
@@ -325,7 +418,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             source: 'scrape-empty',
             applicationsUrl: appsUrl,
             apiError: api.error || null,
-            hint: 'Open ' + appsUrl + ' while signed in, then click Load from JobPool again.'
+            hint: 'Open ' + appsUrl + ' (Fill-Apply queue) while signed in, then click Load from JobPool again.'
           };
         }
 
@@ -353,6 +446,22 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
           counts: counts,
           applicationsUrl: appsUrl
         };
+      })()
+    );
+  }
+
+  if (message.type === 'FILL_APPLY_OPEN_TAB') {
+    return reply(
+      (async function () {
+        var url = String((message && message.url) || '').trim();
+        if (!/^https?:\/\//i.test(url)) {
+          return { ok: false, error: 'Invalid URL' };
+        }
+        var tab = await chrome.tabs.create({
+          url: url,
+          active: message.active !== false
+        });
+        return { ok: true, tabId: tab && tab.id, url: url };
       })()
     );
   }

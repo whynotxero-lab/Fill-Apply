@@ -1,5 +1,5 @@
 /**
- * Tab handoff picker + Apply modal root + Michael Page Apply CTA (not Save Job).
+ * Tab handoff picker + opener→child run-target follow (slice 1) + Apply modal root.
  * Run: node scripts/smoke-tab-popup-handoff.js
  */
 'use strict';
@@ -13,7 +13,8 @@ const ROOT = path.join(__dirname, '..');
 
 function loadRunnerPick() {
   const src = fs.readFileSync(path.join(ROOT, 'runner/runner.js'), 'utf8');
-  // Extract pickApplyHandoffTab by evaluating a minimal stub of chrome APIs
+  const tabCreatedListeners = [];
+  const windowCreatedListeners = [];
   const sandbox = {
     chrome: {
       tabs: {
@@ -23,28 +24,72 @@ function loadRunnerPick() {
         get: async function () {
           return null;
         },
-        onUpdated: { addListener: function () {}, removeListener: function () {} }
+        update: async function () {
+          return null;
+        },
+        onUpdated: { addListener: function () {}, removeListener: function () {} },
+        onCreated: {
+          addListener: function (fn) {
+            tabCreatedListeners.push(fn);
+          },
+          removeListener: function (fn) {
+            const i = tabCreatedListeners.indexOf(fn);
+            if (i >= 0) tabCreatedListeners.splice(i, 1);
+          },
+          _emit: function (tab) {
+            tabCreatedListeners.slice().forEach(function (fn) {
+              try {
+                fn(tab);
+              } catch (_e) {}
+            });
+          }
+        }
+      },
+      windows: {
+        onCreated: {
+          addListener: function (fn) {
+            windowCreatedListeners.push(fn);
+          },
+          removeListener: function (fn) {
+            const i = windowCreatedListeners.indexOf(fn);
+            if (i >= 0) windowCreatedListeners.splice(i, 1);
+          },
+          _emit: function (win) {
+            windowCreatedListeners.slice().forEach(function (fn) {
+              try {
+                fn(win);
+              } catch (_e) {}
+            });
+          }
+        }
       },
       scripting: { executeScript: async function () { return []; } },
-      runtime: { lastError: null, sendMessage: function () {} }
+      runtime: { lastError: null, sendMessage: function () {} },
+      notifications: { create: function () {} },
+      storage: {
+        session: { get: function (_k, cb) { cb({}); }, set: function (_o, cb) { if (cb) cb(); } },
+        local: { get: function (_k, cb) { cb({}); }, set: function (_o, cb) { if (cb) cb(); } }
+      }
     },
     globalThis: null,
     self: null
   };
   sandbox.globalThis = sandbox;
   sandbox.self = sandbox;
-  // Runner attaches FillApplyRunner at end; may throw on missing deps — wrap
   try {
     Function('chrome', 'globalThis', 'self', src)(sandbox.chrome, sandbox, sandbox);
   } catch (e) {
-    // Still may have attached helpers if error is late
+    // Runner may throw on missing deps — helpers often still attach.
   }
-  return sandbox.FillApplyRunner || null;
+  sandbox.__tabCreatedListeners = tabCreatedListeners;
+  sandbox.__windowCreatedListeners = windowCreatedListeners;
+  return sandbox;
 }
 
 (async function main() {
   // --- Pure pickApplyHandoffTab ---
-  const runner = loadRunnerPick();
+  const sandbox = loadRunnerPick();
+  const runner = sandbox.FillApplyRunner;
   suite.ok(runner && typeof runner.pickApplyHandoffTab === 'function', 'pickApplyHandoffTab exported');
 
   const opener = 10;
@@ -70,6 +115,109 @@ function loadRunnerPick() {
 
   const none = runner.pickApplyHandoffTab([{ id: 10, url: 'https://x.com' }], 10, { 10: true });
   suite.equal(none, null, 'no handoff when only opener remains');
+
+  // --- resolveRunTargetAfterOpenerClick (opener → child becomes run target) ---
+  suite.ok(
+    typeof runner.resolveRunTargetAfterOpenerClick === 'function',
+    'resolveRunTargetAfterOpenerClick exported'
+  );
+  const resolved = runner.resolveRunTargetAfterOpenerClick(
+    [
+      { id: 100, url: 'https://zahid-jobpool.vercel.app/fill-apply', openerTabId: null },
+      { id: 101, url: 'https://careers.example.com/apply/1', openerTabId: 100 }
+    ],
+    100,
+    { 100: true }
+  );
+  suite.ok(resolved && resolved.id === 101, 'opener→child tab becomes run target');
+
+  // Contamination regression: child must NOT be in knownIds when searching
+  const childHidden = runner.pickApplyHandoffTab(
+    [
+      { id: 100, url: 'https://zahid-jobpool.vercel.app/fill-apply' },
+      { id: 200, url: 'https://ats.example.com/job/9', openerTabId: 100 }
+    ],
+    100,
+    { 100: true, 200: true }
+  );
+  suite.equal(childHidden, null, 'knownIds including child hides it (do not snapshot-merge after click)');
+  const childVisible = runner.pickApplyHandoffTab(
+    [
+      { id: 100, url: 'https://zahid-jobpool.vercel.app/fill-apply' },
+      { id: 200, url: 'https://ats.example.com/job/9', openerTabId: 100 }
+    ],
+    100,
+    { 100: true }
+  );
+  suite.ok(childVisible && childVisible.id === 200, 'pre-click knownIds still finds child');
+
+  // --- Event arming: tabs.onCreated switches active run target ---
+  suite.ok(typeof runner.armOpenerTabFollow === 'function', 'armOpenerTabFollow exported');
+  suite.ok(typeof runner.consumeFollowedChildTab === 'function', 'consumeFollowedChildTab exported');
+  suite.ok(typeof runner.getActiveRunTargetTabId === 'function', 'getActiveRunTargetTabId exported');
+
+  runner.disarmOpenerTabFollow();
+  runner.armOpenerTabFollow(100, { 100: true });
+  suite.equal(runner.getActiveRunTargetTabId(), 100, 'armed target starts as opener');
+  suite.ok(sandbox.__tabCreatedListeners.length >= 1, 'tabs.onCreated listener registered');
+
+  sandbox.chrome.tabs.onCreated._emit({
+    id: 777,
+    url: 'https://boards.greenhouse.io/acme/jobs/99',
+    openerTabId: 100
+  });
+  suite.equal(runner.consumeFollowedChildTab(), 777, 'onCreated child becomes followed tab');
+  suite.equal(runner.getActiveRunTargetTabId(), 777, 'active run target switches to child');
+  const st = runner.getOpenerFollowState();
+  suite.ok(st && st.childOpenerMatch === true, 'child marked opener-match');
+
+  // Ignore JobPool hub re-opens without opener match
+  runner.disarmOpenerTabFollow();
+  runner.armOpenerTabFollow(100, { 100: true });
+  sandbox.chrome.tabs.onCreated._emit({
+    id: 778,
+    url: 'https://zahid-jobpool.vercel.app/fill-apply',
+    openerTabId: null
+  });
+  suite.equal(runner.consumeFollowedChildTab(), null, 'does not adopt unrelated hub tab');
+
+  // windows.onCreated → query tabs in popup window
+  runner.disarmOpenerTabFollow();
+  runner.armOpenerTabFollow(50, { 50: true });
+  sandbox.chrome.tabs.query = async function (q) {
+    if (q && q.windowId === 9) {
+      return [{ id: 888, url: 'https://login.example.com/oauth', openerTabId: 50, windowId: 9 }];
+    }
+    return [];
+  };
+  sandbox.chrome.windows.onCreated._emit({ id: 9, type: 'popup' });
+  // allow microtask from Promise in listener
+  await new Promise(function (r) {
+    setTimeout(r, 30);
+  });
+  suite.equal(runner.consumeFollowedChildTab(), 888, 'popup window tab becomes run target');
+  runner.disarmOpenerTabFollow();
+
+  // pickEmployerTabAfterHubOpen
+  suite.ok(typeof runner.pickEmployerTabAfterHubOpen === 'function', 'pickEmployerTabAfterHubOpen exported');
+  sandbox.chrome.tabs.query = async function () {
+    return [
+      { id: 1, url: 'https://zahid-jobpool.vercel.app/fill-apply', active: true },
+      { id: 2, url: 'https://careers.riyadhair.com/icims/login', openerTabId: 1, active: false }
+    ];
+  };
+  const emp = await runner.pickEmployerTabAfterHubOpen(1);
+  suite.ok(emp && emp.id === 2, 'pickEmployerTabAfterHubOpen prefers opener child employer');
+
+  // Source markers for slice 1 wiring
+  const runnerSrc = fs.readFileSync(path.join(ROOT, 'runner/runner.js'), 'utf8');
+  suite.ok(/tabs\.onCreated\.addListener/.test(runnerSrc), 'runner listens tabs.onCreated');
+  suite.ok(/windows\.onCreated\.addListener/.test(runnerSrc), 'runner listens windows.onCreated');
+  suite.ok(
+    /do NOT merge a fresh full tab snapshot into knownTabIds/.test(runnerSrc),
+    'hop loop documents knownTabIds fix'
+  );
+  suite.ok(/JobPool hub kept in background/.test(runnerSrc), 'hub kept message present');
 
   // --- Synonyms modal root + Apply CTA ---
   const page = createPage(

@@ -95,6 +95,8 @@
       return true;
     }
     if (/Ready-to-apply\s+packages/i.test(text)) return true;
+    if (/Fill-?Apply\s+queue/i.test(text) && /Open\s+Application/i.test(text)) return true;
+    if (/\/fill-apply/i.test(String(url || ''))) return true;
     return false;
   }
 
@@ -170,7 +172,9 @@
           jobId: payload.jobId != null ? String(payload.jobId) : null,
           title: payload.title || null,
           clickedAt: payload.clickedAt || Date.now(),
-          hubUrl: payload.hubUrl || null
+          hubUrl: payload.hubUrl || null,
+          opened: payload.opened !== false,
+          openClickedAt: payload.openClickedAt || payload.clickedAt || Date.now()
         }
       : null;
     return storageSet({ [PENDING_KEY]: next }).then(function () {
@@ -187,7 +191,9 @@
     if (!el) return null;
     var card =
       el.closest &&
-      (el.closest('[data-job-id], [data-jobpool-job-id], [data-fill-apply-card], article, li, section, .card, [class*="card"], [class*="pkg"]') ||
+      (el.closest(
+        '[data-job-id], [data-jobpool-job-id], [data-fill-apply-card], [data-slot="card"], article, li, section, .card, [class*="card"], [class*="pkg"]'
+      ) ||
         el.closest('[class*="ready"], [class*="package"], [class*="opportunity"]'));
     var scope = card || el.parentElement || root || document;
     try {
@@ -195,6 +201,22 @@
         var d0 = el.getAttribute('data-job-id') || el.getAttribute('data-jobpool-job-id');
         if (d0) return String(d0).trim();
       }
+      // Fill-Apply queue cards show "board:numericId" in the card header text.
+      try {
+        var cardText = String((scope && (scope.innerText || scope.textContent)) || '').slice(0, 800);
+        var colonId = cardText.match(/\b([a-z][a-z0-9_-]{2,40}):(\d{5,})\b/i);
+        if (colonId) return colonId[1].toLowerCase() + ':' + colonId[2];
+      } catch (_ct) {}
+      // Live JobPool Apply links often encode ids in the employer URL (jid- / job id).
+      try {
+        var href = String(el.href || el.getAttribute('href') || '');
+        var jm = href.match(/[?&#/\-]jid[-_=]?([A-Za-z0-9]+)/i) || href.match(/\bjid-([0-9]+)/i);
+        if (jm && jm[1]) return 'jid-' + String(jm[1]).trim();
+        var lid = href.match(/linkedin\.com\/jobs\/view\/[^/]*?(\d{6,})/i);
+        if (lid && lid[1]) return 'li-' + lid[1];
+        var wk = href.match(/workable\.com\/j\/([A-Za-z0-9]+)/i);
+        if (wk && wk[1]) return 'wk-' + wk[1];
+      } catch (_hrefId) {}
       if (scope && scope.getAttribute) {
         var d1 = scope.getAttribute('data-job-id') || scope.getAttribute('data-jobpool-job-id');
         if (d1) return String(d1).trim();
@@ -241,6 +263,9 @@
         if (/Ready\s+to\s+apply|Ready-to-apply/i.test(t) && /Apply/i.test(t)) {
           candidates.push(el);
         }
+        if (/Fill-?Apply\s+queue/i.test(t) && /Open\s+Application/i.test(t)) {
+          candidates.push(el);
+        }
       }
     } catch (_e) {}
     if (!candidates.length) return doc;
@@ -251,49 +276,155 @@
     return candidates[0] || doc;
   }
 
+  function isNavChromeEl(el, S) {
+    if (!el) return true;
+    try {
+      if (S && S.isNavigationChrome && S.isNavigationChrome(el)) return true;
+      if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(buttonText(el))) return true;
+    } catch (_n) {}
+    return false;
+  }
+
+  function cardScopeFor(el) {
+    if (!el || !el.closest) return null;
+    return (
+      el.closest(
+        '[data-slot="card"], [data-fill-apply-card], [data-job-id], [data-jobpool-job-id], article, li.card, .card, [class*="card"]'
+      ) || null
+    );
+  }
+
+  /** Prefer cards that also expose Applied Successfully / Application Issue. */
+  function looksLikeJobCard(card) {
+    if (!card) return false;
+    try {
+      var t = String(card.innerText || card.textContent || '').slice(0, 4000);
+      if (/Open\s*Application/i.test(t) && /Applied\s*Successfully|Application\s*Issue|Mark\s*as\s*applied/i.test(t)) {
+        return true;
+      }
+    } catch (_e) {}
+    return false;
+  }
+
   function findFirstReadyApply(doc) {
     doc = doc || document;
     var S = syn();
     var root = findReadySection(doc);
 
-    // Stable stamps first, DOM order
+    // Stable stamps first, DOM order — skip nav chrome
     try {
       var stamped = root.querySelectorAll
         ? root.querySelectorAll('[data-fill-apply="jobpool-apply"], [data-fill-apply="apply-start"]')
         : [];
       for (var si = 0; si < stamped.length; si++) {
         var se = stamped[si];
+        if (isNavChromeEl(se, S)) continue;
         if (!visible(se)) continue;
         var st = buttonText(se);
         if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(st)) continue;
-        if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(st)) continue;
         return se;
       }
     } catch (_e0) {}
+
+    // Fill-Apply hub (2026): primary CTA is card-scoped "Open Application".
+    // Soft visibility: list cards may be below the fold; still clickable.
+    // Never match left-nav "Fill-Apply".
+    try {
+      var cardRoots = [];
+      try {
+        var cards = (root.querySelectorAll &&
+          root.querySelectorAll(
+            '[data-slot="card"], [data-fill-apply-card], [data-job-id], article.card, .card, [class*="card"]'
+          )) ||
+          [];
+        for (var ci = 0; ci < cards.length; ci++) {
+          if (looksLikeJobCard(cards[ci]) || /Open\s*Application/i.test(String(cards[ci].innerText || ''))) {
+            cardRoots.push(cards[ci]);
+          }
+        }
+      } catch (_cr) {}
+      var searchRoots = cardRoots.length ? cardRoots : [root];
+      for (var ri = 0; ri < searchRoots.length; ri++) {
+        var scope = searchRoots[ri];
+        var nodesOpen = scope.querySelectorAll
+          ? scope.querySelectorAll('a, button, input[type="button"], [role="button"]')
+          : [];
+        for (var oi = 0; oi < nodesOpen.length; oi++) {
+          var oel = nodesOpen[oi];
+          if (isNavChromeEl(oel, S)) continue;
+          var ot = buttonText(oel).replace(/\s+/g, ' ').trim();
+          if (!ot) continue;
+          if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(ot)) continue;
+          var isOpen =
+            (S && S.isOpenApplicationCta && S.isOpenApplicationCta(ot)) ||
+            /^open\s*application$/i.test(ot);
+          if (!isOpen) continue;
+          // Prefer visible; allow first few off-screen Open Application CTAs (SPA lists).
+          if (!visible(oel)) {
+            var rOpen = null;
+            try {
+              rOpen = oel.getBoundingClientRect();
+            } catch (_rO) {}
+            if (!rOpen || (rOpen.width < 2 && rOpen.height < 2)) continue;
+            if (oi > 8 && ri > 2) continue;
+          }
+          try {
+            oel.setAttribute('data-fill-apply', 'jobpool-apply');
+          } catch (_st0) {}
+          return oel;
+        }
+      }
+    } catch (_eo) {}
+
+    // Live JobPool Applications UI: Apply is <a target="_blank" href="employer…">Apply</a>
+    // Prefer first external Apply anchor in Ready section / document order.
+    try {
+      var anchors = root.querySelectorAll ? root.querySelectorAll('a[href]') : [];
+      for (var ai = 0; ai < anchors.length; ai++) {
+        var ael = anchors[ai];
+        if (isNavChromeEl(ael, S)) continue;
+        if (!visible(ael) && ai > 0) {
+          // Still allow first few off-screen Ready cards — JobPool list is long
+          var r0 = null;
+          try {
+            r0 = ael.getBoundingClientRect();
+          } catch (_r) {}
+          if (!r0 || (r0.width < 2 && r0.height < 2)) continue;
+        }
+        if (!isExternalApplyAnchor(ael)) continue;
+        try {
+          ael.setAttribute('data-fill-apply', 'jobpool-apply');
+        } catch (_st) {}
+        return ael;
+      }
+    } catch (_ea) {}
 
     var nodes = root.querySelectorAll
       ? root.querySelectorAll('a, button, input[type="button"], input[type="submit"], [role="button"]')
       : [];
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
+      if (isNavChromeEl(el, S)) continue;
       if (!visible(el)) continue;
       var t = buttonText(el).replace(/\s+/g, ' ').trim();
       if (!t) continue;
       if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(t)) continue;
-      if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(t)) continue;
-      // Exact / near "Apply" — not "Mark as applied", not long sentences
+      // Exact / near "Apply" — not "Mark as applied", not long sentences, not Fill-Apply nav
+      if (/^open\s*application$/i.test(t)) return el;
       if (/^apply(\s*now)?$/i.test(t)) return el;
       if (S && S.isJobpoolApplyDataCta && S.isJobpoolApplyDataCta(el)) return el;
     }
-    // Softer: short Apply CTAs in ready section
+    // Softer: short Apply CTAs in ready section — still never Fill-Apply / nav
     for (var j = 0; j < nodes.length; j++) {
       var el2 = nodes[j];
+      if (isNavChromeEl(el2, S)) continue;
       if (!visible(el2)) continue;
       var t2 = buttonText(el2).replace(/\s+/g, ' ').trim();
       if (!t2 || t2.length > 24) continue;
       if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(t2)) continue;
-      if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(t2)) continue;
-      if (/\bapply\b/i.test(t2) && !/mark/i.test(t2)) return el2;
+      // Require bare Apply / Apply Now — not hyphenated page titles like Fill-Apply
+      if (/^apply(\s*now)?$/i.test(t2)) return el2;
+      if (/\bapply\b/i.test(t2) && !/mark|fill/i.test(t2) && cardScopeFor(el2)) return el2;
     }
     return null;
   }
@@ -341,6 +472,11 @@
       el.focus();
     } catch (_e2) {}
     try {
+      if (global.FillApplyDom && typeof global.FillApplyDom.realClick === 'function') {
+        if (global.FillApplyDom.realClick(el)) return true;
+      }
+    } catch (_rc) {}
+    try {
       el.click();
       return true;
     } catch (_e3) {}
@@ -352,6 +488,22 @@
     }
   }
 
+  function isExternalApplyAnchor(el) {
+    if (!el || !el.tagName || String(el.tagName).toUpperCase() !== 'A') return false;
+    var href = '';
+    try {
+      href = String(el.href || el.getAttribute('href') || '');
+    } catch (_h) {
+      href = '';
+    }
+    if (!/^https?:\/\//i.test(href)) return false;
+    if (/zahid-jobpool\.vercel\.app|\/applications|\/fill-apply/i.test(href)) return false;
+    var t = buttonText(el).replace(/\s+/g, ' ').trim();
+    if (!/^apply(\s*now)?$/i.test(t) && !/\bapply\b/i.test(t)) return false;
+    if (/mark\s+as\s+applied|upgrade|auto-?apply/i.test(t)) return false;
+    return true;
+  }
+
   function looksLikeSuccessOnPage(doc, url) {
     var S = syn();
     var text = pageText(doc);
@@ -360,7 +512,7 @@
       S && S.looksLikeJobPoolReturnUrl ? S.looksLikeJobPoolReturnUrl(url || '') : false;
     // Success copy alone on hub, or return URL with success / pending return
     if (success && (ret || detect(url, doc))) return true;
-    if (success && /jobpool|applications/i.test(String(url || '') + text.slice(0, 500))) return true;
+    if (success && /jobpool|applications|fill-apply/i.test(String(url || '') + text.slice(0, 500))) return true;
     return false;
   }
 
@@ -386,7 +538,7 @@
 
   var adapter = {
     id: 'jobpool',
-    name: 'JobPool Applications Hub',
+    name: 'JobPool Fill-Apply Hub',
     category: 'board',
     hosts: [],
     detect: detect,
@@ -437,7 +589,7 @@
               return {
                 ok: false,
                 adapterId: 'jobpool',
-                error: 'Pending JobPool mark but Mark as applied not found',
+                error: 'Pending JobPool mark but Applied Successfully not found',
                 jobId: pending.jobId,
                 pendingMark: pending,
                 filled: 0,
@@ -460,62 +612,120 @@
                 unmatched: 0,
                 total: 0,
                 message: clicked
-                  ? 'Marked as applied on JobPool hub'
-                  : 'Failed to click Mark as applied'
+                  ? 'Applied Successfully clicked on JobPool hub'
+                  : 'Failed to click Applied Successfully'
               };
             });
           }
 
-          // Pending but fill/ready without success — do not re-Apply or Mark
+          /**
+           * Durable pending: after a successful Open Application click, NEVER
+           * click Open Application again for that job until marked / failed /
+           * cleared. Start continues on employer tab.
+           * Return handoff flags so the runner adopts the employer tab.
+           */
+          var applyBtnEarly = findFirstReadyApply(doc);
+
           if (pending && !shouldMark && !forceMark) {
             return {
               ok: true,
               adapterId: 'jobpool',
               jobpoolPending: true,
+              jobpoolAlreadyOpened: true,
+              jobpoolHubApply: true,
+              clickedApplyStart: true,
+              externalApply: true,
+              deferToPageAdapter: true,
+              handedOff: true,
               jobId: pending.jobId,
+              pendingMark: pending,
               filled: 0,
               unmatched: 0,
               total: 0,
               submitted: false,
               message:
-                'JobPool pending mark kept — waiting for employer submit success before Mark as applied'
+                'JobPool Open Application already clicked for pending job — continuing employer tab (no re-open)'
             };
           }
 
-          var applyBtn = findFirstReadyApply(doc);
+          var applyBtn = applyBtnEarly || findFirstReadyApply(doc);
           if (!applyBtn) {
             return {
               ok: false,
               adapterId: 'jobpool',
-              error: 'No Ready-to-apply Apply button on JobPool hub',
+              error: 'No Open Application / Apply control on JobPool Fill-Apply hub',
               filled: 0,
               unmatched: 0,
               total: 0
             };
           }
 
-          var jobId = extractJobIdNear(applyBtn, doc);
-          var title = extractTitleNear(applyBtn);
-          return setPendingMark({
-            jobId: jobId,
-            title: title,
-            clickedAt: Date.now(),
-            hubUrl: href
-          }).then(function (saved) {
-            var ok = clickEl(applyBtn);
-            return handoffResult({
-              ok: ok,
-              jobId: saved && saved.jobId,
-              title: title,
-              pendingMark: saved,
-              message: ok
-                ? 'Clicked JobPool Apply — opening employer URL'
-                : 'Failed to click JobPool Apply'
-            });
-          });
+          return openApplyAndHandoff(doc, href, applyBtn);
         });
     }
   };
+
+  function openApplyAndHandoff(doc, href, applyBtn) {
+    var jobId = extractJobIdNear(applyBtn, doc);
+    var title = extractTitleNear(applyBtn);
+    return setPendingMark({
+      jobId: jobId,
+      title: title,
+      clickedAt: Date.now(),
+      hubUrl: href,
+      opened: true,
+      openClickedAt: Date.now()
+    }).then(function (saved) {
+      var employerUrl = '';
+      try {
+        employerUrl = String(applyBtn.href || applyBtn.getAttribute('href') || '').trim();
+      } catch (_hu) {
+        employerUrl = '';
+      }
+      var opened = false;
+      var tag = '';
+      try {
+        tag = String(applyBtn.tagName || '').toUpperCase();
+      } catch (_t) {}
+      // Prefer extension tab open for real employer <a href> so hub stays put.
+      // Open Application is often a <button> with no href — must real-click it.
+      if (tag === 'A' && /^https?:\/\//i.test(employerUrl)) {
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({
+              type: 'FILL_APPLY_OPEN_TAB',
+              url: employerUrl,
+              active: true
+            });
+            opened = true;
+          }
+        } catch (_msg) {
+          opened = false;
+        }
+      }
+      // Always attempt DOM click for buttons / when OPEN_TAB unavailable.
+      if (!opened) {
+        opened = clickEl(applyBtn);
+      } else if (tag !== 'A') {
+        opened = clickEl(applyBtn) || opened;
+      }
+      return handoffResult({
+        ok: opened,
+        jobId: saved && saved.jobId,
+        title: title,
+        pendingMark: saved,
+        openUrl: /^https?:\/\//i.test(employerUrl) ? employerUrl : null,
+        externalApply: true,
+        message: opened
+          ? 'Opened employer application — Fill-Apply hub kept'
+          : 'Failed to open JobPool Open Application'
+      });
+    });
+  }
+
+  // Keep openApply available for tests / runner retries
+  adapter.openApplyAndHandoff = openApplyAndHandoff;
+  adapter.findFirstReadyApply = findFirstReadyApply;
 
   if (global.FillApplyRegistry) global.FillApplyRegistry.register(adapter);
   global.FillApplyJobPoolHub = adapter;

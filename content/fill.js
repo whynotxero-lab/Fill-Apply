@@ -452,7 +452,49 @@
       if (raw.length > 24) return false;
       if (/financial|planning|manager|analyst|engineer|director/i.test(raw)) return false;
     }
+    // Qualification Title must not receive salutation Mr/Ms
+    if (/qualification\s*title|degree\s*title|title\s*of\s*(degree|qualification)/i.test(lab)) {
+      if (/^(mr|mrs|ms|miss|dr|sir)\.?$/i.test(raw.trim())) return false;
+      if (honorificKeys[key]) return false;
+    }
+    // Year / graduation fields reject degree strings (MBA, Bachelor, …)
+    if (
+      /\b(year|graduation|grad year|completion year|end year)\b/i.test(lab) ||
+      key === 'graduationYear' ||
+      key === 'birthYear'
+    ) {
+      if (/[a-zA-Z]{2,}/.test(raw) && !/^\d{4}$/.test(raw.trim())) {
+        if (/\b(mba|bachelor|master|doctor|diploma|certificate|phd|degree)\b/i.test(raw)) return false;
+        if (!/\d{4}/.test(raw)) return false;
+      }
+    }
     if (salaryKeys[key] && (type === 'email' || type === 'tel' || type === 'url')) return false;
+
+    // Screening essays must never receive city / notice / salary-alone tokens
+    var SI = global.FillApplyScreeningIntent;
+    if (SI && typeof SI.classify === 'function') {
+      var intent = SI.classify(lab || descriptor.label || '');
+      if (SI.isForbiddenValue(intent, raw)) return false;
+      var essayish =
+        intent === SI.INTENT.IFRS_TAX ||
+        intent === SI.INTENT.SOX_AUDIT ||
+        intent === SI.INTENT.BANKING_FS ||
+        intent === SI.INTENT.EXPERIENCE_ESSAY;
+      if (essayish && (key === 'city' || key === 'location' || key === 'country' || key === 'noticePeriod')) {
+        return false;
+      }
+      if (intent === SI.INTENT.UAE_BASED && (key === 'noticePeriod' || key === 'city' || key === 'location')) {
+        return false;
+      }
+      if (
+        (intent === SI.INTENT.SALARY_CURRENT ||
+          intent === SI.INTENT.SALARY_EXPECTED ||
+          intent === SI.INTENT.SALARY_GENERIC) &&
+        key === 'noticePeriod'
+      ) {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -709,12 +751,21 @@
     if (kind === 'unmatched') {
       el.setAttribute(HIGHLIGHT_ATTR, '1');
       el.style.outline = '2px solid #f59e0b';
+      el.style.outlineOffset = '2px';
+      el.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.35)';
+      try {
+        if (!el.getAttribute('data-fill-apply-prev-bg')) {
+          el.setAttribute('data-fill-apply-prev-bg', el.style.backgroundColor || '');
+        }
+        el.style.backgroundColor = '#fef3c7';
+      } catch (_bg) {}
       if (global.FillApplyFocusHud && global.FillApplyFocusHud.markStatus) {
         global.FillApplyFocusHud.markStatus(el, 'unfilled', 'Needs info');
       }
     } else {
       el.setAttribute(FILLED_ATTR, '1');
       el.style.outline = '2px solid #22c55e';
+      el.style.boxShadow = '';
       if (global.FillApplyFocusHud && global.FillApplyFocusHud.markStatus) {
         global.FillApplyFocusHud.markStatus(el, 'filled', 'Filled');
       }
@@ -1025,9 +1076,32 @@
         }
       }
       if (key === 'addressLine1' || key === 'street') {
-        return profile.addressLine1 || profile.street || (fmtAddr && fmtAddr.composeAddress ? fmtAddr.composeAddress(profile, 'parts').line1 : '') || '';
+        var line1 =
+          profile.addressLine1 ||
+          profile.street ||
+          (fmtAddr && fmtAddr.composeAddress ? fmtAddr.composeAddress(profile, 'parts').line1 : '') ||
+          '';
+        // Leave empty when unknown — never dump "Riyadh, Riyadh 12791, Saudi Arabia, …"
+        if (
+          fmtAddr &&
+          typeof fmtAddr.looksLikeComposedAddressJunk === 'function' &&
+          fmtAddr.looksLikeComposedAddressJunk(line1)
+        ) {
+          return '';
+        }
+        return line1;
       }
-      if (key === 'addressLine2') return profile.addressLine2 || '';
+      if (key === 'addressLine2') {
+        var line2 = profile.addressLine2 || '';
+        if (
+          fmtAddr &&
+          typeof fmtAddr.looksLikeComposedAddressJunk === 'function' &&
+          fmtAddr.looksLikeComposedAddressJunk(line2)
+        ) {
+          return '';
+        }
+        return line2;
+      }
     }
     if (key === 'countryOfResidence' || key === 'residenceCountry') {
       return profile.countryOfResidence || profile.residenceCountry || profile.addressCountry || profile.country || '';
@@ -1195,7 +1269,47 @@
           key = resolveValue(profile, 'salutation') ? 'salutation' : 'title';
         }
       }
+      // Qualification Title → degree (never Mr./salutation)
+      if (/qualification\s*title|degree\s*title|title\s*of\s*(the\s*)?(degree|qualification)/i.test(labExact)) {
+        key = resolveValue(profile, 'degree')
+          ? 'degree'
+          : resolveValue(profile, 'highestEducation')
+            ? 'highestEducation'
+            : 'degree';
+      }
+      // Residence / employment / education country never phone dial
+      if (
+        /of\s*residence|residence\s*country|employment\s*country|education\s*country/i.test(labExact) ||
+        labExact === 'country / region' ||
+        labExact === 'country/region'
+      ) {
+        if (key === 'phoneCountry') {
+          key = resolveValue(profile, 'country') ? 'country' : 'countryOfResidence';
+        }
+      }
       let value = resolveValue(profile, key);
+      // Nationality fallback: Pakistani when profile/nationality blank but known from answers
+      if ((key === 'nationality' || /nationality|citizenship/i.test(labExact)) && !value) {
+        var caN =
+          (profile.customAnswers &&
+            (profile.customAnswers.nationality || profile.customAnswers.citizenship)) ||
+          '';
+        value = caN || profile.nationality || '';
+      }
+      // Degree from education text when key is degree and blank
+      if ((key === 'degree' || key === 'highestEducation') && !value && profile.education) {
+        var eduStr = String(profile.education).split(/\n/)[0] || '';
+        var degM = eduStr.match(
+          /\b(MBA(?:\s+Executive)?(?:\s+Finance)?|EMBA|Bachelor[^,]*|Master[^,]*|Ph\.?D\.?)\b/i
+        );
+        if (degM) value = degM[1];
+        else if (/qualification\s*title/i.test(labExact)) value = eduStr.split(',')[0].trim();
+      }
+      // Graduation year from education "(2018)" when blank
+      if ((key === 'graduationYear' || labExact === 'year' || labExact === 'year *') && !value && profile.education) {
+        var yM = String(profile.education).match(/\b(19|20)\d{2}\b/);
+        if (yM) value = yM[0];
+      }
       if (key === 'title' && !value) value = resolveValue(profile, 'salutation');
       if (key === 'salutation' && !value) value = resolveValue(profile, 'title');
       if (key === 'phone' && !value) {
@@ -1324,7 +1438,17 @@
     const dataValue = normalizeText(optionEl.getAttribute && optionEl.getAttribute('data-value'));
     const target = normalizeText(want);
     if (!target) return 0;
+    // Never let ISO "SA" / short tokens pick American Samoa for Saudi Arabia.
+    if (/american\s*samoa|\b1684\b/.test(text) && /^(sa|sau|saudi|966|\+966|ksa)$/i.test(target)) {
+      return 0;
+    }
     if (text === target || dataValue === target) return 100;
+    // Short ISO / dial codes: token-boundary only (not "sa" inside "samoa").
+    if (target.length <= 3) {
+      var re = new RegExp('(^|[^a-z0-9])' + target.replace(/[+]/g, '\\+') + '([^a-z0-9]|$)', 'i');
+      if (re.test(text) || re.test(dataValue || '')) return 95;
+      return 0;
+    }
     if (text.indexOf(target) !== -1) return 80;
     if (target.indexOf(text) !== -1 && text.length > 2) return 70;
     if (dataValue && dataValue.indexOf(target) !== -1) return 60;
@@ -1617,7 +1741,8 @@
     if (!syn || typeof syn.tryClickApplyStart !== 'function') return null;
 
     const open = syn.tryClickApplyStart(document, {
-      minFields: options.minOpenFormFields
+      minFields: options.minOpenFormFields,
+      force: !!options.forceApplyStart
     });
     if (!open || !open.clicked) return null;
     if (open.el && global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
@@ -1706,6 +1831,28 @@
     if (global.FillApplyKnowledge && profile.__adaptiveKnowledge) {
       global.FillApplyKnowledge.hydrate(profile.__adaptiveKnowledge);
     }
+    // Question Bank lives in chrome.storage; content-script inject starts empty.
+    // Load before any resolve() so authored Q→A apply on this Auto Fill pass.
+    try {
+      if (global.FillApplyQuestionBank && typeof global.FillApplyQuestionBank.load === 'function') {
+        await global.FillApplyQuestionBank.load();
+      }
+    } catch (_qbLoad) {
+      /* fill without QB */
+    }
+    if (
+      global.FillApplyQuestionBank &&
+      profile.__questionBank &&
+      typeof global.FillApplyQuestionBank.importSnapshot === 'function'
+    ) {
+      try {
+        await global.FillApplyQuestionBank.importSnapshot(profile.__questionBank, {
+          mode: 'merge'
+        });
+      } catch (_qbImp) {
+        /* ignore */
+      }
+    }
     const highlightUnmatched = !!options.highlightUnmatched;
     const map = global.FillApplyFieldMap;
     const syn = global.FillApplySynonyms;
@@ -1767,8 +1914,29 @@
 
     let formSignals = syn && syn.scoreApplicationForm ? syn.scoreApplicationForm(document) : null;
     let applyStart = null;
+    const NavFirst = global.FillApplyNavFirst;
 
-    if (!(formSignals && formSignals.open)) {
+    // Nav-first (a): Apply/start before treating page as fillable / complete
+    if (NavFirst && typeof NavFirst.decidePageAction === 'function') {
+      const decision = NavFirst.decidePageAction(document, {
+        minFields: options.minOpenFormFields
+      });
+      if (decision.action === 'apply_start' && !options.skipApplyStart) {
+        const openResult = await openApplicationAndWait(
+          Object.assign({}, options, { forceApplyStart: true })
+        );
+        if (openResult.clicked) {
+          applyStart = openResult.opened;
+          if (!openResult.formOpen) {
+            return applyStart;
+          }
+          formSignals =
+            syn && syn.scoreApplicationForm ? syn.scoreApplicationForm(document) : formSignals;
+        }
+      }
+    }
+
+    if (!(formSignals && formSignals.open) && !applyStart) {
       const openResult = await openApplicationAndWait(options);
       if (openResult.clicked) {
         applyStart = openResult.opened;
@@ -1800,19 +1968,123 @@
         };
       }
 
+      // Nav-first (a)/(e): never end on 0 fields while Apply/start is clickable
+      if (!options.skipApplyStart && NavFirst && typeof NavFirst.tryNavApplyStart === 'function') {
+        const navOpen = NavFirst.tryNavApplyStart(document, {
+          minFields: options.minOpenFormFields
+        });
+        if (navOpen && navOpen.clicked) {
+          return {
+            ok: true,
+            clickedApplyStart: true,
+            reDetect: true,
+            handedOff: true,
+            deferToPageAdapter: true,
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            submitted: false,
+            message:
+              'Clicked "' +
+              (navOpen.text || 'Apply') +
+              '" to open the application — waiting to re-detect / fill',
+            applyStartText: navOpen.text || 'Apply',
+            filesAttached: uploadOnly,
+            formSignals: formSignals,
+            inspection: summarizeInspection(inspectForm())
+          };
+        }
+      }
+      // Prefer visible Apply / Apply with CV / Apply for this Job over "no fields".
       const startButtons = syn && syn.findApplyStartButtons ? syn.findApplyStartButtons(document) : [];
+      let gateCta = null;
+      const gateNodes = document.querySelectorAll(
+        'a, button, input[type="button"], input[type="submit"], [role="button"], [role="link"]'
+      );
+      for (let gi = 0; gi < gateNodes.length; gi++) {
+        const gel = gateNodes[gi];
+        try {
+          const gr = gel.getBoundingClientRect();
+          if (gr.width < 2 || gr.height < 2) continue;
+        } catch (_gv) {
+          continue;
+        }
+        const gt = String(
+          (gel.innerText || gel.textContent || '') +
+            ' ' +
+            (gel.value || '') +
+            ' ' +
+            (gel.getAttribute('aria-label') || '')
+        )
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!gt) continue;
+        if (
+          /apply with (cv|resume|curriculum)/i.test(gt) ||
+          /apply for this (job|role|position)/i.test(gt) ||
+          /^apply now$/i.test(gt) ||
+          /^APPLY$/i.test(gt)
+        ) {
+          if (syn && syn.isExcludedApplyCta && syn.isExcludedApplyCta(gt)) continue;
+          gateCta = { el: gel, text: gt };
+          break;
+        }
+      }
+      if (gateCta && gateCta.el) {
+        try {
+          gateCta.el.click();
+        } catch (_gc) {}
+        return {
+          ok: true,
+          clickedApplyStart: true,
+          reDetect: true,
+          handedOff: true,
+          deferToPageAdapter: true,
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          message:
+            'Clicked "' +
+            (gateCta.text || 'Apply') +
+            '" — waiting for application form (same tab/popup)',
+          applyStartText: gateCta.text || 'Apply',
+          filesAttached: uploadOnly,
+          formSignals: formSignals,
+          inspection: summarizeInspection(inspectForm())
+        };
+      }
+      if (startButtons.length) {
+        // Stay on this tab/popup — pause-style signal, do not hop.
+        return {
+          ok: false,
+          needsHuman: true,
+          pauseReason: 'apply_cta_visible',
+          error:
+            'Apply / Apply with CV visible but form did not open — stay on this tab, then Resume',
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          stopReason: 'apply_cta_unclicked',
+          filesAttached: uploadOnly,
+          formSignals: formSignals,
+          inspection: summarizeInspection(inspectForm())
+        };
+      }
       return {
         ok: false,
-        error: startButtons.length
-          ? 'Apply button found but the application form did not open'
-          : 'No application form fields found on this page',
+        needsHuman: true,
+        pauseReason: 'no_form_fields',
+        error: 'No application form fields found on this page — paused on same tab',
         filled: 0,
         unmatched: 0,
         total: 0,
         submitted: false,
         filesAttached: uploadOnly,
         formSignals: formSignals,
-        inspection: summarizeInspection(inspectForm())
+        inspection: summarizeInspection(inspectForm()),
+        stopReason: 'no_apply_start_no_fields'
       };
     }
 
@@ -2211,6 +2483,26 @@
         blockers.push({ type: 'file', message: u.label || 'Required file', reason: u.reason });
       }
     });
+    // Nav-first (d): after fields filled, click Next/Continue when present (not Submit)
+    let advanced = false;
+    let advanceText = '';
+    if (
+      filled > 0 &&
+      !options.skipAdvance &&
+      !missingRequired.length &&
+      !blockers.length &&
+      !(phase === 'TIMEOUT' || progress.timedOut())
+    ) {
+      try {
+        const cont = clickContinueButtons();
+        if (cont && cont.length) {
+          advanced = true;
+          advanceText = String((cont[0] && (cont[0].text || cont[0])) || 'Continue').slice(0, 80);
+          progress.touch();
+        }
+      } catch (_advErr) {}
+    }
+
     const runPhase =
       phase === 'TIMEOUT' || progress.timedOut()
         ? 'TIMEOUT'
@@ -2218,14 +2510,29 @@
           ? 'BLOCKED'
           : missingRequired.length
             ? 'MISSING_INFORMATION'
-            : 'READY';
+            : advanced
+              ? 'READY'
+              : 'READY';
+
+    const needsHumanPause =
+      runPhase === 'MISSING_INFORMATION' ||
+      (missingRequired && missingRequired.length > 0) ||
+      (blockers && blockers.length > 0);
 
     return {
       ok: true,
       filled: filled,
+      advanced: advanced,
+      advanceText: advanceText || undefined,
       unmatched: unmatched,
       total: fields.length,
       phase: runPhase,
+      needsHuman: !!needsHumanPause,
+      pauseReason: needsHumanPause
+        ? blockers && blockers.length
+          ? 'documents'
+          : 'missing_profile_field'
+        : undefined,
       dependentPasses: dependentPasses,
       blockers: blockers,
       cvImportClicked: !!(cvImport && cvImport.clicked),

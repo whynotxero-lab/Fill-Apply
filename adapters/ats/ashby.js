@@ -215,7 +215,7 @@
       var btn = nodes[j];
       if (!visible(btn)) continue;
       var bt = buttonText(btn);
-      if (/apply for this job|apply now|start application/i.test(bt)) {
+      if (/apply for this job|apply for this role|apply now|start application|^apply$/i.test(bt)) {
         applyBtn = btn;
         break;
       }
@@ -773,6 +773,51 @@
 
       var view = await ensureApplicationView();
       if (view.view === 'application' || view.hasForm) advanced = true;
+
+      // Still on Overview with Apply for this Job visible — click then re-detect; never "no fields".
+      if (!(view.hasForm || view.view === 'application')) {
+        var stillApply = view.applyButton || null;
+        if (!stillApply) {
+          var links2 = document.querySelectorAll('a, button, [role="button"], [role="tab"]');
+          for (var si = 0; si < links2.length; si++) {
+            var sel = links2[si];
+            if (!visible(sel)) continue;
+            var st = buttonText(sel);
+            if (/apply for this job/i.test(st) || /^apply now$/i.test(st)) {
+              stillApply = sel;
+              break;
+            }
+          }
+        }
+        if (stillApply) {
+          try {
+            stillApply.click();
+            await sleep(humanDelay(700));
+          } catch (_sc) {}
+          view = detectAshbyView(document);
+          if (view.view === 'application' || view.hasForm) {
+            advanced = true;
+          } else {
+            return {
+              ok: true,
+              adapterId: 'ashby',
+              clickedApplyStart: true,
+              reDetect: true,
+              handedOff: true,
+              deferToPageAdapter: true,
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              advanced: false,
+              message: 'Clicked Apply for this Job — waiting for application form (same tab)',
+              applyStartText: buttonText(stillApply) || 'Apply for this Job',
+              runMode: runMode,
+              error: null
+            };
+          }
+        }
+      }
 
       if (global.FillApplyChallenges && global.FillApplyChallenges.detectChallenge) {
         var ch2 = global.FillApplyChallenges.detectChallenge(document);

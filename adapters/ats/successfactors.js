@@ -85,6 +85,12 @@
     var Signup = global.FillApplySignupLogin;
     var Auth = global.FillApplyAuthWalls;
 
+    try {
+      if (global.FillApplyEnvironment && global.FillApplyEnvironment.load) {
+        await global.FillApplyEnvironment.load();
+      }
+    } catch (_envSf) {}
+
     if (Signup && Signup.shouldPauseForAuth) {
       var gate = Signup.shouldPauseForAuth(doc, profile);
       if (gate && gate.pause) {

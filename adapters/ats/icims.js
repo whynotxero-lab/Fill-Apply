@@ -51,7 +51,7 @@
     }
     if (doc) {
       try {
-        var text = ((doc.body && doc.body.innerText) || '').slice(0, 10000);
+        var text = ((doc.body && (doc.body.innerText || doc.body.textContent)) || '').slice(0, 10000);
         if (/software\s+powered\s+by\s+icims/i.test(text)) return true;
         if (/powered\s+by\s+icims/i.test(text)) return true;
         if (
@@ -108,7 +108,9 @@
 
   function pageText(doc) {
     try {
-      return doc && doc.body ? String(doc.body.innerText || '').slice(0, 14000) : '';
+      if (!doc || !doc.body) return '';
+      // jsdom has empty innerText — fall back to textContent for login/welcome detection
+      return String(doc.body.innerText || doc.body.textContent || '').slice(0, 14000);
     } catch (_e) {
       return '';
     }
@@ -212,7 +214,7 @@
     return {
       challenged: true,
       kind: 'auth_wall',
-      detail: 'iCIMS account required — sign in/register manually, then Resume',
+      detail: 'iCIMS account required — sign in/register manually, then Resume (no profile password)',
       markers: ['local fallback'],
       passwordFields: visiblePw
     };
@@ -300,10 +302,58 @@
     );
   }
 
+  /**
+   * Scalar profile value only. Never String(object) — that yields "[object Object]"
+   * for education / workHistory arrays and poisons Qualification Title inputs.
+   */
   function profileVal(profile, key) {
     if (!profile) return '';
-    if (profile[key] != null && String(profile[key]).trim() !== '') return String(profile[key]).trim();
-    return '';
+    var v = profile[key];
+    if (v == null) return '';
+    if (typeof v === 'object') return '';
+    var s = String(v).trim();
+    if (!s || s === '[object Object]') return '';
+    return s;
+  }
+
+  /** Safe display string — never "[object Object]". */
+  function safeScalar(value) {
+    if (value == null) return '';
+    if (typeof value === 'object') {
+      // Prefer known scalar fields BEFORE serializeAnswer (which may JSON-stringify junk)
+      var keys = ['title', 'name', 'degree', 'label', 'value', 'text', 'displayValue', 'qualificationTitle'];
+      for (var ki = 0; ki < keys.length; ki++) {
+        var kv = value[keys[ki]];
+        if (kv != null && typeof kv !== 'object') {
+          var ks = String(kv).trim();
+          if (ks && ks !== '[object Object]' && ks.charAt(0) !== '{') return ks;
+        }
+      }
+      try {
+        if (global.FillApplyFormat && typeof global.FillApplyFormat.serializeAnswer === 'function') {
+          var ser = global.FillApplyFormat.serializeAnswer(value);
+          var ss = ser != null ? String(ser).trim() : '';
+          // Reject [object Object] and raw JSON dumps of non-education objects
+          if (
+            ss &&
+            ss.indexOf('[object Object]') === -1 &&
+            ss.charAt(0) !== '{' &&
+            ss.charAt(0) !== '['
+          ) {
+            return ss;
+          }
+        }
+      } catch (_e) {}
+      return '';
+    }
+    var s = String(value).trim();
+    if (!s || s === '[object Object]') return '';
+    return s;
+  }
+
+  function profileRaw(profile, key) {
+    if (!profile) return null;
+    return profile[key] != null ? profile[key] : null;
   }
 
   function labelFor(el, doc) {
@@ -354,19 +404,91 @@
     }
 
     if (el.tagName === 'SELECT') {
-      if (global.__fillApply && global.__fillApply.matchSelectOption) {
-        return !!global.__fillApply.matchSelectOption(el, str);
+      str = safeScalar(value);
+      if (!str) return false;
+      var labHint = '';
+      try {
+        labHint = labelFor(el, el.ownerDocument || document) || '';
+      } catch (_lh) {}
+      var kind = 'country';
+      if (/nationality|citizenship|citizen of/i.test(labHint)) kind = 'nationality';
+      else if (/phone|mobile|dial|calling|country\s*code/i.test(labHint)) kind = 'phoneCountry';
+      else if (/country|region|residence/i.test(labHint)) kind = 'country';
+      else if (/gender|sex/i.test(labHint)) kind = 'gender';
+
+      var variants = [str];
+      try {
+        var Fmt = global.FillApplyFormat;
+        if (Fmt && typeof Fmt.valueVariants === 'function') {
+          variants = Fmt.valueVariants(str, kind) || variants;
+        }
+      } catch (_vv) {}
+      // Always include demonym/name for PK/SA common cases
+      if (kind === 'nationality' && /pakistan/i.test(str)) {
+        variants = variants.concat(['Pakistani', 'Pakistan', 'PK']);
       }
-      var wantL = str.toLowerCase();
-      for (var i = 0; i < el.options.length; i++) {
-        var opt = el.options[i];
-        var ot = (opt.textContent || '').trim().toLowerCase();
-        var ov = String(opt.value || '').toLowerCase();
-        if (ot === wantL || ov === wantL || (wantL && ot.indexOf(wantL) !== -1)) {
-          el.selectedIndex = i;
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-          return true;
+      if ((kind === 'country' || kind === 'phoneCountry') && /saudi|966|\+966|\bSA\b|ksa/i.test(str)) {
+        variants = variants.concat([
+          'Saudi Arabia',
+          'Saudi',
+          '+966',
+          '966',
+          'SA',
+          'KSA',
+          'Saudi Arabia (+966)',
+          '+966 Saudi Arabia'
+        ]);
+      }
+      if (kind === 'phoneCountry' && /^\+?966/.test(str)) {
+        variants = variants.concat(['Saudi Arabia', '+966', '966']);
+      }
+
+      // Dedupe
+      var seenV = {};
+      var uniq = [];
+      for (var ui = 0; ui < variants.length; ui++) {
+        var uv = safeScalar(variants[ui]);
+        if (!uv || seenV[uv.toLowerCase()]) continue;
+        seenV[uv.toLowerCase()] = true;
+        uniq.push(uv);
+      }
+      variants = uniq.length ? uniq : [str];
+
+      if (global.__fillApply && global.__fillApply.matchSelectOption) {
+        for (var vi = 0; vi < variants.length; vi++) {
+          if (global.__fillApply.matchSelectOption(el, variants[vi])) return true;
+        }
+      }
+      for (var vi2 = 0; vi2 < variants.length; vi2++) {
+        var wantL = variants[vi2].toLowerCase();
+        var wantDial = (variants[vi2].match(/\+?\d{1,4}/) || [''])[0].replace(/^\+/, '');
+        for (var i = 0; i < el.options.length; i++) {
+          var opt = el.options[i];
+          var ot = (opt.textContent || '').trim();
+          var ov = String(opt.value || '').trim();
+          var otL = ot.toLowerCase();
+          var ovL = ov.toLowerCase();
+          if (!ov && /^(select|choose|--|please select)/i.test(ot)) continue;
+          // Never pick American Samoa for Saudi Arabia / SA / 966
+          if (/american\s*samoa|\b1684\b/i.test(ot + ' ' + ov) && /saudi|966|\bsa\b|ksa/i.test(wantL)) {
+            continue;
+          }
+          var hit =
+            otL === wantL ||
+            ovL === wantL ||
+            (wantL.length > 2 && otL.indexOf(wantL) !== -1) ||
+            (wantL.length > 2 && wantL.indexOf(otL) !== -1 && otL.length > 2);
+          if (!hit && wantDial) {
+            var tDial = (ot.match(/\+?\d{1,4}/) || [''])[0].replace(/^\+/, '');
+            var vDial = (ov.match(/\+?\d{1,4}/) || [''])[0].replace(/^\+/, '');
+            if (wantDial === tDial || wantDial === vDial) hit = true;
+          }
+          if (hit) {
+            el.selectedIndex = i;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
         }
       }
       return false;
@@ -455,7 +577,9 @@
   }
 
   /**
-   * Careers job detail (e.g. pepsicojobs.com) → Apply Now before iCIMS welcome.
+   * Careers job detail / options (e.g. Riyadh Air iCIMS) → click Apply before welcome.
+   * Nav-first: prefer Apply/start CTA over treating stray email / JobForm chrome as "form open".
+   * Never treat filled 0/0 as done while Apply remains clickable.
    */
   function ensureApplyView(doc) {
     doc = doc || document;
@@ -463,35 +587,90 @@
     if (/i accept/i.test(text) && /e-?mail/i.test(text) && /next/i.test(text)) {
       return { clicked: false, kind: 'welcome' };
     }
-    if (doc.querySelector('.iCIMS_JobForm, form[action*="icims" i], input[type="email"]')) {
+    // Welcome / Candidate Profile already in progress — do not re-click Apply
+    if (isWelcomeStep(doc)) {
+      return { clicked: false, kind: 'welcome' };
+    }
+    if (isCandidateProfileStep(doc)) {
       return { clicked: false, kind: 'form' };
     }
 
-    var nodes = doc.querySelectorAll(
-      'a, button, input[type="button"], input[type="submit"], [role="button"]'
-    );
-    var best = null;
-    var bestScore = 0;
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      if (!visible(el)) continue;
-      var t = buttonText(el);
-      if (!t || /premium|tailor|login|sign in|share|save/i.test(t)) continue;
-      var score = 0;
-      if (/^apply now$/i.test(t)) score = 100;
-      else if (/^apply$/i.test(t) && t.length < 12) score = 80;
-      else if (/apply for this (job|position|role)/i.test(t)) score = 90;
-      else if (/\bapply now\b/i.test(t)) score = 85;
-      if (score > bestScore) {
-        bestScore = score;
-        best = el;
+    var Syn = global.FillApplySynonyms;
+    var Nav = global.FillApplyNavFirst;
+    var applyBtns = [];
+    if (Syn && typeof Syn.findApplyStartButtons === 'function') {
+      applyBtns = Syn.findApplyStartButtons(doc) || [];
+    }
+    if (!applyBtns.length) {
+      var nodes = doc.querySelectorAll(
+        'a, button, input[type="button"], input[type="submit"], [role="button"]'
+      );
+      var best = null;
+      var bestScore = 0;
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (!visible(el)) continue;
+        var t = buttonText(el);
+        if (!t || /premium|tailor|login|sign in|share|save|forward|friend|auto[- ]?apply/i.test(t)) {
+          continue;
+        }
+        var score = 0;
+        if (/^apply now$/i.test(t)) score = 100;
+        else if (/^apply$/i.test(t) && t.length < 12) score = 80;
+        else if (/apply for this (job|position|role)/i.test(t)) score = 90;
+        else if (/start (apply|application)|begin application|continue application/i.test(t)) score = 92;
+        else if (/\bapply now\b/i.test(t)) score = 85;
+        if (score > bestScore) {
+          bestScore = score;
+          best = el;
+        }
+      }
+      if (best) applyBtns = [best];
+    }
+
+    // Real application form already open (email+accept welcome handled above; profile/file).
+    // Do NOT treat bare `.iCIMS_JobForm` or a newsletter email alone as form-open when Apply is present.
+    var hasRealForm =
+      !!doc.querySelector(
+        'input[type="file"], textarea, select, .iCIMS_JobForm input[name*="email" i], form[action*="login" i] input[type="email"]'
+      ) &&
+      (isWelcomeStep(doc) ||
+        isCandidateProfileStep(doc) ||
+        isQuestionsStep(doc) ||
+        /create a login|submit profile|candidate profile/i.test(text));
+
+    if (hasRealForm && !applyBtns.length) {
+      return { clicked: false, kind: 'form' };
+    }
+
+    // Nav-first: if Apply/start is present on job description / options, MUST click it.
+    if (applyBtns.length) {
+      var preferClick =
+        !hasRealForm ||
+        (Nav && typeof Nav.hasClickableApplyStart === 'function' && Nav.hasClickableApplyStart(doc)) ||
+        (Syn &&
+          typeof Syn.scoreApplyStartText === 'function' &&
+          Syn.scoreApplyStartText(buttonText(applyBtns[0])) >= 80);
+      if (preferClick) {
+        var target = applyBtns[0];
+        var label = buttonText(target).slice(0, 80) || 'Apply';
+        try {
+          if (global.FillApplyDom && global.FillApplyDom.realClick) {
+            global.FillApplyDom.realClick(target);
+          } else {
+            target.click();
+          }
+        } catch (_e) {
+          try {
+            target.click();
+          } catch (_e2) {}
+        }
+        return { clicked: true, kind: 'apply', text: label };
       }
     }
-    if (best) {
-      try {
-        best.click();
-      } catch (_e) {}
-      return { clicked: true, kind: 'apply' };
+
+    if (doc.querySelector('.iCIMS_JobForm, form[action*="icims" i]') && !applyBtns.length) {
+      return { clicked: false, kind: 'form' };
     }
     return { clicked: false };
   }
@@ -512,7 +691,17 @@
     var welcomeCopy = /welcome|start your application|begin application|i accept/i.test(text);
     // Welcome is Email + I accept + Next — NOT the Candidate Profile create-login step
     if (/create a login|candidate profile|submit profile/i.test(text)) return false;
-    return hasEmail && hasAccept && hasNext && (powered || welcomeCopy);
+    // Login/welcome gate: email + accept + Next is enough (copy may be in iframes / jsdom)
+    if (hasEmail && hasAccept && hasNext) {
+      try {
+        var href = String((doc.defaultView && doc.defaultView.location && doc.defaultView.location.href) || '');
+        if (/\/login/i.test(href) || /icims\.com/i.test(href)) return true;
+      } catch (_h) {}
+      if (powered || welcomeCopy) return true;
+      // Checkbox present + Next + Email is the Riyadh Air / iCIMS welcome gate
+      if (doc.querySelector('input[type="checkbox"]')) return true;
+    }
+    return false;
   }
 
   function fillWelcomeStep(doc, profile) {
@@ -651,9 +840,170 @@
    *   "Senior Software Engineer @ Acme Corp (2021–present): …"
    *   "Software Engineer @ StartupXYZ (2018–2021): …"
    */
+  /**
+   * Resolve nationality for selects: Pakistan / Pakistani — NEVER residence (Saudi Arabia).
+   */
+  function resolveNationality(profile) {
+    var v =
+      profileVal(profile, 'nationality') ||
+      profileVal(profile, 'citizenship') ||
+      answerFromCustom(profile, 'nationality') ||
+      answerFromCustom(profile, 'citizenship') ||
+      '';
+    if (!v) {
+      // Infer from education institution / known profile — default Pakistani for this applicant set
+      var edus = normalizeEducationEntries(profile);
+      if (edus.length && /pakistan/i.test(String(edus[0].country || '') + ' ' + String(edus[0].institution || ''))) {
+        v = 'Pakistani';
+      }
+    }
+    if (!v) v = 'Pakistani';
+    // Normalize country name → demonym-friendly
+    if (/^pakistan$/i.test(v)) return 'Pakistani';
+    return v;
+  }
+
+  /** Residence / Country of Residence — Saudi Arabia (lives in SA now). */
+  function resolveResidenceCountry(profile) {
+    return (
+      profileVal(profile, 'countryOfResidence') ||
+      profileVal(profile, 'addressCountry') ||
+      profileVal(profile, 'country') ||
+      answerFromCustom(profile, 'country of residence') ||
+      answerFromCustom(profile, 'residence country') ||
+      'Saudi Arabia'
+    );
+  }
+
+  /** Phone country code — +966 / Saudi Arabia. Never American Samoa / blank. */
+  function resolvePhoneCountry(profile) {
+    var v =
+      profileVal(profile, 'phoneCountry') ||
+      profileVal(profile, 'phoneCountryCode') ||
+      profileVal(profile, 'phone_country') ||
+      '';
+    if (!v) {
+      try {
+        var Fmt = global.FillApplyFormat;
+        if (Fmt && typeof Fmt.phoneParts === 'function') {
+          var parts = Fmt.phoneParts(profile || {});
+          if (parts && parts.dial) v = parts.dial;
+        }
+      } catch (_e) {}
+    }
+    if (!v || /american\s*samoa|\b1684\b/i.test(v)) return '+966';
+    return v;
+  }
+
+  /** Education country — Pakistan (where studied), NEVER Saudi residence. */
+  function resolveEducationCountry(profile, edu) {
+    var v =
+      (edu && safeScalar(edu.country)) ||
+      profileVal(profile, 'educationCountry') ||
+      answerFromCustom(profile, 'education country') ||
+      '';
+    if (v && !/saudi/i.test(v)) return v;
+    // Infer from institution name
+    if (edu && /pakistan|karachi|lahore|islamabad|virtual university/i.test(String(edu.institution || ''))) {
+      return 'Pakistan';
+    }
+    // Nationality country — Pakistan — not residence
+    var nat = resolveNationality(profile);
+    if (/pakistan/i.test(nat)) return 'Pakistan';
+    return 'Pakistan';
+  }
+
+  /** Employment country — Saudi Arabia when current role is in Riyadh/KSA. */
+  function resolveEmploymentCountry(profile, job) {
+    var v = (job && safeScalar(job.country)) || '';
+    if (v) return v;
+    var city = (job && safeScalar(job.city)) || profileVal(profile, 'city') || '';
+    if (/riyadh|khobar|jeddah|dammam|\bksa\b|saudi/i.test(city + ' ' + String((job && job.employer) || ''))) {
+      return 'Saudi Arabia';
+    }
+    return resolveResidenceCountry(profile);
+  }
+
+  function normalizeWorkHistoryEntries(profile) {
+    var raw = profileRaw(profile, 'workHistory');
+    if (raw == null) raw = profileRaw(profile, 'experience');
+    if (Array.isArray(raw)) {
+      return raw
+        .map(function (row) {
+          if (row == null) return null;
+          if (typeof row !== 'object') {
+            var parsed = parseWorkHistory(String(row));
+            return parsed[0] || null;
+          }
+          return {
+            title: safeScalar(row.title || row.jobTitle || row.position || row.role),
+            employer: safeScalar(row.employer || row.company || row.organization || row.organisation),
+            city: safeScalar(row.city || row.location),
+            country: safeScalar(row.country),
+            start: safeScalar(row.start || row.startDate || row.from),
+            end: safeScalar(row.end || row.endDate || row.to),
+            current: !!(row.current || row.isCurrent || /present|current/i.test(String(row.end || '')))
+          };
+        })
+        .filter(function (x) {
+          return x && (x.title || x.employer);
+        });
+    }
+    return parseWorkHistory(typeof raw === 'string' ? raw : '');
+  }
+
+  function normalizeEducationEntries(profile) {
+    var raw = profileRaw(profile, 'education');
+    if (Array.isArray(raw)) {
+      return raw
+        .map(function (row) {
+          if (row == null) return null;
+          if (typeof row !== 'object') {
+            var parsed = parseEducation(String(row));
+            return parsed[0] || null;
+          }
+          // Evaluate each candidate with safeScalar — do not short-circuit on object title
+          var title =
+            safeScalar(row.title) ||
+            safeScalar(row.degreeTitle) ||
+            safeScalar(row.qualificationTitle) ||
+            safeScalar(row.field) ||
+            safeScalar(row.major) ||
+            safeScalar(row.degree) ||
+            safeScalar(row.name);
+          var qualificationType =
+            safeScalar(row.qualificationType) ||
+            safeScalar(row.level) ||
+            safeScalar(row.degreeType) ||
+            safeScalar(row.degree) ||
+            title;
+          // Never allow object leak
+          if (title === '[object Object]') title = '';
+          if (qualificationType === '[object Object]') qualificationType = '';
+          return {
+            qualificationType: qualificationType,
+            title: title || qualificationType,
+            institution: safeScalar(row.institution || row.school || row.university || row.college),
+            start: safeScalar(row.start || row.startDate || row.from),
+            end: safeScalar(row.end || row.endDate || row.to || row.year),
+            city: safeScalar(row.city),
+            country: safeScalar(row.country || row.educationCountry),
+            fullTime: safeScalar(row.fullTime || row.studyMode) || 'Full-time'
+          };
+        })
+        .filter(function (x) {
+          return x && (x.title || x.institution || x.qualificationType);
+        });
+    }
+    if (typeof raw === 'object' && raw && !Array.isArray(raw)) {
+      return normalizeEducationEntries({ education: [raw] });
+    }
+    return parseEducation(typeof raw === 'string' ? raw : '');
+  }
+
   function parseWorkHistory(text) {
     var raw = String(text || '').trim();
-    if (!raw) return [];
+    if (!raw || raw === '[object Object]') return [];
     var lines = raw.split(/\n+/);
     var out = [];
     for (var i = 0; i < lines.length; i++) {
@@ -711,7 +1061,7 @@
    */
   function parseEducation(text) {
     var raw = String(text || '').trim();
-    if (!raw) return [];
+    if (!raw || raw === '[object Object]') return [];
     var lines = raw.split(/\n+/);
     var out = [];
     for (var i = 0; i < lines.length; i++) {
@@ -735,13 +1085,27 @@
         if (m[5]) start = m[4];
         if (m[5]) end = m[5];
       } else {
-        var m2 = line.match(/^(.+?),\s*(.+?)(?:\s*\((\d{4})\))?$/);
-        if (m2) {
-          title = m2[1].trim();
-          institution = m2[2].trim();
-          end = (m2[3] || '').trim();
+        // "MBA Executive Finance, Virtual University of Pakistan, 2018"
+        var m3 = line.match(/^(.+?),\s*(.+?),\s*(\d{4})\s*$/);
+        if (m3) {
+          title = m3[1].trim();
+          institution = m3[2].trim();
+          end = m3[3].trim();
+          if (/\b(mba|emba|bachelor|master|ph\.?d|diploma|certificate)\b/i.test(title)) {
+            qualificationType = (title.match(/\b(MBA(?:\s+Executive(?:\s+Finance)?)?|EMBA|Bachelor[^,]*|Master[^,]*|Ph\.?D\.?)\b/i) || [
+              '',
+              title
+            ])[1];
+          }
         } else {
-          title = line;
+          var m2 = line.match(/^(.+?),\s*(.+?)(?:\s*\((\d{4})\))?$/);
+          if (m2) {
+            title = m2[1].trim();
+            institution = m2[2].trim();
+            end = (m2[3] || '').trim();
+          } else {
+            title = line;
+          }
         }
       }
       out.push({
@@ -771,10 +1135,14 @@
       if (fieldAlreadyFilled(el) && type !== 'checkbox' && type !== 'radio') continue;
       var lab = cleanFieldLabel(labelFor(el, doc));
       var blob = lab + ' ' + norm((el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || ''));
+      // Never dump job title into relative/other "Details" text boxes
+      if (/^details$|relative|family member|please (provide|specify|describe)|additional (info|detail|comment)/i.test(lab)) {
+        continue;
+      }
       for (var p = 0; p < pairs.length; p++) {
         if (pairs[p].re.test(lab) || pairs[p].re.test(blob)) {
-          var val = pairs[p].val;
-          if (val == null || String(val).trim() === '') break;
+          var val = safeScalar(pairs[p].val);
+          if (!val || val === '[object Object]') break;
           if (type === 'radio' || type === 'checkbox') {
             if (/^(yes|y|true|1|no|n|false|0)$/i.test(String(val))) {
               var wantYes = /^(yes|y|true|1)$/i.test(String(val));
@@ -815,33 +1183,37 @@
 
   function fillEmploymentBlocks(doc, profile) {
     var filledRef = { n: 0 };
-    var jobs = parseWorkHistory(profileVal(profile, 'workHistory'));
+    var jobs = normalizeWorkHistoryEntries(profile);
     var roots = findSectionRoots(doc, /employment details|work (history|experience)|current employer|employment/i);
     if (!roots.length && !jobs.length) return 0;
 
-    // Current employer Yes/No from first job / customAnswers
     var currently =
       answerFromCustom(profile, 'currently employed') ||
       answerFromCustom(profile, 'current employer') ||
       (jobs.length && jobs[0].current ? 'Yes' : jobs.length ? 'Yes' : '');
     var job = jobs[0] || {
-      title: '',
+      title: safeScalar(profileVal(profile, 'currentTitle')),
       employer: '',
       city: profileVal(profile, 'city'),
-      country: profileVal(profile, 'country'),
+      country: '',
       start: '',
       end: '',
       current: currently === 'Yes'
     };
+    var empCountry = resolveEmploymentCountry(profile, job);
 
     var pairs = [
       { re: /currently employ|current employer|are you (currently )?employed|do you (currently )?have (a |an )?employer/i, val: currently || (job.current ? 'Yes' : 'No') },
-      { re: /job\s*title|position\s*title|title\s*of\s*(your )?role|position$/i, val: job.title },
-      { re: /employer|company\s*name|^company$|organisation|organization/i, val: job.employer },
-      { re: /^city$|employer city|work city|employment city/i, val: job.city || profileVal(profile, 'city') },
-      { re: /^country$|country\/?region|employer country|work country/i, val: job.country || profileVal(profile, 'country') },
-      { re: /start\s*date|from\s*date|date\s*from|employment start/i, val: job.start },
-      { re: /end\s*date|to\s*date|date\s*to|employment end|finish date/i, val: job.end }
+      // Require job/position title — never bare "Details" / relative details
+      { re: /job\s*title|position\s*title|title\s*of\s*(your )?role|position\s*title/i, val: safeScalar(job.title) },
+      { re: /employer|company\s*name|^company$|organisation|organization/i, val: safeScalar(job.employer) },
+      { re: /^city$|employer city|work city|employment city/i, val: safeScalar(job.city) || profileVal(profile, 'city') },
+      {
+        re: /employment\s*country|employer\s*country|work\s*country|^country$|country\/?region/i,
+        val: empCountry
+      },
+      { re: /start\s*date|from\s*date|date\s*from|employment start/i, val: safeScalar(job.start) },
+      { re: /end\s*date|to\s*date|date\s*to|employment end|finish date/i, val: safeScalar(job.end) }
     ];
 
     var targets = roots.length ? roots : [doc];
@@ -853,19 +1225,36 @@
 
   function fillEducationBlocks(doc, profile) {
     var filledRef = { n: 0 };
-    var edus = parseEducation(profileVal(profile, 'education'));
+    var edus = normalizeEducationEntries(profile);
     if (!edus.length) return 0;
     var edu = edus[0];
+    var eduCountry = resolveEducationCountry(profile, edu);
+    var qTitle = safeScalar(edu.title || edu.qualificationType);
+    if (!qTitle || qTitle === '[object Object]') qTitle = '';
     var roots = findSectionRoots(doc, /education|qualification|academic/i);
     var pairs = [
-      { re: /qualification\s*type|degree\s*type|level of (study|education)|education level/i, val: edu.qualificationType },
-      { re: /qualification\s*title|degree\s*title|field of study|major|course\s*title|^title$/i, val: edu.title },
-      { re: /institution|university|college|school\s*name|^school$/i, val: edu.institution },
-      { re: /start\s*date|from\s*date|date\s*from|attendance start/i, val: edu.start },
-      { re: /end\s*date|to\s*date|date\s*to|graduation|year (of )?(grad|complet)/i, val: edu.end },
-      { re: /^city$|institution city|school city/i, val: edu.city || profileVal(profile, 'city') },
-      { re: /^country$|country\/?region|institution country|school country/i, val: edu.country || profileVal(profile, 'country') },
-      { re: /full.?time|study\s*mode|mode of study|attendance/i, val: edu.fullTime || 'Full-time' }
+      {
+        re: /qualification\s*type|degree\s*type|level of (study|education)|education level/i,
+        val: safeScalar(edu.qualificationType)
+      },
+      // Qualification Title — real degree string only; never [object Object] / honorific Title
+      {
+        re: /qualification\s*title|degree\s*title|field of study|major|course\s*title/i,
+        val: qTitle
+      },
+      { re: /institution|university|college|school\s*name|^school$/i, val: safeScalar(edu.institution) },
+      { re: /start\s*date|from\s*date|date\s*from|attendance start/i, val: safeScalar(edu.start) },
+      {
+        re: /end\s*date|to\s*date|date\s*to|graduation|year (of )?(grad|complet)|^year$/i,
+        val: safeScalar(edu.end)
+      },
+      { re: /^city$|institution city|school city/i, val: safeScalar(edu.city) },
+      {
+        // Education country = Pakistan (studied), NOT Saudi residence
+        re: /education\s*country|institution country|school country|^(education\s*)?country$/i,
+        val: eduCountry
+      },
+      { re: /full.?time|study\s*mode|mode of study|attendance/i, val: safeScalar(edu.fullTime) || 'Full-time' }
     ];
     var targets = roots.length ? roots : [doc];
     for (var r = 0; r < targets.length; r++) {
@@ -875,7 +1264,7 @@
   }
 
   /**
-   * Map Candidate Profile fields from active profile. Never touches password / login fields.
+   * Map Candidate Profile fields from active profile. Password/login filled separately via FillApplySignupLogin when credentials exist.
    * Riyadh Air-richer: CV label, passport names, nationality, gender, notice period,
    * employment/education blocks, marketing consent prefer No.
    */
@@ -905,10 +1294,13 @@
       { key: 'street', re: /^(address|street|address\s*line)|residential address/i },
       { key: 'city', re: /^city$|residential.*city|city\s*\/\s*town/i },
       { key: 'zip', re: /zip|postal|post\s*code|postal\s*code/i },
-      { key: 'country', re: /^country$|country\s*\/?\s*region|country or region|residential.*country/i },
+      {
+        key: 'country',
+        re: /^country$|country\s*\/?\s*region|country or region|residential.*country|country of residence|region of residence/i
+      },
       { key: 'state', re: /^state$|province|region/i },
-      { key: 'nationality', re: /^nationality$|citizenship|citizen of|nationality\s*\*/i },
-      { key: 'gender', re: /^gender$|^sex$|gender\s*\*/i },
+      { key: 'nationality', re: /\bnationality\b|citizenship|citizen of/i },
+      { key: 'gender', re: /\bgender\b|^sex$|\bsex\b/i },
       {
         key: 'noticePeriod',
         re: /notice\s*period|when can you (start|join)|earliest (start|availability)|availability to start|i can start/i
@@ -989,11 +1381,16 @@
           var val = profileVal(profile, mappings[m].key);
           if (mappings[m].key === 'zip' && !val) val = profileVal(profile, 'postcode');
           if (mappings[m].key === 'street' && !val) val = profileVal(profile, 'location');
-          if (mappings[m].key === 'phoneCountry' && !val) {
-            val = profileVal(profile, 'phoneCountry') || '';
+          if (mappings[m].key === 'phoneCountry') {
+            val = resolvePhoneCountry(profile);
           }
-          if (mappings[m].key === 'nationality' && !val) {
-            val = answerFromCustom(profile, 'nationality') || profileVal(profile, 'country') || '';
+          if (mappings[m].key === 'nationality') {
+            // Pakistan / Pakistani — never Saudi residence country
+            val = resolveNationality(profile);
+          }
+          if (mappings[m].key === 'country') {
+            // Residence / Country of Residence = Saudi Arabia
+            val = resolveResidenceCountry(profile);
           }
           if (mappings[m].key === 'gender' && !val) {
             val = answerFromCustom(profile, 'gender') || '';
@@ -1272,21 +1669,91 @@
 
   function clickNext(doc) {
     doc = doc || document;
-    var nodes = doc.querySelectorAll('button, input[type="submit"], input[type="button"], a, [role="button"]');
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      if (!visible(el) || el.disabled) continue;
-      var t = buttonText(el);
-      if (/^next$/i.test(t.trim()) || /^continue$/i.test(t.trim()) || /save and continue/i.test(t)) {
-        // Do not treat Submit Profile as Next
-        if (/submit/i.test(t)) continue;
-        try {
-          el.click();
-          return true;
-        } catch (_e) {}
+    var Syn = global.FillApplySynonyms;
+    var ranked = [];
+    if (Syn && typeof Syn.findContinueButtons === 'function') {
+      ranked = Syn.findContinueButtons(doc) || [];
+    }
+    if (!ranked.length) {
+      var nodes = doc.querySelectorAll(
+        'button, input[type="submit"], input[type="button"], a, [role="button"]'
+      );
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (!visible(el) || el.disabled) continue;
+        var t = buttonText(el).replace(/\s+/g, ' ').trim();
+        if (!t || /submit\s*profile|finish\s*later|forward|friend/i.test(t)) continue;
+        if (/submit\s*application|^submit$/i.test(t)) continue;
+        var isNext =
+          /^next(\s*step)?$/i.test(t) ||
+          /^continue(\s+application)?$/i.test(t) ||
+          /save\s*(&|and)\s*continue/i.test(t) ||
+          (Syn && Syn.isContinueCta && Syn.isContinueCta(t));
+        if (isNext) ranked.push(el);
       }
     }
+    for (var r = 0; r < ranked.length; r++) {
+      var btn = ranked[r];
+      if (!btn || btn.disabled) continue;
+      if (!visible(btn) && !(Syn && Syn.isContinueDataCta && Syn.isContinueDataCta(btn))) continue;
+      try {
+        if (global.FillApplyDom && global.FillApplyDom.realClick) {
+          if (global.FillApplyDom.realClick(btn)) return true;
+        }
+        btn.click();
+        return true;
+      } catch (_e) {}
+    }
     return false;
+  }
+
+  /**
+   * After fields on this step look filled, click Next/Continue (nav-first (d)).
+   * Do not treat filled N/N alone as terminal while an advance CTA remains.
+   * Captcha badge alone must not skip the click — pause only if Next is disabled
+   * or captcha still blocks after the attempt.
+   */
+  function advanceAfterFill(doc, filledCount) {
+    doc = doc || document;
+    var Syn = global.FillApplySynonyms;
+    var hasAdvance =
+      (Syn && typeof Syn.findContinueButtons === 'function' && (Syn.findContinueButtons(doc) || []).length > 0) ||
+      false;
+    if (!hasAdvance) {
+      // Lightweight probe for bare Next when synonyms miss iframe chrome
+      var probe = doc.querySelectorAll('button, input[type="button"], input[type="submit"], a, [role="button"]');
+      for (var pi = 0; pi < probe.length; pi++) {
+        var pt = buttonText(probe[pi]).replace(/\s+/g, ' ').trim();
+        if (/^next(\s*step)?$/i.test(pt) || /^continue$/i.test(pt) || /save and continue/i.test(pt)) {
+          hasAdvance = true;
+          break;
+        }
+      }
+    }
+    if (!hasAdvance) return { clicked: false, reason: 'no_advance_cta' };
+    if (!(filledCount > 0) && !isWelcomeStep(doc)) {
+      // Still allow welcome/login gate Next when accept+email intentional
+      var Nav = global.FillApplyNavFirst;
+      if (!(Nav && Nav.decidePageAction && Nav.decidePageAction(doc).action === 'advance')) {
+        return { clicked: false, reason: 'nothing_filled' };
+      }
+    }
+    var disabledNext = false;
+    var nodes2 = doc.querySelectorAll('button, input[type="button"], input[type="submit"], a, [role="button"]');
+    for (var di = 0; di < nodes2.length; di++) {
+      var dEl = nodes2[di];
+      var dt = buttonText(dEl).replace(/\s+/g, ' ').trim();
+      if (/^next(\s*step)?$/i.test(dt) || /^continue$/i.test(dt)) {
+        if (dEl.disabled || dEl.getAttribute('aria-disabled') === 'true') disabledNext = true;
+      }
+    }
+    if (disabledNext) {
+      return { clicked: false, reason: 'next_disabled', captchaLikely: true };
+    }
+    if (clickNext(doc)) {
+      return { clicked: true, reason: 'clicked_next' };
+    }
+    return { clicked: false, reason: 'click_failed' };
   }
 
   function isSubmitProfileCta(t) {
@@ -1311,8 +1778,9 @@
     return /finish\s*later|save\s*for\s*later|save\s*and\s*exit/i.test(String(t || ''));
   }
 
-  function clickSubmitProfile(doc) {
+  function clickSubmitProfile(doc, profile) {
     doc = doc || document;
+    profile = profile || {};
     // Never click Submit Profile while Create login / password fields are visible
     // (SSO Connected/Disconnect without passwords is OK — needsAuthPause is false)
     if (needsAuthPause(doc, profile)) return false;
@@ -1334,8 +1802,9 @@
     return false;
   }
 
-  function clickSubmit(doc) {
+  function clickSubmit(doc, profile) {
     doc = doc || document;
+    profile = profile || {};
     if (needsAuthPause(doc, profile)) return false;
     var nodes = doc.querySelectorAll(
       'button, input[type="submit"], input[type="button"], a[role="button"], [role="button"]'
@@ -1451,8 +1920,31 @@
         var pause0 = challengePause(doc, 0);
         if (pause0) return pause0;
 
-        ensureApplyView(doc);
-        await sleep(humanDelay(500));
+        // Nav-first (a): click Apply/start on job description before any fill / 0/0 stop
+        var opened = ensureApplyView(doc);
+        if (opened && opened.clicked) {
+          await sleep(humanDelay(500));
+          return {
+            ok: true,
+            adapterId: 'icims',
+            clickedApplyStart: true,
+            reDetect: true,
+            handedOff: true,
+            deferToPageAdapter: true,
+            externalApply: true,
+            advanced: true,
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            submitted: false,
+            applyStartText: opened.text || 'Apply',
+            message:
+              'iCIMS: clicked "' +
+              (opened.text || 'Apply') +
+              '" to start application — waiting to re-detect / follow tab'
+          };
+        }
+        await sleep(humanDelay(400));
 
         var pause1 = challengePause(doc, 0);
         if (pause1) return pause1;
@@ -1462,19 +1954,47 @@
         var resumeAttached = false;
         var submitted = false;
 
-        // Welcome: Email + I accept + Next
+        // Welcome: Email + I accept + Next (nav-first: fill then ALWAYS attempt Next)
         if (isWelcomeStep(doc) || (doc.querySelector('input[type="email"]') && /i accept/i.test(pageText(doc)))) {
           if (!/create a login|submit profile/i.test(pageText(doc))) {
             totalFilled += fillWelcomeStep(doc, profile);
-            var pauseWelcome = challengePause(doc, totalFilled);
-            if (pauseWelcome) {
-              pauseWelcome.message =
-                'iCIMS welcome: complete hCaptcha / captcha if shown, then Resume (Email + I accept filled when possible).';
-              return pauseWelcome;
-            }
-            if (clickNext(doc)) {
+            // Click Next before captcha pause — badge near Next must not skip navigation.
+            var welcomeAdv = advanceAfterFill(doc, totalFilled);
+            if (welcomeAdv && welcomeAdv.clicked) {
               advanced = true;
               await sleep(humanDelay(700));
+              // Same-document welcome after Next → hand off to runner (avoid re-clicking Next in submit hop loop)
+              if (isWelcomeStep(doc) || (doc.querySelector('input[type="email"]') && /i accept/i.test(pageText(doc)))) {
+                return {
+                  ok: true,
+                  adapterId: 'icims',
+                  filled: totalFilled,
+                  unmatched: 0,
+                  total: totalFilled,
+                  submitted: false,
+                  advanced: true,
+                  reDetect: true,
+                  handedOff: true,
+                  message:
+                    'iCIMS welcome: filled Email + I accept and clicked Next — continuing'
+                };
+              }
+            } else if (welcomeAdv && welcomeAdv.captchaLikely) {
+              var pauseWelcome = challengePause(doc, totalFilled);
+              if (pauseWelcome) {
+                pauseWelcome.message =
+                  'iCIMS welcome: Next disabled (likely captcha) — complete hCaptcha, then Resume.';
+                pauseWelcome.advanced = false;
+                return pauseWelcome;
+              }
+            } else {
+              // Next click failed: only then pause if an interactable captcha truly blocks
+              var pauseWelcome2 = challengePause(doc, totalFilled);
+              if (pauseWelcome2 && !advanced) {
+                pauseWelcome2.message =
+                  'iCIMS welcome: filled Email + I accept; complete captcha if it blocks Next, then Resume.';
+                return pauseWelcome2;
+              }
             }
           }
         }
@@ -1493,39 +2013,104 @@
           var pauseProf = challengePause(doc, totalFilled);
           if (pauseProf) return pauseProf;
 
-          // Create-login → auth pause; SSO Connected/Disconnect → skip pause
+          // Create-login: fill Email/Password from Environments/profile when available.
+          // Only pause when password is missing (or true SSO-only wall with no password fields filled).
+          // Ensure Environments password is in memory before auth pause checks
+          try {
+            if (global.FillApplyEnvironment && typeof global.FillApplyEnvironment.load === 'function') {
+              await global.FillApplyEnvironment.load();
+            }
+          } catch (_envLoad) {}
+          // Prefer stamped __registrationPassword when Env memory still empty in this frame
+          if (
+            profile &&
+            !profile.password &&
+            profile.__registrationPassword
+          ) {
+            profile.password = profile.__registrationPassword;
+          }
+
+          var Signup = global.FillApplySignupLogin;
+          var credsFilled = 0;
+          if (Signup && typeof Signup.prepareSignupOrLogin === 'function') {
+            try {
+              var prep = await Signup.prepareSignupOrLogin(doc, profile, { waitMs: 200 });
+              if (prep && prep.credentialsFill && prep.credentialsFill.filled) {
+                credsFilled = prep.credentialsFill.filled;
+                totalFilled += credsFilled;
+              }
+              if (prep && prep.pause) {
+                // Never pause when Environments/profile password is present — fill and continue
+                var hasPw =
+                  (Signup.profileHasCredentials && Signup.profileHasCredentials(profile)) ||
+                  !!(profile && (profile.password || profile.__registrationPassword));
+                if (hasPw) {
+                  if (Signup.fillCredentials) {
+                    var forced = Signup.fillCredentials(doc, profile);
+                    if (forced && forced.filled) {
+                      credsFilled = forced.filled;
+                      totalFilled += credsFilled;
+                    }
+                  }
+                } else {
+                  var pauseMsg =
+                    prep.detail ||
+                    'Sign in / register required — complete manually (no profile/Environments password)';
+                  return {
+                    ok: false,
+                    adapterId: 'icims',
+                    needsHuman: true,
+                    pauseReason: 'auth_wall',
+                    error: pauseMsg,
+                    message: pauseMsg,
+                    filled: totalFilled,
+                    unmatched: 0,
+                    total: totalFilled,
+                    submitted: false,
+                    resumeAttached: resumeAttached,
+                    signupLogin: prep
+                  };
+                }
+              }
+            } catch (_prepErr) { /* continue */ }
+          } else if (Signup && typeof Signup.fillCredentials === 'function') {
+            try {
+              var cf = Signup.fillCredentials(doc, profile);
+              if (cf && cf.filled) {
+                credsFilled = cf.filled;
+                totalFilled += credsFilled;
+              }
+            } catch (_cfErr) {}
+          }
+
           if (needsAuthPause(doc, profile)) {
             var authPause = authWallPause(doc, totalFilled, profile);
             if (authPause) {
               authPause.filled = totalFilled;
               authPause.resumeAttached = resumeAttached;
               authPause.message =
-                'iCIMS account required — sign in/register manually, then Resume (profile fields/resume filled when possible; passwords never auto-filled). If SSO shows Connected/Disconnect, Resume to continue.';
+                authPause.message ||
+                'iCIMS account required — sign in/register manually, then Resume (no profile/Environments password)';
               return authPause;
             }
-            return {
-              ok: false,
-              adapterId: 'icims',
-              needsHuman: true,
-              pauseReason: 'auth_wall',
-              error: 'iCIMS account required — sign in/register manually, then Resume',
-              filled: totalFilled,
-              unmatched: 0,
-              total: totalFilled,
-              submitted: false,
-              resumeAttached: resumeAttached
-            };
+            // needsAuthPause true but authWallPause null (credentials present) → continue
           }
 
           // Auth cleared — Submit Profile only in submit mode
           if (runMode === 'submit') {
-            if (clickSubmitProfile(doc)) {
+            if (clickSubmitProfile(doc, profile)) {
               submitted = true;
               advanced = true;
               await sleep(humanDelay(700));
             }
+          } else {
+            // fill/ready: never Submit Profile, but DO click Next/Continue after fill
+            var profAdv = advanceAfterFill(doc, totalFilled);
+            if (profAdv && profAdv.clicked) {
+              advanced = true;
+              await sleep(humanDelay(600));
+            }
           }
-          // fill/ready: fields filled but do NOT Submit Profile
         } else {
           // Non-profile pages: still honor auth wall (e.g. dedicated sign-in)
           var authEarly = authWallPause(doc, totalFilled, profile);
@@ -1655,13 +2240,13 @@
               );
             }
 
-            if (clickSubmitProfile(doc)) {
+            if (clickSubmitProfile(doc, profile)) {
               submitted = true;
               advanced = true;
               await sleep(humanDelay(600));
               continue;
             }
-            if (formLooksComplete(doc) && clickSubmit(doc)) {
+            if (formLooksComplete(doc) && clickSubmit(doc, profile)) {
               submitted = true;
               await sleep(humanDelay(400));
               break;
@@ -1671,12 +2256,70 @@
               await sleep(humanDelay(600));
               continue;
             }
-            if (clickSubmit(doc)) {
+            if (clickSubmit(doc, profile)) {
               submitted = true;
               await sleep(humanDelay(400));
               break;
             }
             break;
+          }
+        }
+
+        // Nav-first (d): filled N/N alone is not terminal while Next/Continue is present
+        if (totalFilled > 0 && !submitted && !advanced) {
+          var lateAdv = advanceAfterFill(doc, totalFilled);
+          if (lateAdv && lateAdv.clicked) {
+            advanced = true;
+            await sleep(humanDelay(500));
+          } else if (lateAdv && lateAdv.captchaLikely) {
+            var pauseLate = challengePause(doc, totalFilled);
+            if (pauseLate) {
+              pauseLate.message =
+                pauseLate.message ||
+                'iCIMS: fields filled but Next disabled (captcha) — complete it, then Resume.';
+              return pauseLate;
+            }
+          }
+        }
+
+        // Nav-first (e): never end on 0/0 while Apply/start is still clickable
+        if (!(totalFilled > 0) && !submitted && !advanced) {
+          var reopen = ensureApplyView(doc);
+          if (reopen && reopen.clicked) {
+            return {
+              ok: true,
+              adapterId: 'icims',
+              clickedApplyStart: true,
+              reDetect: true,
+              handedOff: true,
+              deferToPageAdapter: true,
+              externalApply: true,
+              advanced: true,
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              applyStartText: reopen.text || 'Apply',
+              message:
+                'iCIMS: clicked "' +
+                (reopen.text || 'Apply') +
+                '" after empty fill — continuing application'
+            };
+          }
+          var Nav2 = global.FillApplyNavFirst;
+          if (Nav2 && Nav2.hasClickableApplyStart && Nav2.hasClickableApplyStart(doc)) {
+            return {
+              ok: false,
+              adapterId: 'icims',
+              error:
+                'iCIMS: Apply/start CTA still present but could not click — not stopping on 0/0',
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              advanced: false,
+              stopReason: 'apply_cta_unclicked'
+            };
           }
         }
 

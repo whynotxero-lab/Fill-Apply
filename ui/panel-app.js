@@ -39,6 +39,9 @@
   const pauseMessageEl = document.getElementById('pauseMessage');
   const btnResume = document.getElementById('btnResume');
   const profileSelectEl = document.getElementById('profileSelect');
+  const btnImportProfile = document.getElementById('btnImportProfile');
+  const importProfileFile = document.getElementById('importProfileFile');
+  const profileImportStatusEl = document.getElementById('profileImportStatus');
   const emptyQueuePromptEl = document.getElementById('emptyQueuePrompt');
   const btnEmptyYes = document.getElementById('btnEmptyYes');
   const btnEmptyNo = document.getElementById('btnEmptyNo');
@@ -205,11 +208,11 @@
 
   function getSelectedRunMode() {
     const el = document.querySelector('input[name="runMode"]:checked');
-    return el && el.value ? el.value : 'fill';
+    return el && el.value ? el.value : 'submit';
   }
 
   function setSelectedRunMode(mode) {
-    const m = mode === 'ready' || mode === 'submit' ? mode : 'fill';
+    const m = mode === 'submit' || mode === 'ready' ? mode : (mode === 'fill' || mode === 'navigate' || mode === 'register' ? mode : 'submit');
     const el = document.querySelector('input[name="runMode"][value="' + m + '"]');
     if (el) el.checked = true;
   }
@@ -1437,17 +1440,18 @@
 
 
 
-  function jobPoolApplicationsUrl() {
+  function jobPoolHubUrl() {
     var T = globalThis.FillApplyTypes || {};
     return (
-      T.JOBPOOL_APPLICATIONS_URL ||
-      (T.JOBPOOL_DEFAULT_BASE_URL || 'https://zahid-jobpool.vercel.app') + '/applications'
+      T.JOBPOOL_HUB_URL ||
+      T.JOBPOOL_FILL_APPLY_URL ||
+      (T.JOBPOOL_DEFAULT_BASE_URL || 'https://zahid-jobpool.vercel.app') + '/fill-apply'
     );
   }
 
   if (btnOpenJobPool) {
     btnOpenJobPool.addEventListener('click', function () {
-      var url = jobPoolApplicationsUrl();
+      var url = jobPoolHubUrl();
       try {
         chrome.tabs.create({ url: url });
       } catch (_e) {
@@ -1465,7 +1469,7 @@
           setStatus(
             (data && data.hint) ||
               (data && data.error) ||
-              'Could not load JobPool jobs. Open Applications while signed in, then retry.',
+              'Could not load JobPool jobs. Open Fill-Apply while signed in, then retry.',
             'err'
           );
           if (data && data.applicationsUrl) {
@@ -1485,7 +1489,15 @@
           'ok'
         );
       } catch (e) {
-        setStatus('JobPool load failed: ' + (e && e.message ? e.message : e), 'err');
+        var em = String((e && e.message) || e || '');
+        if (/DOCTYPE|not valid JSON|returned HTML|JSON parse failed/i.test(em)) {
+          setStatus(
+            'JobPool API returned a web page instead of jobs. Open Fill-Apply while signed in, then Load from JobPool again (scrape fallback).',
+            'err'
+          );
+        } else {
+          setStatus('JobPool load failed: ' + em, 'err');
+        }
       }
     });
   }
@@ -1629,11 +1641,12 @@
     btnResetMock.addEventListener('click', async function () {
       try {
         const data = await send('FILL_APPLY_RESET_MOCK');
-        if (!data.remaining) {
-          setStatus('Queued empty — add https apply URLs in App Settings (Application queue).', 'warn');
-        } else {
-          setStatus('Queued rebuilt (' + data.remaining + ' jobs).', 'ok');
-        }
+        setStatus(
+          data.remaining
+            ? 'Queued rebuilt (' + data.remaining + ' jobs).'
+            : 'Queue and URLs cleared — paste URLs in App Settings → Application queue if needed.',
+          data.remaining ? 'ok' : 'warn'
+        );
         await refreshStatus();
       } catch (e) {
         setStatus('Reset failed: ' + e.message, 'err');
@@ -1707,6 +1720,63 @@
         );
       } catch (e) {
         setStatus('Reports: ' + e.message, 'err');
+      }
+    });
+  }
+
+
+  if (btnImportProfile && importProfileFile) {
+    btnImportProfile.addEventListener('click', function () {
+      importProfileFile.value = '';
+      importProfileFile.click();
+    });
+    importProfileFile.addEventListener('change', async function () {
+      var file = importProfileFile.files && importProfileFile.files[0];
+      if (!file) return;
+      function setImportStatus(msg, kind) {
+        if (profileImportStatusEl) {
+          profileImportStatusEl.hidden = false;
+          profileImportStatusEl.textContent = msg;
+          profileImportStatusEl.className = 'hint-mini' + (kind === 'err' ? ' err-line' : '');
+        }
+        setStatus(msg, kind === 'err' ? 'err' : 'ok');
+      }
+      try {
+        if (!globalThis.FillApplyProfileIO) {
+          setImportStatus('Profile import module not loaded.', 'err');
+          return;
+        }
+        var text = await file.text();
+        var checked = FillApplyProfileIO.validateImportPayload(text);
+        if (!checked.ok) {
+          setImportStatus(
+            'Import blocked: ' + (checked.errors || []).join(' '),
+            'err'
+          );
+          return;
+        }
+        var result = await FillApplyProfileIO.importPayload(text, { activate: true });
+        if (!result.ok) {
+          setImportStatus(
+            'Import failed: ' + (result.errors || []).join(' '),
+            'err'
+          );
+          return;
+        }
+        await refreshProfileSelect();
+        await refreshSummary();
+        setImportStatus(
+          'Imported "' +
+            (result.profileName || 'profile') +
+            '" — ' +
+            (result.fieldsRestored || 0) +
+            ' fields, ' +
+            (result.knowledgeImported || 0) +
+            ' knowledge fact(s).',
+          'ok'
+        );
+      } catch (e) {
+        setImportStatus(e.message || String(e), 'err');
       }
     });
   }

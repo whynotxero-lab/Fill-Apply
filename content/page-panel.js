@@ -1,18 +1,21 @@
 /**
- * On-page floating control panel — Auto Register / Auto Fill / Auto Navigate / Auto Ready / Auto Submit.
+ * On-page floating control panel — Auto Apply (Start / Pause·Resume / Cancel).
+ * Always expanded. Fill-Apply owns the full e2e submission pipeline
+ * (Open Application → Apply → register → fill → submit → JobPool mark).
  *
  * Injected as a top-frame content script on http(s) job/application pages.
  * Isolated via Shadow DOM + `all: initial` on the host so page CSS cannot
  * restyle the panel and panel CSS cannot leak into the host.
  *
  * Positioning: compact fixed box, never a full-page overlay. Candidate
- * slots are the four corners plus mid-left / mid-right. The slot with the
- * least overlap against job titles, Apply/Start/Submit CTAs, and form
- * fields wins (ties prefer bottom-right). pointer-events stay on the
- * panel only, so scrolling and page clicks are unaffected.
+ * slots prefer LEFT (Simplify may still cover the right). Four corners plus
+ * mid-left / mid-right. The slot with the least overlap against job titles,
+ * Apply/Start/Submit CTAs, and form fields wins (ties prefer bottom-left).
+ * pointer-events stay on the panel only, so scrolling and page clicks are unaffected.
  *
- * Buttons message the service worker (FILL_APPLY_FILL_ONCE) which runs
- * injectAndFill on sender.tab.id — the page this panel is sitting on.
+ * - Start: smart entry — JobPool /fill-apply hub → JobPool e2e; else current-page e2e.
+ * - Pause / Resume: toggle; auto-pause on unknown fields; Resume learns + continues.
+ * - Cancel: abort the current-tab / Auto Apply run (same as legacy Stop).
  *
  * Attaches globalThis.FillApplyPagePanel (layout + mount helpers for tests).
  */
@@ -27,17 +30,17 @@
 
   var HOST_ID = 'fill-apply-page-panel-host';
   var ATTR = 'data-fill-apply-page-panel';
-  var PANEL_WIDTH = 216;
-  var PANEL_HEIGHT = 248;
+  var PANEL_WIDTH = 200;
+  var PANEL_HEIGHT = 176;
   var COLLAPSED_WIDTH = 156;
   var COLLAPSED_HEIGHT = 36;
   var MARGIN = 16;
 
   var KNOWN_HOST_RE =
-    /linkedin\.com|indeed\.com|greenhouse\.io|ashbyhq\.com|lever\.co|workable\.com|myworkdayjobs\.com|workdayjobs\.com|workday\.com|smartrecruiters\.com|icims\.com|teamtailor\.com|naukrigulf\.com|glassdoor\.com|efinancialcareers\.com|wellfound\.com|angel\.co|remoteok\.(com|io)|weworkremotely\.com|workingnomads\.com|jooble\.org|swooped\.co|bayt\.com|gulftalent\.com|flexjobs\.com|remote\.co|remotive\.(com|io)|himalayas\.app|otta\.com|jobgether\.com|ycombinator\.com|workatastartup\.com|builtin\.com|upwork\.com|freehire\.com|catsone\.com|recruitee\.com|michaelpage\.|hays\.com|roberthalf\.com|cooperfitch\.com|charterhouse\.|robertwalters\.com|jivaropartners\.com|lhh\.com/i;
+    /linkedin\.com|indeed\.com|greenhouse\.io|ashbyhq\.com|lever\.co|workable\.com|myworkdayjobs\.com|workdayjobs\.com|workday\.com|oraclecloud\.com|smartrecruiters\.com|icims\.com|teamtailor\.com|naukrigulf\.com|glassdoor\.com|efinancialcareers\.com|wellfound\.com|angel\.co|remoteok\.(com|io)|weworkremotely\.com|workingnomads\.com|jooble\.org|swooped\.co|bayt\.com|gulftalent\.com|flexjobs\.com|remote\.co|remotive\.(com|io)|himalayas\.app|otta\.com|jobgether\.com|ycombinator\.com|workatastartup\.com|builtin\.com|upwork\.com|freehire\.com|catsone\.com|recruitee\.com|michaelpage\.|hays\.com|roberthalf\.com|cooperfitch\.com|charterhouse\.|robertwalters\.com|jivaropartners\.com|lhh\.com|zahid-jobpool\.vercel\.app|jobpool/i;
 
   var JOB_PATH_RE =
-    /\/jobs?(\/|$)|\/careers?(\/|$)|\/apply(\/|$)|\/application|\/vacanc|\/opening|\/positions?(\/|$)|\/easy-apply|\/job-listing|\/jobid|\/viewjob|\/posting/i;
+    /\/jobs?(\/|$)|\/careers?(\/|$)|\/apply(\/|$)|\/fill-apply(?:\/|$)|\/applications?(?:\/|$)|\/application|\/vacanc|\/opening|\/positions?(\/|$)|\/easy-apply|\/job-listing|\/jobid|\/viewjob|\/posting/i;
 
   var CTA_TEXT_RE =
     /\b(apply(\s+now)?|easy\s+apply|start\s+(your\s+)?application|start\s+apply|submit(\s+application)?|finish\s+application)\b/i;
@@ -67,17 +70,18 @@
   };
 
   var SLOTS = [
-    { id: 'bottom-right', v: 'bottom', h: 'right' },
     { id: 'bottom-left', v: 'bottom', h: 'left' },
-    { id: 'top-right', v: 'top', h: 'right' },
     { id: 'top-left', v: 'top', h: 'left' },
-    { id: 'mid-right', v: 'mid', h: 'right' },
-    { id: 'mid-left', v: 'mid', h: 'left' }
+    { id: 'mid-left', v: 'mid', h: 'left' },
+    { id: 'bottom-right', v: 'bottom', h: 'right' },
+    { id: 'top-right', v: 'top', h: 'right' },
+    { id: 'mid-right', v: 'mid', h: 'right' }
   ];
 
   var collapsed = false;
   var currentState = STATUS.idle;
   var busy = false;
+  var panelPhase = 'idle'; // idle | running | paused
   var lastHref = '';
   var repositionTimer = null;
   var spaTimer = null;
@@ -93,7 +97,7 @@
     if (m === 'register' || m === 'autoregister' || m === 'signup') return 'register';
     if (m === 'navigate' || m === 'autonavigate' || m === 'nav') return 'navigate';
     if (m === 'ready' || m === 'autoready') return 'ready';
-    if (m === 'submit' || m === 'autosubmit') return 'submit';
+    if (m === 'submit' || m === 'autosubmit' || m === 'autoapply' || m === 'jobpool' || m === 'current' || m === 'currentpage') return 'submit';
     if (m === 'fill' || m === 'autofill') return 'fill';
     return 'fill';
   }
@@ -142,6 +146,10 @@
     if (/(^|\.)indeed\.com$/i.test(host)) {
       if (/\/viewjob|\/apply|\/jobs?(\/|$)|\/job\//i.test(path)) return true;
       return pageLooksLikeApplication(doc);
+    }
+    // JobPool hub — Fill-Apply + Applications.
+    if (/zahid-jobpool\.vercel\.app/i.test(host) || /jobpool/i.test(host)) {
+      return true;
     }
     if (KNOWN_HOST_RE.test(host) || KNOWN_HOST_RE.test(parsed.href)) return true;
     if (JOB_PATH_RE.test(path)) return true;
@@ -210,7 +218,7 @@
 
   /**
    * Pick the least-overlapping corner/edge. Ties keep SLOTS order
-   * (bottom-right first) so the default stays out of typical title/CTA columns.
+   * (bottom-left first) so the default stays clear of Simplify on the right.
    */
   function pickAnchor(viewport, panel, keepOuts, margin) {
     viewport = viewport || { width: 1280, height: 800 };
@@ -369,11 +377,12 @@
       'button.act{all:unset;display:block;width:100%;text-align:center;font-size:12px;font-weight:650;line-height:1.2;padding:7px 8px;border-radius:7px;cursor:pointer;border:1px solid #1f2937;}',
       'button.act:hover:not(:disabled){filter:brightness(1.08);}',
       'button.act:disabled{opacity:.55;cursor:default;}',
-      'button[data-mode="register"]{background:#6d28d9;color:#fff;}',
-      'button[data-mode="fill"]{background:#1d4ed8;color:#fff;}',
-      'button[data-mode="navigate"]{background:#0369a1;color:#fff;}',
-      'button[data-mode="ready"]{background:#0f766e;color:#fff;}',
-      'button[data-mode="submit"]{background:#b45309;color:#fff;}',
+      'button[data-action="start"]{background:#1d4ed8;color:#fff;}',
+      'button[data-action="pause-toggle"]{background:#b45309;color:#fff;}',
+      'button[data-action="pause-toggle"][data-mode="resume"]{background:#15803d;color:#fff;}',
+      'button[data-action="cancel"]{background:#7f1d1d;color:#fecaca;border-color:#991b1b;}',
+      '.btns-row{display:flex;gap:4px;}',
+      '.btns-row button.act{flex:1;}',
       '.status{margin-top:6px;font-size:11px;line-height:1.3;color:#94a3b8;min-height:2.6em;}',
       '.status.running{color:#93c5fd;}',
       '.status.paused{color:#fbbf24;}',
@@ -382,30 +391,68 @@
     ].join('');
   }
 
-  function setCollapsed(on) {
-    collapsed = !!on;
-    if (shadowRoot) {
-      var wrap = shadowRoot.querySelector('.wrap');
-      if (wrap) wrap.classList.toggle('collapsed', collapsed);
-      var tog = shadowRoot.querySelector('.toggle');
-      if (tog) {
-        tog.textContent = collapsed ? '▸' : '▾';
-        tog.setAttribute('aria-label', collapsed ? 'Expand Fill & Apply' : 'Collapse Fill & Apply');
-      }
-    }
+  function setCollapsed(_on) {
+    // Always open — Start/Stop must stay visible (user product requirement).
+    collapsed = false;
     try {
-      if (global.chrome && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.set({ 'fillApply.pagePanel.collapsed': collapsed });
+      var wrap = shadowRoot && shadowRoot.querySelector('.wrap');
+      if (wrap) wrap.classList.remove('collapsed');
+      var tog = shadowRoot && shadowRoot.querySelector('.toggle');
+      if (tog) {
+        tog.style.display = 'none';
+        tog.setAttribute('aria-hidden', 'true');
       }
     } catch (_e) {}
+    try {
+      if (global.chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ 'fillApply.pagePanel.collapsed': false });
+      }
+    } catch (_s) {}
     scheduleReposition();
+  }
+
+
+  function syncActionButtons() {
+    var startBtn = buttons.start;
+    var toggleBtn = buttons.pauseToggle;
+    var cancelBtn = buttons.cancel;
+    if (startBtn) {
+      startBtn.disabled = panelPhase === 'running' || panelPhase === 'paused' || busy;
+    }
+    if (toggleBtn) {
+      if (panelPhase === 'paused') {
+        toggleBtn.setAttribute('data-mode', 'resume');
+        toggleBtn.textContent = 'Resume';
+        toggleBtn.setAttribute('title', 'Continue autofill after filling highlighted fields');
+        toggleBtn.disabled = false;
+      } else if (panelPhase === 'running') {
+        toggleBtn.setAttribute('data-mode', 'pause');
+        toggleBtn.textContent = 'Pause';
+        toggleBtn.setAttribute('title', 'Pause Auto Apply for human input');
+        toggleBtn.disabled = false;
+      } else {
+        toggleBtn.setAttribute('data-mode', 'pause');
+        toggleBtn.textContent = 'Pause';
+        toggleBtn.setAttribute('title', 'Pause Auto Apply');
+        toggleBtn.disabled = true;
+      }
+    }
+    if (cancelBtn) {
+      // Cancel always works while running or paused (same abort as legacy Stop).
+      cancelBtn.disabled = false;
+    }
   }
 
   function setBusy(on) {
     busy = !!on;
-    Object.keys(buttons).forEach(function (k) {
-      if (buttons[k]) buttons[k].disabled = busy;
-    });
+    syncActionButtons();
+  }
+
+  function setPanelPhase(phase) {
+    if (phase === 'running' || phase === 'paused' || phase === 'idle') {
+      panelPhase = phase;
+    }
+    syncActionButtons();
   }
 
   function setStatus(state, message) {
@@ -424,22 +471,29 @@
       state === STATUS.VALIDATING ||
       state === STATUS.SUBMITTING
     ) {
+      setPanelPhase('running');
       setBusy(true);
+    }
+    if (
+      state === STATUS.paused ||
+      state === STATUS.MISSING_INFORMATION ||
+      state === STATUS.WAITING_FOR_USER ||
+      state === STATUS.BLOCKED ||
+      state === STATUS.AUTH_REQUIRED
+    ) {
+      setPanelPhase('paused');
+      setBusy(false);
     }
     if (
       state === STATUS.idle ||
       state === STATUS.done ||
       state === STATUS.error ||
-      state === STATUS.paused ||
       state === STATUS.READY ||
       state === STATUS.COMPLETE ||
-      state === STATUS.BLOCKED ||
-      state === STATUS.MISSING_INFORMATION ||
-      state === STATUS.WAITING_FOR_USER ||
-      state === STATUS.AUTH_REQUIRED ||
       state === STATUS.AMBIGUOUS ||
       state === STATUS.TIMEOUT
     ) {
+      setPanelPhase('idle');
       setBusy(false);
     }
   }
@@ -450,15 +504,15 @@
     if (state === STATUS.done) return 'Done';
     if (state === STATUS.error) return 'Error';
     if (state === STATUS.DETECTING) return 'Detecting…';
-    if (state === STATUS.REGISTERING) return 'Auto Register — Signing up…';
-    if (state === STATUS.FILLING) return 'Auto Fill — Filling…';
-    if (state === STATUS.NAVIGATING) return 'Auto Navigate — Next step…';
+    if (state === STATUS.REGISTERING) return 'Auto Apply — Registering…';
+    if (state === STATUS.FILLING) return 'Auto Apply — Filling…';
+    if (state === STATUS.NAVIGATING) return 'Navigating…';
     if (state === STATUS.WAITING_FOR_DEPENDENT_FIELDS) return 'Waiting for dependent fields…';
     if (state === STATUS.VALIDATING) return 'Validating…';
     if (state === STATUS.MISSING_INFORMATION) return 'Missing information';
     if (state === STATUS.BLOCKED) return 'Blocked';
     if (state === STATUS.READY) return 'Ready';
-    if (state === STATUS.SUBMITTING) return 'Auto Submit — Submitting…';
+    if (state === STATUS.SUBMITTING) return 'Auto Apply — Submitting…';
     if (state === STATUS.COMPLETE) return 'Complete';
     if (state === STATUS.WAITING_FOR_USER) return 'Waiting for user…';
     if (state === STATUS.AUTH_REQUIRED) return 'Sign in required';
@@ -467,61 +521,199 @@
     return 'Idle — current tab';
   }
 
-  function sendRun(runMode) {
-    var mode = normalizeRunMode(runMode);
-    var startLabel = {
-      register: 'Auto Register — Starting…',
-      fill: 'Auto Fill — Filling…',
-      navigate: 'Auto Navigate — Starting…',
-      ready: 'Auto Ready — Starting…',
-      submit: 'Auto Submit — Starting…'
-    };
-    setStatus(STATUS.running, startLabel[mode] || ('Starting ' + mode + '…'));
+  function isJobPoolHubUrl(url) {
+    url = String(url || '');
+    try {
+      if (global.FillApplySynonyms && typeof global.FillApplySynonyms.isJobPoolHubPage === 'function') {
+        if (global.FillApplySynonyms.isJobPoolHubPage(null, url, {})) return true;
+      }
+    } catch (_e) {}
+    if (/\/fill-apply(?:\/|$|\?)/i.test(url)) {
+      if (/zahid-jobpool\.vercel\.app/i.test(url) || /jobpool/i.test(url)) return true;
+    }
+    return false;
+  }
+
+  function detectSmartEntry() {
+    var url = typeof location !== 'undefined' ? location.href : '';
+    return isJobPoolHubUrl(url) ? 'jobpool' : 'current';
+  }
+
+  function handleAutoApplyResponse(res) {
+    busy = false;
+    if (!res || res.ok === false) {
+      var err = (res && res.error) || 'Request failed';
+      if (/stopped|cancelled|canceled/i.test(err)) {
+        setStatus(STATUS.idle, 'Cancelled — Auto Apply idle');
+        return;
+      }
+      if (/captcha|cloudflare/i.test(err)) {
+        setStatus(STATUS.BLOCKED, 'Blocked — CAPTCHA…');
+      } else if (/auth|sign in|log in|register/i.test(err)) {
+        setStatus(STATUS.AUTH_REQUIRED, err);
+      } else if (/paused|missing profile|action needed|waiting for user|unknown field/i.test(err)) {
+        setStatus(STATUS.WAITING_FOR_USER, err);
+      } else if (/timeout|no progress|plateau/i.test(err)) {
+        setStatus(STATUS.TIMEOUT, err);
+      } else if (/ambiguous/i.test(err)) {
+        setStatus(STATUS.AMBIGUOUS, err);
+      } else {
+        setStatus(STATUS.error, err);
+      }
+      return;
+    }
+    applyResult(res.data || res);
+  }
+
+  function startAutoApply(entry) {
+    entry = entry === 'jobpool' ? 'jobpool' : 'current';
+    var startMsg =
+      entry === 'jobpool'
+        ? 'Auto Apply — JobPool hub…'
+        : 'Auto Apply — Current page…';
+    setStatus(STATUS.SUBMITTING, startMsg);
+    if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      setStatus(STATUS.error, 'Extension background unavailable');
+      return;
+    }
+    busy = true;
+    setPanelPhase('running');
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: 'FILL_APPLY_FILL_ONCE',
+          runMode: 'submit',
+          autoApply: true,
+          entry: entry
+        },
+        function (res) {
+          if (chrome.runtime.lastError) {
+            busy = false;
+            var errMsg = chrome.runtime.lastError.message || 'Message failed';
+            if (isContextDeadError(errMsg)) {
+              setStatus(
+                STATUS.error,
+                'Extension was reloaded — refresh this tab, then try again (Load unpacked / Update).'
+              );
+              return;
+            }
+            setStatus(STATUS.error, errMsg);
+            return;
+          }
+          handleAutoApplyResponse(res);
+        }
+      );
+    } catch (e) {
+      busy = false;
+      setStatus(STATUS.error, String((e && e.message) || e));
+    }
+  }
+
+  function startSmart() {
+    var entry = detectSmartEntry();
+    startAutoApply(entry);
+  }
+
+  function startJobPool() {
+    startAutoApply('jobpool');
+  }
+
+  function startCurrentPage() {
+    startAutoApply('current');
+  }
+
+  function pauseAutoApply() {
     if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
       setStatus(STATUS.error, 'Extension background unavailable');
       return;
     }
     try {
-      chrome.runtime.sendMessage({ type: 'FILL_APPLY_FILL_ONCE', runMode: mode }, function (res) {
+      chrome.runtime.sendMessage({ type: 'FILL_APPLY_PAUSE' }, function (res) {
+        busy = false;
         if (chrome.runtime.lastError) {
-          var errMsg = chrome.runtime.lastError.message || 'Message failed';
-          if (isContextDeadError(errMsg)) {
-            setStatus(
-              STATUS.error,
-              'Extension was reloaded — refresh this tab, then try again (Load unpacked / Update).'
-            );
-            return;
-          }
-          setStatus(STATUS.error, errMsg);
+          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Pause failed');
           return;
         }
-        if (!res || res.ok === false) {
-          var err = (res && res.error) || 'Request failed';
-          if (/captcha|cloudflare/i.test(err)) {
-            setStatus(STATUS.BLOCKED, 'Blocked — CAPTCHA…');
-          } else if (/auth|sign in|log in|register/i.test(err)) {
-            setStatus(STATUS.AUTH_REQUIRED, err);
-          } else if (/paused|missing profile|action needed|waiting for user/i.test(err)) {
-            setStatus(STATUS.WAITING_FOR_USER, err);
-          } else if (/timeout|no progress|plateau/i.test(err)) {
-            setStatus(STATUS.TIMEOUT, err);
-          } else if (/ambiguous/i.test(err)) {
-            setStatus(STATUS.AMBIGUOUS, err);
-          } else {
-            setStatus(STATUS.error, err);
-          }
-          return;
-        }
-        applyResult(res.data || res);
+        var msg =
+          (res && res.data && res.data.message) ||
+          (res && res.message) ||
+          'Paused — fill highlighted fields, then Resume';
+        setStatus(STATUS.paused, msg);
       });
     } catch (e) {
+      busy = false;
       setStatus(STATUS.error, String((e && e.message) || e));
     }
+  }
+
+  function resumeAutoApply() {
+    if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      setStatus(STATUS.error, 'Extension background unavailable');
+      return;
+    }
+    setStatus(STATUS.SUBMITTING, 'Resuming — learning answers, continuing fill…');
+    busy = true;
+    setPanelPhase('running');
+    try {
+      chrome.runtime.sendMessage({ type: 'FILL_APPLY_RESUME' }, function (res) {
+        if (chrome.runtime.lastError) {
+          busy = false;
+          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Resume failed');
+          return;
+        }
+        handleAutoApplyResponse(res);
+      });
+    } catch (e) {
+      busy = false;
+      setStatus(STATUS.error, String((e && e.message) || e));
+    }
+  }
+
+  function togglePauseResume() {
+    if (panelPhase === 'paused') {
+      resumeAutoApply();
+    } else if (panelPhase === 'running') {
+      pauseAutoApply();
+    }
+  }
+
+  function cancelAutoApply() {
+    if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      setStatus(STATUS.error, 'Extension background unavailable');
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({ type: 'FILL_APPLY_STOP' }, function (res) {
+        busy = false;
+        if (chrome.runtime.lastError) {
+          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Cancel failed');
+          return;
+        }
+        setStatus(STATUS.idle, 'Cancelled — Auto Apply idle');
+      });
+    } catch (e) {
+      busy = false;
+      setStatus(STATUS.error, String((e && e.message) || e));
+    }
+  }
+
+  // Legacy alias
+  function stopAutoApply() {
+    cancelAutoApply();
   }
 
   function applyResult(data) {
     if (!data) {
       setStatus(STATUS.done, 'Done');
+      return;
+    }
+    if (data.pausedForHuman || data.state === 'paused' || data.state === STATUS.paused) {
+      setStatus(
+        STATUS.paused,
+        data.message ||
+          (data.result && data.result.error) ||
+          'Paused — fill highlighted fields, then Resume'
+      );
       return;
     }
     if (data.state && STATUS[data.state]) {
@@ -530,7 +722,10 @@
     }
     var result = data.result || data;
     if (result.needsHuman || data.pausedForHuman) {
-      setStatus(STATUS.paused, result.error || data.message || 'Paused — action needed');
+      setStatus(
+        STATUS.paused,
+        result.error || data.message || 'Paused — fill highlighted fields, then Resume'
+      );
       return;
     }
     if (result.ok === false) {
@@ -554,13 +749,13 @@
       shadowRoot = existing.shadowRoot;
       if (shadowRoot) {
         statusEl = shadowRoot.querySelector('.status');
-        buttons.register = shadowRoot.querySelector('[data-mode="register"]');
-        buttons.fill = shadowRoot.querySelector('[data-mode="fill"]');
-        buttons.navigate = shadowRoot.querySelector('[data-mode="navigate"]');
-        buttons.ready = shadowRoot.querySelector('[data-mode="ready"]');
-        buttons.submit = shadowRoot.querySelector('[data-mode="submit"]');
+        buttons.start = shadowRoot.querySelector('[data-action="start"]');
+        buttons.pauseToggle = shadowRoot.querySelector('[data-action="pause-toggle"]');
+        buttons.cancel = shadowRoot.querySelector('[data-action="cancel"]');
+        syncActionButtons();
       }
       existing.hidden = false;
+      setCollapsed(false);
       scheduleReposition();
       return existing;
     }
@@ -569,14 +764,14 @@
     host.id = HOST_ID;
     host.setAttribute(ATTR, '1');
     host.setAttribute('role', 'region');
-    host.setAttribute('aria-label', 'Fill & Apply');
+    host.setAttribute('aria-label', 'Fill & Apply — Auto Apply');
     host.style.cssText = [
       'all: initial',
       'position: fixed',
       'z-index: 2147483646',
       'top: auto',
-      'left: auto',
-      'right: ' + MARGIN + 'px',
+      'right: auto',
+      'left: ' + MARGIN + 'px',
       'bottom: ' + MARGIN + 'px',
       'width: auto',
       'height: auto',
@@ -593,55 +788,80 @@
     shadow.appendChild(style);
 
     var wrap = doc.createElement('div');
-    wrap.className = 'wrap' + (collapsed ? ' collapsed' : '');
+    wrap.className = 'wrap';
 
     var bar = doc.createElement('div');
     bar.className = 'bar';
     var brand = doc.createElement('div');
     brand.className = 'brand';
-    brand.textContent = 'Fill & Apply';
+    brand.textContent = 'Auto Apply';
     var toggle = doc.createElement('button');
     toggle.type = 'button';
     toggle.className = 'toggle';
-    toggle.textContent = collapsed ? '▸' : '▾';
-    toggle.setAttribute('aria-label', collapsed ? 'Expand Fill & Apply' : 'Collapse Fill & Apply');
-    toggle.addEventListener('click', function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      setCollapsed(!collapsed);
-    });
+    toggle.style.display = 'none';
+    toggle.setAttribute('aria-hidden', 'true');
+    toggle.textContent = '▾';
     bar.appendChild(brand);
     bar.appendChild(toggle);
     wrap.appendChild(bar);
 
     var btns = doc.createElement('div');
     btns.className = 'btns';
-    [
-      { mode: 'register', label: 'Auto Register' },
-      { mode: 'fill', label: 'Auto Fill' },
-      { mode: 'navigate', label: 'Auto Navigate' },
-      { mode: 'ready', label: 'Auto Ready' },
-      { mode: 'submit', label: 'Auto Submit' }
-    ].forEach(function (def) {
-      var b = doc.createElement('button');
-      b.type = 'button';
-      b.className = 'act';
-      b.setAttribute('data-mode', def.mode);
-      b.textContent = def.label;
-      b.addEventListener('click', function (ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (busy) return;
-        sendRun(def.mode);
-      });
-      buttons[def.mode] = b;
-      btns.appendChild(b);
+
+    var startBtn = doc.createElement('button');
+    startBtn.type = 'button';
+    startBtn.className = 'act';
+    startBtn.setAttribute('data-action', 'start');
+    startBtn.setAttribute(
+      'title',
+      'Smart start: JobPool /fill-apply hub → JobPool e2e; otherwise run on this page'
+    );
+    startBtn.textContent = 'Start';
+    startBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (busy || panelPhase === 'running' || panelPhase === 'paused') return;
+      startSmart();
     });
+    buttons.start = startBtn;
+    btns.appendChild(startBtn);
+
+    var pauseBtn = doc.createElement('button');
+    pauseBtn.type = 'button';
+    pauseBtn.className = 'act';
+    pauseBtn.setAttribute('data-action', 'pause-toggle');
+    pauseBtn.setAttribute('data-mode', 'pause');
+    pauseBtn.setAttribute('title', 'Pause Auto Apply');
+    pauseBtn.textContent = 'Pause';
+    pauseBtn.disabled = true;
+    pauseBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      togglePauseResume();
+    });
+    buttons.pauseToggle = pauseBtn;
+    btns.appendChild(pauseBtn);
+
+    var cancelBtn = doc.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'act';
+    cancelBtn.setAttribute('data-action', 'cancel');
+    cancelBtn.setAttribute('title', 'Cancel Auto Apply (abort)');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      cancelAutoApply();
+    });
+    buttons.cancel = cancelBtn;
+    btns.appendChild(cancelBtn);
+
     wrap.appendChild(btns);
+    syncActionButtons();
 
     var st = doc.createElement('div');
     st.className = 'status idle';
-    st.textContent = 'Idle — current tab';
+    st.textContent = 'Idle — Start (JobPool or page)';
     wrap.appendChild(st);
     shadow.appendChild(wrap);
 
@@ -650,6 +870,7 @@
     hostEl = host;
     shadowRoot = shadow;
     statusEl = st;
+    collapsed = false;
     scheduleReposition();
     return host;
   }
@@ -730,9 +951,8 @@
     } catch (_e) {}
     try {
       if (global.chrome && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(['fillApply.pagePanel.collapsed'], function (res) {
-          if (res && res['fillApply.pagePanel.collapsed']) setCollapsed(true);
-        });
+        chrome.storage.local.set({ 'fillApply.pagePanel.collapsed': false });
+        setCollapsed(false);
       }
     } catch (_s) {}
   }
@@ -771,6 +991,19 @@
     hide: hide,
     maybeShow: maybeShow,
     setStatus: setStatus,
+    startJobPool: startJobPool,
+    startCurrentPage: startCurrentPage,
+    startSmart: startSmart,
+    startAutoApply: startAutoApply,
+    pauseAutoApply: pauseAutoApply,
+    resumeAutoApply: resumeAutoApply,
+    togglePauseResume: togglePauseResume,
+    cancelAutoApply: cancelAutoApply,
+    stopAutoApply: stopAutoApply,
+    detectSmartEntry: detectSmartEntry,
+    isJobPoolHubUrl: isJobPoolHubUrl,
+    setPanelPhase: setPanelPhase,
+    syncActionButtons: syncActionButtons,
     setCollapsed: setCollapsed,
     reposition: reposition,
     boot: boot

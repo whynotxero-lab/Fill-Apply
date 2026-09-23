@@ -1,38 +1,18 @@
-Fill & Apply v1.22.5 — Load unpacked
+Fill & Apply v1.26.6 — Load unpacked (PRIVATE zip — contains applicant PII)
 
-Notes — v1.22.5 (JobPool Applications hub Apply → Mark as applied):
-- adapters/boards/jobpool.js: hub detect by page text / data attrs / backendBaseUrl host.
-- Single on hub: Apply first Ready card → employer fill → Mark as applied only after submit/return.
-- Stamps: data-fill-apply=jobpool-apply | jobpool-mark-applied; data-job-id.
-
-
-Fill & Apply v1.22.0 — Load unpacked
-
-1. Chrome → chrome://extensions
+1. chrome://extensions
 2. Enable Developer mode
-3. Load unpacked → select this folder (Fill-Apply-1.22.0-clean)
-4. Options → Import Profile → choose private zahid-profile.json
-   (deliverables/zahid-profile.json or private-profiles copy)
-5. Default profile remains Mock (demo). Applicant data is import-only.
+3. Load unpacked → select this folder
+4. Start works immediately — Zahid (czahidali.accacma@gmail.com) is the sole built-in active profile. No Mock default. No required profile JSON import.
 
-Notes — v1.22.0 (reliability / control-adapter sprint):
-- lib/control-adapter.js: detect → adapt → fill → verify per DOM control type
-  (text/email/tel/number/date/radio/checkbox/select/multiselect/combobox/file…).
-- Dependent-field re-scan (WAITING_FOR_DEPENDENT_FIELDS) after fills that reveal
-  follow-ups. Runner/panel surface phases through COMPLETE.
-- Built-in Universal ATS FAQ seed (generic semantics + strategies — no PII).
-- Salary current/expected stay UNKNOWN when blank (never invent).
-- File inputs without a configured local document → clear BLOCKER message.
+What changed in 1.26.6
+- Private install seed: hardcoded Chaudhry Zahid Ali as sole built-in active profile (profile + Environments password + Question Bank / adaptive from Zahid bundle). Import UI remains for advanced use only.
+- Mock demoted — fresh Load unpacked never leaves Mock as the empty/wrong active profile.
+- GulfTalent Apply popup "Register before applying…": prefer Google, then Apple/Facebook, else Sign up with Email (fill from profile); pause on same modal if OAuth needs human — no tab hop.
+- Oracle Cloud Easy Apply (.../easy-apply/email "Let's get started"): fill What's your email?, check privacy policy (or terms), click circular next/continue — same hardening as /apply/email.
 
-Also from v1.19.5:
-- Built-in aliases resolve trial ATS questions (CA/ACCA, B.Com, ME visa, etc.).
+Preserves 1.26.4–1.26.5 panel (Start/Pause/Cancel), no-hop-on-failure, Bayt/MP/Ashby/Workday/Workable fixes, JobPool open-once + intentional tab follow only.
 
-Also from v1.19.4:
-- Chrome Web Store manifest description shortened to ≤132 characters.
+Out of scope: NaukriGulf Applied Successfully, document upload UI move / Manual Applied button.
 
-After Load unpacked / Reload extension: refresh any open job tabs (old content
-scripts die — otherwise "Receiving end does not exist" / context invalidated).
-
-Notes — v1.22.0 (universal workflow):
-- Auto Register / Fill / Navigate / Ready / Submit
-- ~10s no-progress plateau; terminals COMPLETE|READY|WAITING_FOR_USER|MISSING_INFORMATION|BLOCKED|AUTH_REQUIRED|AMBIGUOUS|TIMEOUT
+This zip is intentionally private (PII). Do not publish to Chrome Web Store as-is.

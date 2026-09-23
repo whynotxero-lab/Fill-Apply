@@ -802,6 +802,72 @@
       };
     }
 
+    // CTAs still visible (Apply / Apply with CV) and no form yet — stay on popup, re-detect.
+    if (doc && !pageHasApplicationFields(doc)) {
+      var applyStill = findJobApplyCta(doc);
+      var cvStill = null;
+      try {
+        var cvTry = clickApplyWithCv(doc);
+        if (cvTry && cvTry.clicked) {
+          steps.push({ step: 'apply_with_cv', text: cvTry.text });
+          return {
+            ok: true,
+            adapterId: 'michaelpage',
+            clickedApplyStart: true,
+            reDetect: true,
+            handedOff: true,
+            deferToPageAdapter: true,
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            submitted: false,
+            runMode: runMode,
+            michaelPageSteps: steps,
+            message: 'Clicked Apply with CV — waiting for form (same popup/tab)',
+            error: null
+          };
+        }
+      } catch (_cv2) {}
+      if (applyStill && !looksLikeWizardStep(doc)) {
+        var apply2 = clickJobApply(doc);
+        if (apply2 && apply2.clicked) {
+          steps.push({ step: 'apply', text: apply2.text || apply2.reason });
+          return {
+            ok: true,
+            adapterId: 'michaelpage',
+            clickedApplyStart: true,
+            reDetect: true,
+            handedOff: true,
+            deferToPageAdapter: true,
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            submitted: false,
+            runMode: runMode,
+            michaelPageSteps: steps,
+            message: 'Clicked Apply — waiting for Apply with CV / form (same popup/tab)',
+            error: null
+          };
+        }
+      }
+      if (applyStill || findClickableByText(doc, [/apply with (cv|resume)/i, /^apply$/i, /^apply now$/i], { preferExact: true })) {
+        return {
+          ok: false,
+          needsHuman: true,
+          pauseReason: 'apply_cta_visible',
+          adapterId: 'michaelpage',
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          runMode: runMode,
+          michaelPageSteps: steps,
+          error:
+            'Michael Page Apply / Apply with CV visible — paused on same popup (no form fields yet)'
+        };
+      }
+    }
+
     var fb = global.FillApplyFallbackAdapter;
     if (!fb) {
       return {
@@ -830,6 +896,25 @@
     result.adapterId = 'michaelpage';
     result.runMode = runMode;
     result.michaelPageSteps = steps;
+    // Never report empty form while Apply / Apply with CV remains visible.
+    if (
+      result &&
+      result.ok === false &&
+      /no application form fields/i.test(String(result.error || '')) &&
+      doc
+    ) {
+      var ctaLeft = findJobApplyCta(doc) || findClickableByText(
+        doc,
+        [/apply with (cv|resume)/i, /apply for this (job|role)/i, /^apply now$/i],
+        { preferExact: true }
+      );
+      if (ctaLeft) {
+        result.needsHuman = true;
+        result.pauseReason = 'apply_cta_visible';
+        result.error =
+          'Michael Page Apply / Apply with CV still visible — paused on same popup (not empty form)';
+      }
+    }
     return result;
   }
 

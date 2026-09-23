@@ -74,6 +74,21 @@
     return b + Math.floor(Math.random() * 300);
   }
 
+  function clickApplyControl(el) {
+    if (!el) return false;
+    try {
+      if (global.FillApplyDom && typeof global.FillApplyDom.realClick === 'function') {
+        if (global.FillApplyDom.realClick(el)) return true;
+      }
+    } catch (_rc) {}
+    try {
+      el.click();
+      return true;
+    } catch (_c) {
+      return false;
+    }
+  }
+
   function visible(el) {
     if (!el) return false;
     try {
@@ -344,6 +359,75 @@
     };
   }
 
+
+  /**
+   * Search / listing pages: first job card with Easy Apply (or Apply), skip already-Applied.
+   */
+  function findFirstListingApplyControl(doc) {
+    doc = doc || document;
+    var cards = [];
+    try {
+      var nodes = doc.querySelectorAll(
+        'article, li, [class*="jobCard"], [class*="job-card"], [class*="srp-job"], [class*="list-job"], [data-job-id], [class*="jobTuple"], [class*="tuple"]'
+      );
+      for (var i = 0; i < nodes.length; i++) {
+        var c = nodes[i];
+        if (!visible(c)) continue;
+        var txt = String(c.innerText || c.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!txt || txt.length < 20) continue;
+        if (!/\b(finance|manager|job|apply|dubai|uae|company)\b/i.test(txt) && !/easy\s*apply/i.test(txt)) {
+          continue;
+        }
+        cards.push(c);
+      }
+    } catch (_e) {}
+    // Prefer Easy Apply cards that are not already Applied
+    function cardScore(card) {
+      var t = String(card.innerText || '').replace(/\s+/g, ' ');
+      if (/\bApplied\b/i.test(t) && !/Easy\s*Apply/i.test(t)) return -1;
+      if (/^Applied$/im.test(t.split('\n').pop() || '')) return -1;
+      var s = 0;
+      if (/Easy\s*Apply/i.test(t)) s += 50;
+      if (/\bApply\b/i.test(t)) s += 10;
+      return s;
+    }
+    cards.sort(function (a, b) {
+      return cardScore(b) - cardScore(a);
+    });
+    for (var ci = 0; ci < cards.length; ci++) {
+      var card = cards[ci];
+      if (cardScore(card) < 0) continue;
+      // Prefer explicit Easy Apply / Apply control inside the card
+      var ctls = card.querySelectorAll
+        ? card.querySelectorAll('a, button, [role="button"], span[onclick], div[role="button"]')
+        : [];
+      var easy = null;
+      var apply = null;
+      var titleLink = null;
+      for (var j = 0; j < ctls.length; j++) {
+        var el = ctls[j];
+        if (!visible(el)) continue;
+        var bt = buttonText(el);
+        if (/easy\s*apply/i.test(bt)) {
+          easy = el;
+          break;
+        }
+        if (/^apply(\s*now)?$/i.test(bt) || /\bapply\b/i.test(bt) && bt.length < 24) {
+          if (!apply) apply = el;
+        }
+        if (!titleLink && el.tagName === 'A' && el.href && /job|jd|view/i.test(el.href + bt)) {
+          titleLink = el;
+        }
+      }
+      if (easy) return easy;
+      if (apply) return apply;
+      // Badge-only Easy Apply: open the job (title link) so detail page exposes Apply
+      if (/Easy\s*Apply/i.test(String(card.innerText || '')) && titleLink) return titleLink;
+      if (titleLink && cardScore(card) >= 10) return titleLink;
+    }
+    return null;
+  }
+
   function findEasyApplyButton(doc) {
     doc = doc || document;
     var nodes = doc.querySelectorAll(
@@ -472,6 +556,9 @@
     var lab = norm(cleanLabel(label));
     if (!lab) return null;
 
+    var SI = global.FillApplyScreeningIntent;
+    var intent = SI && SI.classify ? SI.classify(label) : null;
+
     var map = profile && profile.customAnswers;
     if (map && typeof map === 'object' && !Array.isArray(map)) {
       var keys = Object.keys(map);
@@ -480,15 +567,31 @@
       for (var i = 0; i < keys.length; i++) {
         var k = norm(keys[i]);
         if (!k) continue;
+        // Geo / notice keys must not substring-match long experience essays
+        var geoOrNoticeKey = /^(city|location|country|state|notice|notice period|notice_period|availability|available|based_in)$/i.test(
+          k
+        );
+        if (geoOrNoticeKey && lab.length > 40) {
+          var essayLab = /experience|ifrs|vat|tax|sox|audit|elaborate|examples|skills|banking|employer|finalization/.test(
+            lab
+          );
+          if (essayLab) continue;
+          if (!(k === lab || lab.indexOf(k) !== -1 || k.indexOf(lab) !== -1)) continue;
+        }
         if (lab.indexOf(k) !== -1 || k.indexOf(lab) !== -1) {
           var score = Math.min(k.length, lab.length);
+          // Prefer longer key overlaps
+          if (k.length >= 12) score += 20;
           if (score > bestScore) {
             bestScore = score;
             best = map[keys[i]];
           }
         }
       }
-      if (best != null && String(best).trim() !== '') return String(best).trim();
+      if (best != null && String(best).trim() !== '') {
+        if (SI && intent && SI.isForbiddenValue(intent, best)) return null;
+        return String(best).trim();
+      }
     }
 
     if (global.FillApplyFieldMap && global.FillApplyFieldMap.matchCustomQA) {
@@ -988,7 +1091,8 @@
     var ca = profile.customAnswers || {};
     var filled = 0;
     var details = [];
-    if (!modal) return { filled: filled, details: details };
+    var skipped = [];
+    if (!modal) return { filled: filled, details: details, skipped: skipped };
 
     function pick() {
       for (var i = 0; i < arguments.length; i++) {
@@ -998,25 +1102,35 @@
       return '';
     }
 
+    var SI = global.FillApplyScreeningIntent;
+    var INTENT = SI && SI.INTENT;
+
     var notice = pick(
       ca['What is your notice Period?'],
       ca['Notice period'],
       ca.notice_period,
       ca.noticePeriod,
       ca.available_immediately,
-      profile.noticePeriod,
-      'Immediately available'
+      profile.noticePeriod
     );
-    var remuner = pick(
+    var currentSal = pick(
       ca['What is your current Remuneration?'],
       ca.current_remuneration,
       ca.current_salary_text,
+      ca.current_salary,
+      ca.currentSalary,
+      profile.currentSalary,
       ca.salary_text,
       ca.salary_display,
-      ca.ignite_salary,
-      profile.salaryText,
-      profile.currentSalary,
-      '0 AED / SAR (Currently available for immediate joining)'
+      profile.salaryText
+    );
+    var expectedSal = pick(
+      ca.expected_salary,
+      ca.expectedSalary,
+      ca['Expected salary'],
+      ca['Expected Salary (AED/month)'],
+      profile.expectedSalary,
+      currentSal
     );
     var contracting = pick(
       ca.contracting_finance_experience,
@@ -1030,8 +1144,7 @@
       ca['Primary work location'],
       ca.preferred_locations,
       profile.city,
-      profile.location,
-      'Riyadh'
+      profile.location
     );
     var phone = pick(profile.phoneFull, profile.phoneE164, ca.phone_full, ca.Phone);
 
@@ -1040,46 +1153,118 @@
       var el = controls[i];
       if (!visible(el) || el.disabled) continue;
       var type = String(el.type || '').toLowerCase();
-      if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'radio' || type === 'checkbox' || type === 'file') {
+      if (
+        type === 'hidden' ||
+        type === 'submit' ||
+        type === 'button' ||
+        type === 'radio' ||
+        type === 'checkbox' ||
+        type === 'file'
+      ) {
         continue;
       }
       var lab = cleanLabel(getLabelFor(el, modal) || el.name || el.placeholder || '');
       var nlab = norm(lab);
       if (!nlab) continue;
 
+      var intent = SI && SI.classify ? SI.classify(lab) : null;
       var value = '';
-      if (/notice\s*period|when can you (join|start)|availability|available|immediate/i.test(nlab)) {
-        value = notice;
-      } else if (/remuneration|current\s*(salary|ctc|pay)|salary|compensation|monthly\s*salary/i.test(nlab)) {
-        value = remuner;
-      } else if (/contracting|construction|years of relevant|finance\/accounting within/i.test(nlab)) {
-        value = contracting;
-      } else if (/location|city|based in|work location|where are you/i.test(nlab)) {
-        value = location;
-      } else if (/phone|mobile|telephone|contact number/i.test(nlab)) {
-        value = phone;
-      } else {
-        // generic customAnswers / knowledge lookup
-        value = answerFromCustom(profile, lab) || '';
+
+      // Prefer Question Bank when available (same page session)
+      try {
+        var QB = global.FillApplyQuestionBank;
+        if (QB && typeof QB.resolveLabel === 'function') {
+          var qbHit = QB.resolveLabel(lab);
+          if (qbHit && qbHit.value) value = String(qbHit.value).trim();
+        }
+      } catch (_qb) {}
+
+      if (!value && SI && typeof SI.resolveAnswer === 'function') {
+        var resolved = SI.resolveAnswer(lab, profile, '');
+        if (resolved && resolved.value) value = resolved.value;
+        intent = (resolved && resolved.intent) || intent;
       }
+
+      if (!value) {
+        if (intent && INTENT) {
+          if (intent === INTENT.NOTICE) value = notice;
+          else if (intent === INTENT.SALARY_CURRENT) value = currentSal;
+          else if (intent === INTENT.SALARY_EXPECTED) value = expectedSal;
+          else if (intent === INTENT.SALARY_GENERIC) value = currentSal || expectedSal;
+          else if (intent === INTENT.LOCATION_CITY) value = location;
+          else if (intent === INTENT.UAE_BASED) value = pick(ca.based_in_uae, ca.located_in_uae, 'No');
+          else if (intent === INTENT.CA_ONLY) value = pick(ca.qualified_ca, ca.ca_icai, 'No');
+          else if (/contracting|construction|finance\/accounting within/i.test(nlab)) value = contracting;
+          else if (/phone|mobile|telephone|contact number/i.test(nlab)) value = phone;
+          else value = answerFromCustom(profile, lab) || '';
+        } else {
+          // Legacy fallbacks — tightened so available/based-in cannot hijack essays
+          if (/notice\s*period|when can you (join|start)|serving notice|earliest (join|start)/i.test(nlab)) {
+            value = notice;
+          } else if (
+            /\bcurrent\b/i.test(nlab) &&
+            /remuneration|salary|ctc|compensation/i.test(nlab) &&
+            !/expected|desired/i.test(nlab)
+          ) {
+            value = currentSal;
+          } else if (/expected|desired/i.test(nlab) && /salary|ctc|remuneration|compensation/i.test(nlab)) {
+            value = expectedSal;
+          } else if (/remuneration|\bsalary\b|compensation|monthly\s*salary/i.test(nlab) && !/notice/i.test(nlab)) {
+            value = currentSal || expectedSal;
+          } else if (/contracting|construction|years of relevant|finance\/accounting within/i.test(nlab)) {
+            value = contracting;
+          } else if (
+            /^(location|city|town|current location|work location)\b/i.test(nlab) &&
+            nlab.length < 48 &&
+            !/uae|dubai|difc|ifrs|experience|salary|notice/i.test(nlab)
+          ) {
+            value = location;
+          } else if (/phone|mobile|telephone|contact number/i.test(nlab)) {
+            value = phone;
+          } else {
+            value = answerFromCustom(profile, lab) || '';
+          }
+        }
+      }
+
+      // Hard refuse: geo/notice/salary-alone into essays / UAE / salary boxes
+      if (value && SI && intent && typeof SI.isForbiddenValue === 'function') {
+        if (SI.isForbiddenValue(intent, value)) {
+          skipped.push({ label: lab, value: String(value).slice(0, 60), intent: intent, reason: 'forbidden_token' });
+          value = '';
+        }
+      }
+      if (
+        value &&
+        el.tagName === 'TEXTAREA' &&
+        SI &&
+        (SI.looksLikeGeoOnly(value) || SI.looksLikeNoticeOnly(value)) &&
+        /experience|ifrs|vat|tax|sox|audit|elaborate|examples|skills|employer|banking/i.test(nlab)
+      ) {
+        skipped.push({ label: lab, value: String(value).slice(0, 60), reason: 'essay_geo_or_notice' });
+        value = '';
+      }
+
       if (!value) continue;
       if (el.value && String(el.value).trim() !== '') continue;
 
       try {
         if (el.tagName === 'SELECT') {
-          // try match option
           var opts = el.options || [];
           var matched = false;
           for (var o = 0; o < opts.length; o++) {
             var ot = String(opts[o].text || opts[o].value || '');
-            if (norm(ot) === norm(value) || (norm(ot) && norm(value).indexOf(norm(ot)) !== -1) || (norm(ot) && norm(ot).indexOf(norm(value)) !== -1)) {
+            if (
+              norm(ot) === norm(value) ||
+              (norm(ot) && norm(value).indexOf(norm(ot)) !== -1) ||
+              (norm(ot) && norm(ot).indexOf(norm(value)) !== -1)
+            ) {
               el.selectedIndex = o;
               matched = true;
               break;
             }
           }
-          // Notice period selects often have "Immediate" / "Currently serving"
-          if (!matched && /notice|available/i.test(nlab)) {
+          if (!matched && intent === (INTENT && INTENT.NOTICE)) {
             for (var o2 = 0; o2 < opts.length; o2++) {
               var ot2 = String(opts[o2].text || '');
               if (/immediate|serving notice|0\s*day|available/i.test(ot2)) {
@@ -1099,12 +1284,12 @@
           el.dispatchEvent(new Event('change', { bubbles: true }));
         }
         filled++;
-        details.push({ label: lab, value: value.slice(0, 80) });
+        details.push({ label: lab, value: value.slice(0, 120), intent: intent || '' });
       } catch (_e) {
         /* ignore */
       }
     }
-    return { filled: filled, details: details };
+    return { filled: filled, details: details, skipped: skipped };
   }
 
   function answerModalQuestions(modal, profile, runMode) {
@@ -1182,7 +1367,9 @@
     var profile = ctx.profile || {};
     var doc = (ctx && ctx.document) || (typeof document !== 'undefined' ? document : null);
     var runMode = ctx.runMode || (ctx.options && ctx.options.runMode) || 'fill';
-    if (['fill', 'ready', 'submit'].indexOf(runMode) === -1) runMode = 'fill';
+    if (['fill', 'ready', 'submit', 'navigate'].indexOf(runMode) === -1) runMode = 'fill';
+    // Navigate-only: still click Easy Apply / Apply to start — never fill fields below.
+    var navClicksOnly = runMode === 'navigate';
 
     var href = '';
     try {
@@ -1231,16 +1418,49 @@
 
       // Open Easy Apply if modal not already present
       if (!modal) {
+        // SERP / search results: click first Easy Apply / Apply listing
+        var listingBtn = findFirstListingApplyControl(doc);
+        if (listingBtn && !findEasyApplyModal(doc)) {
+          try {
+            if (clickApplyControl(listingBtn)) advanced = true;
+            await sleep(humanDelay(900));
+          } catch (_listClick) {}
+          modal = await waitForModal(doc, 5000);
+          // If we opened a job detail (no modal yet), try Easy Apply on the new view
+          if (!modal) {
+            var afterListEasy = findEasyApplyButton(doc);
+            if (afterListEasy) {
+              if (clickApplyControl(afterListEasy)) advanced = true;
+              await sleep(humanDelay(700));
+              modal = await waitForModal(doc, 8000);
+            }
+            if (!modal && advanced) {
+              return {
+                ok: true,
+                adapterId: 'naukrigulf',
+                clickedApplyStart: true,
+                reDetect: true,
+                filled: 0,
+                unmatched: 0,
+                total: 0,
+                advanced: true,
+                submitted: false,
+                step: 'listing_apply_open',
+                message: 'Opened first Easy Apply / Apply listing — continuing on job page',
+                runMode: runMode
+              };
+            }
+          }
+        }
         var applyBtn = findEasyApplyButton(doc);
         if (applyBtn) {
           try {
-            applyBtn.click();
-            advanced = true;
-            await sleep(humanDelay(500));
+            if (clickApplyControl(applyBtn)) advanced = true;
+            await sleep(humanDelay(700));
           } catch (_e2) {
             /* ignore */
           }
-          modal = await waitForModal(doc, 5500);
+          modal = await waitForModal(doc, 8000);
         } else {
           // Maybe modal already open after navigation
           modal = await waitForModal(doc, 1500);
@@ -1256,14 +1476,13 @@
         var standardBtn = findStandardApplyButton(doc);
         if (standardBtn) {
           try {
-            standardBtn.click();
-            advanced = true;
-            await sleep(humanDelay(500));
+            if (clickApplyControl(standardBtn)) advanced = true;
+            await sleep(humanDelay(700));
           } catch (_stdClick) {
             /* ignore */
           }
           // Re-check: some Apply CTAs still open the Easy Apply modal
-          modal = await waitForModal(doc, 2500);
+          modal = await waitForModal(doc, 4500);
           if (!modal) {
             return {
               ok: true,
@@ -1285,7 +1504,46 @@
               error: null
             };
           }
-        } else if (global.__fillApply && typeof global.__fillApply.run === 'function') {
+        } else {
+          // SPA hydrate retry — JobPool→NG often paints Apply after first paint
+          await sleep(humanDelay(900));
+          var retryEasy = findEasyApplyButton(doc);
+          if (retryEasy) {
+            if (clickApplyControl(retryEasy)) advanced = true;
+            await sleep(humanDelay(700));
+            modal = await waitForModal(doc, 8000);
+          }
+          if (!modal) {
+            var retryStd = findStandardApplyButton(doc);
+            if (retryStd) {
+              if (clickApplyControl(retryStd)) advanced = true;
+              await sleep(humanDelay(700));
+              modal = await waitForModal(doc, 4500);
+              if (!modal) {
+                return {
+                  ok: true,
+                  adapterId: 'naukrigulf',
+                  clickedApplyStart: true,
+                  reDetect: true,
+                  handedOff: true,
+                  deferToPageAdapter: true,
+                  externalApply: true,
+                  filled: 0,
+                  unmatched: 0,
+                  total: 0,
+                  advanced: true,
+                  submitted: false,
+                  step: 'standard_apply_handoff_retry',
+                  message:
+                    'Clicked Apply after SPA wait — waiting for apply form or company site',
+                  runMode: runMode,
+                  error: null
+                };
+              }
+            }
+          }
+        }
+        if (!modal && global.__fillApply && typeof global.__fillApply.run === 'function') {
           // Form may already be on the page (or generic Apply-start can open it)
           try {
             var generic = await global.__fillApply.run(profile, {
@@ -1297,7 +1555,16 @@
                 { kind: 'cover', match: 'cover' }
               ]
             });
-            if (generic && (generic.filled > 0 || generic.clickedApplyStart || generic.ok)) {
+            // Do NOT treat empty ok:true generic fills as success — that aborted
+            // JobPool→NG Apply handoff when the posting had Apply but no form yet.
+            if (
+              generic &&
+              (generic.filled > 0 ||
+                generic.clickedApplyStart ||
+                generic.submitted ||
+                generic.handedOff ||
+                generic.externalApply)
+            ) {
               generic.adapterId = 'naukrigulf';
               generic.usedGenericFallback = true;
               generic.advanced = advanced || !!generic.clickedApplyStart;
@@ -1319,6 +1586,27 @@
           total: 0,
           advanced: advanced,
           submitted: false,
+          runMode: runMode
+        };
+      }
+
+      // Navigate-only: clicks only — open Easy Apply / Apply, do not fill or submit.
+      if (navClicksOnly) {
+        return {
+          ok: true,
+          adapterId: 'naukrigulf',
+          clickedApplyStart: true,
+          companion: false,
+          navOnly: runMode === 'navigate',
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          advanced: !!advanced || !!modal,
+          submitted: false,
+          step: 'navigate_apply_opened',
+          message: modal
+            ? 'Easy Apply opened — navigate-only (no fill)'
+            : 'Apply start clicked — navigate-only',
           runMode: runMode
         };
       }
@@ -1422,6 +1710,7 @@
     detectProfileRedirect: detectProfileRedirect,
     findEasyApplyModal: findEasyApplyModal,
     findEasyApplyButton: findEasyApplyButton,
+    findFirstListingApplyControl: findFirstListingApplyControl,
     findStandardApplyButton: findStandardApplyButton,
     fieldMaps: [],
     submitSelector:
@@ -1448,7 +1737,8 @@
     isCaOnlyQuestion: isCaOnlyQuestion,
     isCaOrAccaQuestion: isCaOrAccaQuestion,
     fillModalFields: fillModalFields,
-    answerModalQuestions: answerModalQuestions
+    answerModalQuestions: answerModalQuestions,
+    answerFromCustom: answerFromCustom
   };
   global.FillApply_naukrigulfAdapter = adapter;
 })(typeof globalThis !== 'undefined' ? globalThis : self);

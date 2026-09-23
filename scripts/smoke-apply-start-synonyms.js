@@ -21,12 +21,24 @@ const expectTrue = [
   'Apply Now',
   'Start Apply',
   'Start Application',
+  'Begin Application',
+  'Continue Application',
   'Apply for this Job',
   'Apply for this Role',
   'Apply here',
-  'APPLY FOR THIS JOB'
+  'APPLY FOR THIS JOB',
+  'Apply with CV',
+  'Apply with Resume',
+  'Apply Manually',
+  'Autofill with Resume'
 ];
 const expectFalse = [
+  'Saudi Arabia',
+  'SHORTLIST',
+  'Riyadh',
+  'Apply With LinkedIn',
+  'Use My Last Application',
+
   'Auto-Apply with AI',
   'AI Auto-Apply',
   'Auto-Apply',
@@ -34,7 +46,10 @@ const expectFalse = [
   'Subscribe',
   'Share',
   'Save job',
-  'Easy Apply' // LinkedIn-owned; generic start excludes
+  'Easy Apply', // LinkedIn-owned; generic start excludes
+  'Fill-Apply', // JobPool sidebar / page nav — never Apply-start
+  'Applications',
+  'Logs'
 ];
 
 let failed = 0;

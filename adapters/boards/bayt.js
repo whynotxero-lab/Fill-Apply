@@ -21,6 +21,27 @@
     return false;
   }
 
+  function clickBaytApplyStart(doc) {
+    doc = doc || (typeof document !== 'undefined' ? document : null);
+    if (!doc) return { clicked: false };
+    var Syn = global.FillApplySynonyms;
+    // Prefer host-aware Easy Apply / Apply — never location chips like "Saudi Arabia".
+    if (Syn && typeof Syn.tryClickApplyStart === 'function') {
+      var open = Syn.tryClickApplyStart(doc, { minFields: 2, force: true, host: 'www.bayt.com' });
+      if (open && open.clicked) {
+        var t = String(open.text || '');
+        if (Syn.isExcludedApplyCta && Syn.isExcludedApplyCta(t)) {
+          return { clicked: false, reason: 'excluded_location_or_chrome', text: t };
+        }
+        if (/saudi arabia|shortlist|save job/i.test(t) && !/\bapply\b/i.test(t)) {
+          return { clicked: false, reason: 'location_chip', text: t };
+        }
+        return open;
+      }
+    }
+    return { clicked: false };
+  }
+
   var adapter = {
     id: 'bayt',
     name: 'Bayt',
@@ -34,6 +55,25 @@
       { kind: 'cover', match: 'cover' }
     ],
     fill: function (ctx) {
+      var doc = (ctx && ctx.document) || (typeof document !== 'undefined' ? document : null);
+      var apply = clickBaytApplyStart(doc);
+      if (apply && apply.clicked) {
+        return {
+          ok: true,
+          adapterId: 'bayt',
+          clickedApplyStart: true,
+          reDetect: true,
+          handedOff: true,
+          deferToPageAdapter: true,
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          message: 'Bayt: clicked "' + (apply.text || 'Apply') + '" — not location search',
+          applyStartText: apply.text || 'Apply',
+          error: null
+        };
+      }
       var fb = global.FillApplyFallbackAdapter;
       if (!fb) {
         return { ok: false, adapterId: 'bayt', error: 'Fallback adapter missing', filled: 0, unmatched: 0, total: 0 };

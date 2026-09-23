@@ -1,5 +1,5 @@
 /**
- * On-page floating panel: relevance gating, corner positioning, three buttons.
+ * On-page floating panel: relevance gating, corner positioning, Start/Pause/Cancel.
  *
  * Run: node scripts/smoke-page-panel.js
  */
@@ -33,6 +33,8 @@ const JOB_FORM = `
   suite.equal(P.normalizeRunMode('Auto Navigate'), 'navigate', 'Auto Navigate maps to navigate');
   suite.equal(P.normalizeRunMode('Auto Ready'), 'ready', 'Auto Ready maps to ready');
   suite.equal(P.normalizeRunMode('Auto Submit'), 'submit', 'Auto Submit maps to submit');
+  suite.equal(P.normalizeRunMode('jobpool'), 'submit', 'jobpool maps to submit');
+  suite.equal(P.normalizeRunMode('Current page'), 'submit', 'Current page maps to submit');
   suite.equal(P.normalizeRunMode('ready'), 'ready', 'ready stays ready');
   suite.equal(P.normalizeRunMode('nope'), 'fill', 'unknown mode falls back to fill');
 
@@ -68,19 +70,20 @@ const JOB_FORM = `
   const viewport = { width: 1280, height: 800 };
   const panel = { width: P.PANEL_WIDTH, height: P.PANEL_HEIGHT };
 
+  // Keep-outs on the right (Simplify-like) — panel should prefer LEFT.
   const titleAndCta = [
-    { left: 40, top: 24, right: 640, bottom: 80 },
-    { left: 40, top: 520, right: 220, bottom: 564 }
+    { left: 640, top: 24, right: 1240, bottom: 80 },
+    { left: 1040, top: 520, right: 1260, bottom: 564 }
   ];
-  const br = P.pickAnchor(viewport, panel, titleAndCta);
-  suite.equal(br.id, 'bottom-right', 'default empty corner is bottom-right');
-  suite.ok(br.overlap === 0, 'bottom-right does not overlap title/CTA keep-outs');
+  const bl = P.pickAnchor(viewport, panel, titleAndCta);
+  suite.ok(/left/.test(bl.id), 'default prefers a left slot (got ' + bl.id + ')');
+  suite.ok(bl.overlap === 0, 'left slot does not overlap keep-outs');
 
-  const bottomRightBlocked = titleAndCta.concat([
-    { left: 1040, top: 620, right: 1264, bottom: 784 }
+  const bottomLeftBlocked = titleAndCta.concat([
+    { left: 16, top: 620, right: 240, bottom: 784 }
   ]);
-  const next = P.pickAnchor(viewport, panel, bottomRightBlocked);
-  suite.ok(next.id !== 'bottom-right', 'blocked bottom-right yields another slot (' + next.id + ')');
+  const next = P.pickAnchor(viewport, panel, bottomLeftBlocked);
+  suite.ok(next.id !== 'bottom-left' || next.overlap === 0, 'blocked bottom-left yields usable slot (' + next.id + ')');
   suite.ok(next.overlap === 0, 'fallback slot still avoids keep-outs');
 
   const midLeft = P.slotRect({ id: 'mid-left', v: 'mid', h: 'left' }, viewport, panel, 16);
@@ -88,7 +91,7 @@ const JOB_FORM = `
   suite.ok(midLeft.top > 200 && midLeft.top < 500, 'mid-left is vertically centered');
 })();
 
-(function mountsFiveButtonsInShadow() {
+(function mountsStartPauseCancel() {
   const page = createPage(JOB_FORM, LIBS);
   const P = page.window.FillApplyPagePanel;
   const host = page.document.getElementById(P.HOST_ID) || P.mount(page.document);
@@ -97,20 +100,73 @@ const JOB_FORM = `
   suite.ok(host.style.position === 'fixed', 'host is position:fixed (not a page overlay)');
 
   const shadow = host.shadowRoot;
-  const register = shadow.querySelector('[data-mode="register"]');
-  const fill = shadow.querySelector('[data-mode="fill"]');
-  const navigate = shadow.querySelector('[data-mode="navigate"]');
-  const ready = shadow.querySelector('[data-mode="ready"]');
-  const submit = shadow.querySelector('[data-mode="submit"]');
-  suite.ok(register && register.textContent === 'Auto Register', 'Auto Register button');
-  suite.ok(fill && fill.textContent === 'Auto Fill', 'Auto Fill button');
-  suite.ok(navigate && navigate.textContent === 'Auto Navigate', 'Auto Navigate button');
-  suite.ok(ready && ready.textContent === 'Auto Ready', 'Auto Ready button');
-  suite.ok(submit && submit.textContent === 'Auto Submit', 'Auto Submit button');
+  const start = shadow.querySelector('[data-action="start"]');
+  const pauseToggle = shadow.querySelector('[data-action="pause-toggle"]');
+  const cancel = shadow.querySelector('[data-action="cancel"]');
+  suite.ok(start && start.textContent === 'Start', 'Start button');
+  suite.ok(pauseToggle && /Pause|Resume/.test(pauseToggle.textContent), 'Pause/Resume toggle');
+  suite.ok(cancel && cancel.textContent === 'Cancel', 'Cancel button');
+  suite.ok(!shadow.querySelector('[data-action="companion"]'), 'No Companion button');
+  suite.ok(!shadow.querySelector('[data-action="jobpool"]'), 'No separate JobPool button');
+  suite.ok(!shadow.querySelector('[data-action="current"]'), 'No separate Current page button');
+  suite.ok(!shadow.querySelector('[data-action="stop"]'), 'No Stop button (renamed Cancel)');
+  suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No Auto Register mode button');
+  suite.ok(!shadow.querySelector('[data-mode="fill"]'), 'No Auto Fill mode button');
+  const wrap = shadow.querySelector('.wrap');
+  suite.ok(wrap && !wrap.classList.contains('collapsed'), 'Panel always expanded');
   suite.ok(!!shadow.querySelector('.status'), 'status line is present');
 
   const style = shadow.querySelector('style');
   suite.ok(style && /pointer-events:\s*auto/.test(style.textContent), 'panel CSS isolates pointer-events to itself');
+
+  // Smart entry: JobPool hub vs page
+  suite.equal(
+    P.detectSmartEntry && P.isJobPoolHubUrl
+      ? P.isJobPoolHubUrl('https://zahid-jobpool.vercel.app/fill-apply')
+        ? 'jobpool'
+        : 'current'
+      : 'missing',
+    'jobpool',
+    'hub URL detects jobpool entry'
+  );
+  suite.ok(
+    P.isJobPoolHubUrl && !P.isJobPoolHubUrl('https://boards.greenhouse.io/x/jobs/1'),
+    'employer page is not JobPool hub'
+  );
+
+  // Pause/Resume toggle labels
+  P.setPanelPhase('running');
+  P.syncActionButtons();
+  suite.equal(pauseToggle.textContent, 'Pause', 'running shows Pause');
+  suite.equal(pauseToggle.getAttribute('data-mode'), 'pause', 'data-mode=pause while running');
+  P.setPanelPhase('paused');
+  P.syncActionButtons();
+  suite.equal(pauseToggle.textContent, 'Resume', 'paused shows Resume');
+  suite.equal(pauseToggle.getAttribute('data-mode'), 'resume', 'data-mode=resume while paused');
+  P.setPanelPhase('idle');
+  P.syncActionButtons();
+  suite.ok(pauseToggle.disabled, 'Pause disabled when idle');
+})();
+
+(function jobPoolApplicationsPanel() {
+  const page = createPage(JOB_FORM, LIBS);
+  const P = page.window.FillApplyPagePanel;
+  suite.ok(
+    P.isRelevantPage('https://zahid-jobpool.vercel.app/fill-apply', page.document),
+    'JobPool /fill-apply hub shows page panel'
+  );
+  suite.ok(
+    P.isRelevantPage('https://zahid-jobpool.vercel.app/applications', page.document),
+    'JobPool Applications shows page panel (legacy)'
+  );
+  suite.ok(
+    P.isRelevantPage('https://zahid-jobpool.vercel.app/applications?tab=ready', null),
+    'JobPool Applications relevant without DOM'
+  );
+  suite.ok(
+    P.KNOWN_HOST_RE.test('zahid-jobpool.vercel.app'),
+    'KNOWN_HOST_RE includes JobPool'
+  );
 })();
 
 suite.finish();

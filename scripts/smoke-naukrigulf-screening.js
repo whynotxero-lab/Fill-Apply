@@ -12,8 +12,10 @@ const LIBS = [
   'lib/dom-deep.js',
   'lib/format.js',
   'lib/synonyms.js',
+  'lib/screening-intent.js',
   'lib/field-map.js',
   'lib/files.js',
+  'lib/question-bank-store.js',
   'content/fill.js',
   'adapters/boards/naukrigulf.js'
 ];
@@ -23,12 +25,18 @@ const PROFILE = {
   lastName: 'Ali',
   city: 'Riyadh',
   location: 'Riyadh',
+  country: 'Saudi Arabia',
   noticePeriod: 'Immediately available',
   phoneFull: '+966501234567',
   phoneE164: '+966501234567',
-  salaryText: '0 AED / SAR (Currently available for immediate joining)',
+  currentSalary: '25000 AED',
+  expectedSalary: '30000 AED',
+  salaryText: '25000 AED',
+  yearsExperience: '15+',
+  currentCompany: 'SIXT / Samara',
+  summary: '15+ years FP&A leadership across KSA/MENA',
   certifications: 'ACCA — UK; CMA',
-  skills: 'Oracle ERP, SAP, Sage',
+  skills: 'Excel, Power BI, Oracle ERP, SAP, FP&A, IFRS, VAT',
   customAnswers: {
     'Are you a qualified CA or ACCA?': 'Yes',
     qualified_ca_or_acca: 'Yes',
@@ -46,12 +54,16 @@ const PROFILE = {
     oacpa_attested: '',
     experience_letters_available: '',
     'What is your notice Period?': 'Immediately available',
-    'What is your current Remuneration?': '0 AED / SAR (Currently available for immediate joining)',
+    'What is your current Remuneration?': '25000 AED',
     contracting_finance_experience:
       'Over 15 years of finance leadership across MENA including Big Four (PwC) audit of contracting firms.',
     notice_period: 'Immediately available',
-    current_remuneration: '0 AED / SAR (Currently available for immediate joining)',
-    salary_text: '3000 SAR'
+    current_remuneration: '25000 AED',
+    expected_salary: '30000 AED',
+    salary_text: '25000 AED',
+    based_in_uae: 'No',
+    located_in_uae: 'No',
+    qualified_ca: 'No'
   }
 };
 
@@ -184,13 +196,13 @@ const SHARED_LABEL_MODAL = `
   suite.ok(/immediate/i.test(notice), 'Notice Period filled (got ' + JSON.stringify(notice) + ')');
 
   const rem = page.document.getElementById('rem').value;
-  suite.ok(/0 AED|immediate/i.test(rem), 'Remuneration filled (got ' + JSON.stringify(rem).slice(0, 80) + ')');
+  suite.ok(/25000|AED/i.test(rem) && !/^Immediately available$/i.test(String(rem).trim()), 'Remuneration filled without bare notice (got ' + JSON.stringify(rem).slice(0, 80) + ')');
 
   const loc = page.document.getElementById('loc').value;
   suite.ok(/Riyadh/i.test(loc), 'Location filled (got ' + JSON.stringify(loc) + ')');
 
   const sal = page.document.getElementById('sal').value;
-  suite.ok(sal.length > 0, 'Current Salary filled (got ' + JSON.stringify(sal).slice(0, 80) + ')');
+  suite.ok(sal.length > 0 && !/immediate/i.test(sal), 'Current Salary filled without notice (got ' + JSON.stringify(sal).slice(0, 80) + ')');
 
   const exp = page.document.getElementById('exp').value;
   suite.ok(/PwC|contracting|MENA|15/i.test(exp), 'Contracting textarea filled');
@@ -224,6 +236,122 @@ const SHARED_LABEL_MODAL = `
 
   const erpY = pageS.document.querySelector('input[name="erp"][value="Yes"]');
   suite.ok(erpY && erpY.checked, 'ERP Yes selected');
+
+
+  // --- Screening intent guards ---
+  const SI = page.window.FillApplyScreeningIntent;
+  suite.ok(SI && typeof SI.classify === 'function', 'screening-intent loaded');
+  suite.ok(SI.classify('Please elaborate your experience with IFRS, VAT, taxation') === SI.INTENT.IFRS_TAX, 'classify IFRS');
+  suite.ok(SI.isForbiddenValue(SI.INTENT.IFRS_TAX, 'Riyadh'), 'city forbidden on IFRS essay');
+  suite.ok(SI.isForbiddenValue(SI.INTENT.UAE_BASED, 'Immediately available'), 'notice forbidden on UAE');
+  suite.ok(SI.isForbiddenValue(SI.INTENT.SALARY_CURRENT, 'Immediately available'), 'notice forbidden on salary');
+
+  // --- DIFC Confidential screening (live bad-fill reproduction) ---
+  const DIFC_HTML = `
+<div role="dialog" class="modal easy-apply" id="difc">
+  <h2>Confidential Company Finance Manager DIFC Dubai</h2>
+  <div class="q">
+    <div class="label">Are you a qualified Chartered Accountant (CA)? If yes, please mention the year of qualification and years of post qualification experience</div>
+    <label><input type="radio" name="caq" value="Yes" /> Yes</label>
+    <label><input type="radio" name="caq" value="No" /> No</label>
+  </div>
+  <div class="field">
+    <label for="bankFs">Please mention your years of experience in Banking/Financial Services and your most recent employer</label>
+    <textarea id="bankFs" name="bankFs"></textarea>
+  </div>
+  <div class="field">
+    <label for="ifrs">Please elaborate your experience with IFRS, VAT, taxation and finalization of financial statements</label>
+    <textarea id="ifrs" name="ifrs"></textarea>
+  </div>
+  <div class="field">
+    <label for="sox">Please provide examples of your experience with audit coordination, SOX, risk management and internal controls</label>
+    <textarea id="sox" name="sox"></textarea>
+  </div>
+  <div class="q">
+    <div class="label">Are you currently based in UAE and available for in-person interview in Dubai DIFC?</div>
+    <label><input type="radio" name="uae" value="Yes" /> Yes</label>
+    <label><input type="radio" name="uae" value="No" /> No</label>
+    <textarea id="uaeDetail" name="uaeDetail"></textarea>
+  </div>
+  <div class="field">
+    <label for="curSal">Current salary (AED/month)</label>
+    <input id="curSal" name="currentSalary" />
+  </div>
+  <div class="field">
+    <label for="expSal">Expected salary (AED/month)</label>
+    <input id="expSal" name="expectedSalary" />
+  </div>
+  <div class="field">
+    <label for="notice2">Notice period</label>
+    <input id="notice2" name="noticePeriod" />
+  </div>
+  <button type="button">Submit &amp; Apply</button>
+</div>`;
+
+  const pageD = createPage(DIFC_HTML, LIBS);
+  const QB = pageD.window.FillApplyQuestionBank;
+  if (QB && typeof QB.upsert === 'function') {
+    await QB.upsert({
+      question: 'Please elaborate your experience with IFRS, VAT, taxation and finalization of financial statements',
+      answer:
+        'Hands-on IFRS reporting support, VAT/tax coordination and financial statement finalization through FP&A close cycles. Tools: Excel, Power BI, Oracle/SAP.',
+      aliases: ['IFRS, VAT, taxation']
+    });
+    await QB.upsert({
+      question: 'Please provide examples of your experience with audit coordination, SOX, risk management and internal controls',
+      answer:
+        'Supported audit coordination and control-minded FP&A packs (variances, reconciliations, evidence for review). Familiar with risk-aware close and internal control hygiene.',
+      aliases: ['SOX', 'audit coordination', 'internal controls']
+    });
+    await QB.upsert({
+      question: 'Are you currently based in UAE and available for in-person interview in Dubai DIFC?',
+      answer: 'No',
+      aliases: ['based in UAE', 'Dubai DIFC']
+    });
+  }
+
+  const rD = await pageD.window.FillApply_naukrigulfAdapter.fill({
+    profile: PROFILE,
+    document: pageD.document,
+    url: 'https://www.naukrigulf.com/job/difc-finance-manager',
+    runMode: 'fill'
+  });
+  suite.ok(rD && rD.ok !== false, 'DIFC modal fill ok');
+
+  const caqNo = pageD.document.querySelector('input[name="caq"][value="No"]');
+  suite.ok(caqNo && caqNo.checked, 'DIFC: CA-only → No');
+
+  const ifrsVal = pageD.document.getElementById('ifrs').value;
+  suite.ok(!!ifrsVal && !/^(Riyadh|Jeddah|Dubai|KSA|UAE)$/i.test(ifrsVal.trim()), 'city must not fill IFRS essay');
+  suite.ok(
+    /IFRS|VAT|FP&A|Excel|Power BI|Oracle|SAP|finalization|tax/i.test(ifrsVal),
+    'IFRS essay has finance content (got ' + JSON.stringify(ifrsVal).slice(0, 120) + ')'
+  );
+
+  const soxVal = pageD.document.getElementById('sox').value;
+  suite.ok(!!soxVal && !/^(Riyadh|Immediately available)$/i.test(soxVal.trim()), 'SOX essay not blank/city/notice');
+  suite.ok(/audit|SOX|control|FP&A|risk/i.test(soxVal), 'SOX essay has control content');
+
+  const bankVal = pageD.document.getElementById('bankFs').value;
+  suite.ok(!!bankVal && !/^Riyadh$/i.test(bankVal.trim()), 'Banking/FS not city-only');
+  suite.ok(/15|SIXT|Samara|finance|FP&A|year/i.test(bankVal), 'Banking/FS has years/employer');
+
+  const uaeNo = pageD.document.querySelector('input[name="uae"][value="No"]');
+  suite.ok(uaeNo && uaeNo.checked, 'DIFC: UAE based → No');
+
+  const uaeDetail = pageD.document.getElementById('uaeDetail').value;
+  suite.ok(
+    !uaeDetail || /^(no)$/i.test(uaeDetail.trim()) || !/immediate/i.test(uaeDetail),
+    'notice must not fill UAE question (got ' + JSON.stringify(uaeDetail) + ')'
+  );
+
+  const curSal = pageD.document.getElementById('curSal').value;
+  const expSal = pageD.document.getElementById('expSal').value;
+  const notice2 = pageD.document.getElementById('notice2').value;
+  suite.ok(/25000|AED/i.test(curSal) && !/immediate/i.test(curSal), 'notice must not fill salary (current=' + curSal + ')');
+  suite.ok(/30000|25000|AED/i.test(expSal) && !/immediate/i.test(expSal), 'expected salary not notice');
+  suite.ok(/immediate/i.test(notice2), 'notice period keeps notice text');
+
 
   // Submit mode should not pause for CA question
   const page2 = createPage(MODAL_HTML, LIBS);

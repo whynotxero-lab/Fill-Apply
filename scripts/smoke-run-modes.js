@@ -11,6 +11,7 @@ const LIBS = [
   'lib/dom-deep.js',
   'lib/format.js',
   'lib/synonyms.js',
+  'lib/nav-first.js',
   'lib/field-map.js',
   'lib/files.js',
   'content/fill.js',
@@ -57,9 +58,9 @@ function wireClicks(doc) {
   });
   suite.ok(fillResult.ok, 'fill mode completes');
   suite.equal(fillPage.document.getElementById('fn').value, 'Sample', 'fill mode writes mapped fields');
-  suite.equal(fillClicks.continue, 0, 'fill mode does not click Continue');
+  suite.ok(fillClicks.continue >= 1, 'fill mode clicks Continue after fill (nav-first)');
   suite.equal(fillClicks.submit, 0, 'fill mode does not click Submit');
-  suite.equal(!!fillResult.advanced, false, 'fill result is not advanced');
+  suite.ok(!!fillResult.advanced, 'fill result is advanced after Next/Continue');
   suite.equal(!!fillResult.submitted, false, 'fill result is not submitted');
 
   const readyPage = createPage(FORM, LIBS);
@@ -105,6 +106,7 @@ function wireClicks(doc) {
   } else {
     suite.ok(true, 'navigate skipped — adapter shape differs in this harness');
   }
+
 
   suite.finish();
 })().catch(function (err) {
