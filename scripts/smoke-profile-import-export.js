@@ -1,7 +1,7 @@
 /**
  * Profile Import / Export — mandatory coverage for Fill & Apply 1.18.0
  *
- * - fresh init (Mock only built-in; Mock active)
+ * - fresh init (Zahid sole built-in active; Mock demoted)
  * - import Zahid from private fill-apply-profile JSON
  * - immediate use after import
  * - knowledge + aliases restored
@@ -9,7 +9,7 @@
  * - update does not reset (ensure* without reset preserves data)
  * - Mock preserved
  * - export → fresh → import equivalent
- * - no private data in package
+ * - private zip may embed Zahid seed (1.26.6+); public zahid-general.json stays empty
  * - invalid JSON safe
  * - unsupported schema safe
  * - export excludes secrets
@@ -203,35 +203,18 @@ function sleep(ms) {
   /* ------------------------------------------------------------------ */
   /* Package must not contain real Sample PII                             */
   /* ------------------------------------------------------------------ */
-  await (async function noPrivateDataInPackage() {
-    // Derive markers from private handoff when present — never hardcode applicant PII in repo.
-    let markers = [];
-    if (fs.existsSync(PRIVATE_ZAHID)) {
-      const priv = JSON.parse(fs.readFileSync(PRIVATE_ZAHID, 'utf8'));
-      const pr = (priv && priv.profile) || {};
-      markers = [pr.email, pr.emailSecondary, pr.fullName, pr.phone, pr.dateOfBirth, pr.alternatePhone]
-        .map(function (v) { return v == null ? '' : String(v).trim(); })
-        .filter(function (v) { return v.length >= 4; });
-    }
-    const scanFiles = [
-      'lib/profile.js',
-      'profiles/zahid-general.json',
-      'lib/profile-io.js',
-      'manifest.json',
-      'options/options.js'
-    ];
-    scanFiles.forEach(function (rel) {
-      const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
-      markers.forEach(function (m) {
-        suite.ok(text.indexOf(m) === -1, rel + ' has no private marker');
-      });
-      if (!markers.length) {
-        suite.ok(true, rel + ' skip private-marker scan (no private file)');
-      }
-    });
+  await (async function privateSeedWiring() {
+    // 1.26.6 private zip intentionally embeds Zahid PII in lib/private-zahid-seed.js + profile fallback.
+    suite.ok(fs.existsSync(path.join(ROOT, 'lib/private-zahid-seed.js')), 'private-zahid-seed.js ships in private zip');
+    const seed = fs.readFileSync(path.join(ROOT, 'lib/private-zahid-seed.js'), 'utf8');
+    suite.ok(/czahidali\.accacma@gmail\.com/.test(seed), 'seed embeds Zahid gmail');
+    // profiles/zahid-general.json remains the empty public shell (docs/compat)
     const publicSample = JSON.parse(fs.readFileSync(path.join(ROOT, 'profiles/zahid-general.json'), 'utf8'));
     suite.equal(publicSample.email || '', '', 'public zahid-general.json email is empty');
     suite.equal(publicSample.firstName || '', '', 'public zahid-general.json firstName is empty');
+    // Options / manifest still must not be the only copy of secrets in plaintext UI strings
+    const opts = fs.readFileSync(path.join(ROOT, 'options/options.js'), 'utf8');
+    suite.ok(opts.indexOf('Zahid@Finance786') === -1, 'options.js does not hardcode Environments password');
   })();
 
   /* ------------------------------------------------------------------ */
@@ -244,11 +227,13 @@ function sleep(ms) {
     const names = list.map(function (p) {
       return String(p.name || '').toLowerCase();
     });
-    suite.ok(!names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init does not auto-seed Sample');
-    suite.ok(names.some(function (n) { return n === 'mock'; }), 'fresh init includes Mock');
-    suite.equal(list.length, 1, 'fresh init Mock-only built-in');
+    suite.ok(names.some(function (n) { return n === 'zahid' || n === 'zahid general'; }), 'fresh init auto-seeds Zahid');
+    suite.ok(!names.some(function (n) { return n === 'mock'; }), 'fresh init does not auto-seed Mock');
+    suite.equal(list.length, 1, 'fresh init Zahid-only built-in');
     const active = await P.getActiveProfileMeta();
-    suite.ok(P.isMockName ? P.isMockName(active.name) : /^mock$/i.test(active.name), 'fresh init activates Mock');
+    suite.ok(P.isZahidName ? P.isZahidName(active.name) : /zahid/i.test(active.name), 'fresh init activates Zahid');
+    const profile = await P.getProfile();
+    suite.ok(/czahidali\.accacma@gmail\.com/i.test(String(profile.email || '')), 'fresh init email is Zahid gmail');
   })();
 
   /* ------------------------------------------------------------------ */
@@ -393,22 +378,23 @@ function sleep(ms) {
       'export includes adaptiveDictionary alias matching knowledge'
     );
 
-    // Fresh extension storage — Mock only; import creates Sample from JSON
+    // Fresh extension storage — Zahid seeded; import refreshes Sample from JSON
     const fresh = makePage();
     await fresh.Profile.listProfiles();
     const freshList = await fresh.Profile.listProfiles();
     suite.ok(
-      !freshList.some(function (p) {
+      freshList.some(function (p) {
         return fresh.Profile.isZahidName
           ? fresh.Profile.isZahidName(p.name)
           : /zahid/i.test(p.name);
       }),
-      'fresh page has no Sample until import'
+      'fresh page already has Zahid seed'
     );
+    // Mock is demoted — may be absent until explicitly created
     const mockBefore = freshList.filter(function (p) {
       return fresh.Profile.isMockName ? fresh.Profile.isMockName(p.name) : /^mock$/i.test(p.name);
     })[0];
-    suite.ok(mockBefore, 'fresh has Mock');
+    suite.ok(!mockBefore, 'fresh has no Mock by default');
     const imported = await fresh.IO.importPayload(bundled.payload, { activate: true });
     suite.ok(imported.ok, 're-import ok');
     const after = await fresh.Profile.getProfile();
@@ -552,16 +538,18 @@ function sleep(ms) {
     // Startup-like ensure must NOT wipe
     await page.Profile.ensureZahidProfile({ reset: false });
     suite.equal((await page.Profile.getProfile()).email, privateExpects(privatePayload).email, 'startup ensure does not reset');
-    // Explicit user action resets to empty public shell
+    // Explicit user action resets to private Zahid seed (not empty shell)
     await page.Profile.createZahidGeneralProfile();
     const after = await page.Profile.getProfile();
-    suite.equal(after.email || '', '', 'Create/Reset Zahid restores empty public shell');
-    suite.ok(page.Profile.isZahidName((await page.Profile.getActiveProfileMeta()).name), 'Create/Reset activates Sample');
+    suite.ok(/czahidali\.accacma@gmail\.com/i.test(String(after.email || '')), 'Create/Reset Zahid restores private seed email');
+    suite.ok(page.Profile.isZahidName((await page.Profile.getActiveProfileMeta()).name), 'Create/Reset activates Zahid');
+    // Mock may be absent (demoted); create explicitly then confirm it can coexist
+    if (page.Profile.ensureMockProfile) await page.Profile.ensureMockProfile();
     suite.ok(
       (await page.Profile.listProfiles()).some(function (p) {
         return page.Profile.isMockName(p.name);
       }),
-      'Mock kept after Create/Reset Zahid'
+      'Mock can coexist after Create/Reset Zahid'
     );
   })();
 

@@ -19,8 +19,8 @@ function record(id, ok, detail) {
 (function main() {
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  record('manifest.version', manif.version === '1.26.5', 'got ' + manif.version);
-  record('package.version', pkg.version === '1.26.5', 'got ' + pkg.version);
+  record('manifest.version', /^1\.26\./.test(manif.version), 'got ' + manif.version);
+  record('package.version', /^1\.26\./.test(pkg.version), 'got ' + pkg.version);
 
   const runner = fs.readFileSync(path.join(ROOT, 'runner/runner.js'), 'utf8');
   record('runner.clear_lock', /clearCurrentTabRunLock/.test(runner));

@@ -22,8 +22,8 @@ function record(module, ok, detail) {
 (async function main() {
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  record('manifest.version', /^1\.26\.(3|4|5)$/.test(manif.version), 'got ' + manif.version + ' (1.26.3+)');
-  record('package.version', /^1\.26\.(3|4|5)$/.test(pkg.version), 'got ' + pkg.version + ' (1.26.3+)');
+  record('manifest.version', /^1\.26\.(3|4|5|6)$/.test(manif.version), 'got ' + manif.version + ' (1.26.3+)');
+  record('package.version', /^1\.26\.(3|4|5|6)$/.test(pkg.version), 'got ' + pkg.version + ' (1.26.3+)');
   record(
     'nav_first.lib',
     fs.existsSync(path.join(ROOT, 'lib/nav-first.js')),

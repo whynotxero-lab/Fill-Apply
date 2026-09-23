@@ -16,8 +16,8 @@ const ROOT = path.join(__dirname, '..');
 (function versions() {
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  suite.equal(manif.version, '1.26.5', 'manifest 1.26.5');
-  suite.equal(pkg.version, '1.26.5', 'package 1.26.5');
+  suite.ok(/^1\.26\./.test(manif.version), 'manifest 1.26.x (got ' + manif.version + ')');
+  suite.ok(/^1\.26\./.test(pkg.version), 'package 1.26.x (got ' + pkg.version + ')');
 })();
 
 (function stuckRunClear() {

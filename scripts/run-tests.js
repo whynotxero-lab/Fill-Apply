@@ -67,7 +67,9 @@ const SUITES = [
   'smoke-auto-apply-entries.js',
   'smoke-panel-start-pause.js',
   'smoke-1.26.5-stuck-bayt-workable.js',
-  'smoke-e2e-module-validation-1.26.5.js'
+  'smoke-e2e-module-validation-1.26.5.js',
+  'smoke-1.26.6-seed-gulftalent-oracle.js',
+  'smoke-e2e-module-validation-1.26.6.js'
 ];
 
 let failed = 0;

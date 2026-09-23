@@ -7,6 +7,7 @@
 importScripts(
   '../lib/types.js',
   '../lib/storage.js',
+  '../lib/private-zahid-seed.js',
   '../lib/profile.js',
   '../lib/profile-io.js',
   '../lib/knowledge-policy.js',
@@ -49,8 +50,20 @@ chrome.runtime.onInstalled.addListener(function (details) {
   configureSidePanel();
   if (details.reason === 'install') {
     console.log(
-      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Import a profile, then use Auto Apply (Start / Pause·Resume / Cancel) on job pages.'
+      '[Fill & Apply] Installed. Zahid profile seeded as active — Start works immediately. Click the toolbar icon for Auto Apply (Start / Pause·Resume / Cancel).'
     );
+  }
+  // Private seed: Zahid sole built-in active profile + Environments password + QB/adaptive
+  if (typeof FillApplyPrivateZahidSeed !== 'undefined' && FillApplyPrivateZahidSeed.ensureInstalled) {
+    FillApplyPrivateZahidSeed.ensureInstalled({
+      force: details.reason === 'install' || details.reason === 'update'
+    }).then(function (r) {
+      console.log('[Fill & Apply] Private Zahid seed:', (r && r.detail) || 'ok');
+    }).catch(function (e) {
+      console.warn('[Fill & Apply] Private Zahid seed failed:', e);
+    });
+  } else if (typeof FillApplyProfile !== 'undefined' && FillApplyProfile.ensureDefaultProfiles) {
+    FillApplyProfile.ensureDefaultProfiles({ forceZahidActive: true }).catch(function () {});
   }
   if (typeof FillApplySourceProfiles !== 'undefined' && FillApplySourceProfiles.ensureSourceProfileShells) {
     FillApplySourceProfiles.ensureSourceProfileShells().catch(function () {});
@@ -94,6 +107,9 @@ chrome.runtime.onInstalled.addListener(function (details) {
 
 chrome.runtime.onStartup.addListener(function () {
   configureSidePanel();
+  if (typeof FillApplyPrivateZahidSeed !== 'undefined' && FillApplyPrivateZahidSeed.ensureInstalled) {
+    FillApplyPrivateZahidSeed.ensureInstalled({ force: false }).catch(function () {});
+  }
 });
 
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
