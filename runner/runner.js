@@ -1755,20 +1755,27 @@
         }
         if (hubHost) {
           try {
-            if (new URL(t.url).hostname === hubHost && /application/i.test(t.url)) {
+            if (
+              new URL(t.url).hostname === hubHost &&
+              /\/fill-apply|\/applications?/i.test(t.url)
+            ) {
               hubTabId = t.id;
               break;
             }
           } catch (_e2) {}
         }
       }
-      // Fallback: scan titles / URLs for Applications hub hints
+      // Fallback: scan titles / URLs for Fill-Apply / Applications hub hints
       if (hubTabId == null) {
         for (let j = 0; j < tabs.length; j++) {
           const t2 = tabs[j];
           if (!t2 || !t2.url) continue;
           const blob = String(t2.title || '') + ' ' + String(t2.url || '');
-          if (/Intelligent Opportunity Hub|JobPool/i.test(blob) && /application/i.test(blob)) {
+          if (
+            (/Intelligent Opportunity Hub|JobPool|zahid-jobpool/i.test(blob) &&
+              /fill-apply|application/i.test(blob)) ||
+            /\/fill-apply(?:\/|$|\?)/i.test(String(t2.url || ''))
+          ) {
             hubTabId = t2.id;
             break;
           }

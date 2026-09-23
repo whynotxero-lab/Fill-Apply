@@ -1,26 +1,42 @@
 <!DOCTYPE html>
 <html>
 <body>
-  <h1>Fill-Apply</h1>
-  <p>Process scored jobs ready for application. Open the application, complete it externally, then record the result — processed jobs move to Logs.</p>
-  <section>
-    <h2>Fill-Apply queue (33)</h2>
-    <p>33 jobs ready, highest score first.</p>
-    <div data-slot="card" class="card">
-      <div>efinancialcareers:24519857</div>
-      <h3>Chief Finance Officer</h3>
-      <div class="score">84</div>
-      <button type="button">Open Application</button>
-      <button type="button">Applied Successfully</button>
-      <button type="button">Application Issue</button>
-      <button type="button">Blocked</button>
-    </div>
-    <div data-slot="card" class="card">
-      <div>naukrigulf:310826000846</div>
-      <h3>Finance Manager</h3>
-      <button type="button">Open Application</button>
-      <button type="button">Applied Successfully</button>
-    </div>
-  </section>
+  <aside role="navigation" class="sidebar" data-sidebar>
+    <a id="nav-fill-apply" href="/fill-apply">Fill-Apply</a>
+    <a id="nav-applications" href="/applications">Applications</a>
+    <a id="nav-logs" href="/logs">Logs</a>
+  </aside>
+  <main>
+    <h1>Fill-Apply</h1>
+    <p>Process scored jobs ready for application. Open the application, complete it externally, then record the result — processed jobs move to Logs.</p>
+    <section>
+      <h2>Fill-Apply queue (33)</h2>
+      <p>33 jobs ready, highest score first.</p>
+      <div data-slot="card" class="card" data-job-id="indeed:f695eca6770ba2aa">
+        <div>indeed:f695eca6770ba2aa</div>
+        <h3>Finance Analyst</h3>
+        <div class="score">91</div>
+        <button type="button" id="open-1">Open Application</button>
+        <button type="button" id="mark-1">Applied Successfully</button>
+        <button type="button">Application Issue</button>
+        <button type="button">Blocked</button>
+      </div>
+      <div data-slot="card" class="card">
+        <div>efinancialcareers:24519857</div>
+        <h3>Chief Finance Officer</h3>
+        <div class="score">84</div>
+        <button type="button" id="open-2">Open Application</button>
+        <button type="button" id="mark-2">Applied Successfully</button>
+        <button type="button">Application Issue</button>
+        <button type="button">Blocked</button>
+      </div>
+      <div data-slot="card" class="card">
+        <div>naukrigulf:310826000846</div>
+        <h3>Finance Manager</h3>
+        <button type="button">Open Application</button>
+        <button type="button">Applied Successfully</button>
+      </div>
+    </section>
+  </main>
 </body>
 </html>

@@ -274,55 +274,103 @@
     return candidates[0] || doc;
   }
 
+  function isNavChromeEl(el, S) {
+    if (!el) return true;
+    try {
+      if (S && S.isNavigationChrome && S.isNavigationChrome(el)) return true;
+      if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(buttonText(el))) return true;
+    } catch (_n) {}
+    return false;
+  }
+
+  function cardScopeFor(el) {
+    if (!el || !el.closest) return null;
+    return (
+      el.closest(
+        '[data-slot="card"], [data-fill-apply-card], [data-job-id], [data-jobpool-job-id], article, li.card, .card, [class*="card"]'
+      ) || null
+    );
+  }
+
+  /** Prefer cards that also expose Applied Successfully / Application Issue. */
+  function looksLikeJobCard(card) {
+    if (!card) return false;
+    try {
+      var t = String(card.innerText || card.textContent || '').slice(0, 4000);
+      if (/Open\s*Application/i.test(t) && /Applied\s*Successfully|Application\s*Issue|Mark\s*as\s*applied/i.test(t)) {
+        return true;
+      }
+    } catch (_e) {}
+    return false;
+  }
+
   function findFirstReadyApply(doc) {
     doc = doc || document;
     var S = syn();
     var root = findReadySection(doc);
 
-    // Stable stamps first, DOM order
+    // Stable stamps first, DOM order — skip nav chrome
     try {
       var stamped = root.querySelectorAll
         ? root.querySelectorAll('[data-fill-apply="jobpool-apply"], [data-fill-apply="apply-start"]')
         : [];
       for (var si = 0; si < stamped.length; si++) {
         var se = stamped[si];
+        if (isNavChromeEl(se, S)) continue;
         if (!visible(se)) continue;
         var st = buttonText(se);
         if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(st)) continue;
-        if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(st)) continue;
         return se;
       }
     } catch (_e0) {}
 
-    // Fill-Apply hub (2026): primary CTA is "Open Application" (button or link).
+    // Fill-Apply hub (2026): primary CTA is card-scoped "Open Application".
     // Soft visibility: list cards may be below the fold; still clickable.
+    // Never match left-nav "Fill-Apply".
     try {
-      var nodesOpen = root.querySelectorAll
-        ? root.querySelectorAll('a, button, input[type="button"], [role="button"], [data-slot="card"] button, [data-slot="card"] a')
-        : [];
-      for (var oi = 0; oi < nodesOpen.length; oi++) {
-        var oel = nodesOpen[oi];
-        var ot = buttonText(oel).replace(/\s+/g, ' ').trim();
-        if (!ot) continue;
-        if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(ot)) continue;
-        if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(ot)) continue;
-        var isOpen =
-          (S && S.isOpenApplicationCta && S.isOpenApplicationCta(ot)) ||
-          /^open\s*application$/i.test(ot);
-        if (!isOpen) continue;
-        // Prefer visible; allow first few off-screen Open Application CTAs (SPA lists).
-        if (!visible(oel)) {
-          var rOpen = null;
-          try {
-            rOpen = oel.getBoundingClientRect();
-          } catch (_rO) {}
-          if (!rOpen || (rOpen.width < 2 && rOpen.height < 2)) continue;
-          if (oi > 8) continue;
+      var cardRoots = [];
+      try {
+        var cards = (root.querySelectorAll &&
+          root.querySelectorAll(
+            '[data-slot="card"], [data-fill-apply-card], [data-job-id], article.card, .card, [class*="card"]'
+          )) ||
+          [];
+        for (var ci = 0; ci < cards.length; ci++) {
+          if (looksLikeJobCard(cards[ci]) || /Open\s*Application/i.test(String(cards[ci].innerText || ''))) {
+            cardRoots.push(cards[ci]);
+          }
         }
-        try {
-          oel.setAttribute('data-fill-apply', 'jobpool-apply');
-        } catch (_st0) {}
-        return oel;
+      } catch (_cr) {}
+      var searchRoots = cardRoots.length ? cardRoots : [root];
+      for (var ri = 0; ri < searchRoots.length; ri++) {
+        var scope = searchRoots[ri];
+        var nodesOpen = scope.querySelectorAll
+          ? scope.querySelectorAll('a, button, input[type="button"], [role="button"]')
+          : [];
+        for (var oi = 0; oi < nodesOpen.length; oi++) {
+          var oel = nodesOpen[oi];
+          if (isNavChromeEl(oel, S)) continue;
+          var ot = buttonText(oel).replace(/\s+/g, ' ').trim();
+          if (!ot) continue;
+          if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(ot)) continue;
+          var isOpen =
+            (S && S.isOpenApplicationCta && S.isOpenApplicationCta(ot)) ||
+            /^open\s*application$/i.test(ot);
+          if (!isOpen) continue;
+          // Prefer visible; allow first few off-screen Open Application CTAs (SPA lists).
+          if (!visible(oel)) {
+            var rOpen = null;
+            try {
+              rOpen = oel.getBoundingClientRect();
+            } catch (_rO) {}
+            if (!rOpen || (rOpen.width < 2 && rOpen.height < 2)) continue;
+            if (oi > 8 && ri > 2) continue;
+          }
+          try {
+            oel.setAttribute('data-fill-apply', 'jobpool-apply');
+          } catch (_st0) {}
+          return oel;
+        }
       }
     } catch (_eo) {}
 
@@ -332,6 +380,7 @@
       var anchors = root.querySelectorAll ? root.querySelectorAll('a[href]') : [];
       for (var ai = 0; ai < anchors.length; ai++) {
         var ael = anchors[ai];
+        if (isNavChromeEl(ael, S)) continue;
         if (!visible(ael) && ai > 0) {
           // Still allow first few off-screen Ready cards — JobPool list is long
           var r0 = null;
@@ -353,25 +402,27 @@
       : [];
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
+      if (isNavChromeEl(el, S)) continue;
       if (!visible(el)) continue;
       var t = buttonText(el).replace(/\s+/g, ' ').trim();
       if (!t) continue;
       if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(t)) continue;
-      if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(t)) continue;
-      // Exact / near "Apply" — not "Mark as applied", not long sentences
+      // Exact / near "Apply" — not "Mark as applied", not long sentences, not Fill-Apply nav
       if (/^open\s*application$/i.test(t)) return el;
       if (/^apply(\s*now)?$/i.test(t)) return el;
       if (S && S.isJobpoolApplyDataCta && S.isJobpoolApplyDataCta(el)) return el;
     }
-    // Softer: short Apply CTAs in ready section
+    // Softer: short Apply CTAs in ready section — still never Fill-Apply / nav
     for (var j = 0; j < nodes.length; j++) {
       var el2 = nodes[j];
+      if (isNavChromeEl(el2, S)) continue;
       if (!visible(el2)) continue;
       var t2 = buttonText(el2).replace(/\s+/g, ' ').trim();
       if (!t2 || t2.length > 24) continue;
       if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(t2)) continue;
-      if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(t2)) continue;
-      if (/\bapply\b/i.test(t2) && !/mark/i.test(t2)) return el2;
+      // Require bare Apply / Apply Now — not hyphenated page titles like Fill-Apply
+      if (/^apply(\s*now)?$/i.test(t2)) return el2;
+      if (/\bapply\b/i.test(t2) && !/mark|fill/i.test(t2) && cardScopeFor(el2)) return el2;
     }
     return null;
   }

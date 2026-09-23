@@ -34,7 +34,10 @@ const expectFalse = [
   'Subscribe',
   'Share',
   'Save job',
-  'Easy Apply' // LinkedIn-owned; generic start excludes
+  'Easy Apply', // LinkedIn-owned; generic start excludes
+  'Fill-Apply', // JobPool sidebar / page nav — never Apply-start
+  'Applications',
+  'Logs'
 ];
 
 let failed = 0;
