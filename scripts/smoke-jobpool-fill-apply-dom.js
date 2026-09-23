@@ -99,10 +99,12 @@ const html = fs.readFileSync(
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No multi-mode Register');
   suite.ok(shadow.querySelector('[data-action="companion"]') || shadow.querySelector('[data-mode="companion"]'), 'Companion present');
 
-  // --- Start + Companion both click Open Application (incl. stale pending); never nav ---
+  // --- Without pending: Start/Companion/Submit click Open Application once; never nav ---
+  // --- With durable pending: NEVER re-click Open Application; return handoff flags ---
   async function clickModes() {
     const modes = ['fill', 'companion', 'submit'];
     for (const mode of modes) {
+      // Fresh hub — no pending → open once
       const p = createPage(html, [
         'lib/dom-deep.js',
         'lib/synonyms.js',
@@ -130,24 +132,35 @@ const html = fs.readFileSync(
           });
         }
       });
-      const hub = w.FillApplyJobPoolHub;
-      await hub.setPendingMark({
-        jobId: 'indeed:f695eca6770ba2aa',
-        title: 'Stale',
-        clickedAt: Date.now() - 600000,
-        hubUrl: url
-      });
       try {
         Object.defineProperty(w, 'location', {
           value: { href: url },
           configurable: true
         });
       } catch (_e) {}
+      const hub = w.FillApplyJobPoolHub;
+      await hub.clearPendingMark();
       const out = await hub.fill({ runMode: mode });
       suite.ok(out && (out.jobpoolHubApply || out.clickedApplyStart), mode + ' opens application (got flags)');
-      suite.ok(clicks >= 1, mode + ' clicked Open Application (clicks=' + clicks + ')');
+      suite.ok(clicks === 1, mode + ' clicked Open Application exactly once (clicks=' + clicks + ')');
       suite.ok(navHit === 0, mode + ' did NOT click nav Fill-Apply');
-      suite.ok(!out.jobpoolPending, mode + ' did not keep stale pending without click');
+
+      // Durable pending — second fill must NOT re-click Open Application
+      let clicks2 = 0;
+      d.querySelectorAll('button').forEach(function (btn) {
+        if (/open\s*application/i.test(btn.textContent || '')) {
+          btn.addEventListener('click', function () {
+            clicks2 += 1;
+          });
+        }
+      });
+      const pending = await hub.getPendingMark();
+      suite.ok(pending && pending.jobId, mode + ' pending persisted after open');
+      const out2 = await hub.fill({ runMode: mode });
+      suite.ok(out2 && out2.jobpoolAlreadyOpened, mode + ' reports already opened');
+      suite.ok(out2 && (out2.jobpoolHubApply || out2.clickedApplyStart), mode + ' still returns handoff flags');
+      suite.ok(clicks2 === 0, mode + ' did NOT re-click Open Application (clicks2=' + clicks2 + ')');
+      suite.ok(navHit === 0, mode + ' still did NOT click nav');
     }
   }
   await clickModes();

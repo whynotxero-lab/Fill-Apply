@@ -51,7 +51,7 @@
     }
     if (doc) {
       try {
-        var text = ((doc.body && doc.body.innerText) || '').slice(0, 10000);
+        var text = ((doc.body && (doc.body.innerText || doc.body.textContent)) || '').slice(0, 10000);
         if (/software\s+powered\s+by\s+icims/i.test(text)) return true;
         if (/powered\s+by\s+icims/i.test(text)) return true;
         if (
@@ -108,7 +108,9 @@
 
   function pageText(doc) {
     try {
-      return doc && doc.body ? String(doc.body.innerText || '').slice(0, 14000) : '';
+      if (!doc || !doc.body) return '';
+      // jsdom has empty innerText — fall back to textContent for login/welcome detection
+      return String(doc.body.innerText || doc.body.textContent || '').slice(0, 14000);
     } catch (_e) {
       return '';
     }
@@ -512,7 +514,17 @@
     var welcomeCopy = /welcome|start your application|begin application|i accept/i.test(text);
     // Welcome is Email + I accept + Next — NOT the Candidate Profile create-login step
     if (/create a login|candidate profile|submit profile/i.test(text)) return false;
-    return hasEmail && hasAccept && hasNext && (powered || welcomeCopy);
+    // Login/welcome gate: email + accept + Next is enough (copy may be in iframes / jsdom)
+    if (hasEmail && hasAccept && hasNext) {
+      try {
+        var href = String((doc.defaultView && doc.defaultView.location && doc.defaultView.location.href) || '');
+        if (/\/login/i.test(href) || /icims\.com/i.test(href)) return true;
+      } catch (_h) {}
+      if (powered || welcomeCopy) return true;
+      // Checkbox present + Next + Email is the Riyadh Air / iCIMS welcome gate
+      if (doc.querySelector('input[type="checkbox"]')) return true;
+    }
+    return false;
   }
 
   function fillWelcomeStep(doc, profile) {
@@ -1335,8 +1347,9 @@
     return /finish\s*later|save\s*for\s*later|save\s*and\s*exit/i.test(String(t || ''));
   }
 
-  function clickSubmitProfile(doc) {
+  function clickSubmitProfile(doc, profile) {
     doc = doc || document;
+    profile = profile || {};
     // Never click Submit Profile while Create login / password fields are visible
     // (SSO Connected/Disconnect without passwords is OK — needsAuthPause is false)
     if (needsAuthPause(doc, profile)) return false;
@@ -1358,8 +1371,9 @@
     return false;
   }
 
-  function clickSubmit(doc) {
+  function clickSubmit(doc, profile) {
     doc = doc || document;
+    profile = profile || {};
     if (needsAuthPause(doc, profile)) return false;
     var nodes = doc.querySelectorAll(
       'button, input[type="submit"], input[type="button"], a[role="button"], [role="button"]'
@@ -1573,7 +1587,7 @@
 
           // Auth cleared — Submit Profile only in submit mode
           if (runMode === 'submit') {
-            if (clickSubmitProfile(doc)) {
+            if (clickSubmitProfile(doc, profile)) {
               submitted = true;
               advanced = true;
               await sleep(humanDelay(700));
@@ -1709,13 +1723,13 @@
               );
             }
 
-            if (clickSubmitProfile(doc)) {
+            if (clickSubmitProfile(doc, profile)) {
               submitted = true;
               advanced = true;
               await sleep(humanDelay(600));
               continue;
             }
-            if (formLooksComplete(doc) && clickSubmit(doc)) {
+            if (formLooksComplete(doc) && clickSubmit(doc, profile)) {
               submitted = true;
               await sleep(humanDelay(400));
               break;
@@ -1725,7 +1739,7 @@
               await sleep(humanDelay(600));
               continue;
             }
-            if (clickSubmit(doc)) {
+            if (clickSubmit(doc, profile)) {
               submitted = true;
               await sleep(humanDelay(400));
               break;

@@ -1527,6 +1527,8 @@
         target: { tabId: tabId, allFrames: false },
         world: 'ISOLATED',
         func: async function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg, focusHudArg, paceArg) {
+        profileArg = profileArg || {};
+        documentsArg = documentsArg || {};
           // Re-use same body via nested call is impossible here; mirror thin path:
           // Prefer registry detect + fill when scripts already injected.
           try {
@@ -1537,18 +1539,18 @@
               );
               if (adapter && typeof adapter.fill === 'function') {
                 return await adapter.fill({
-                  profile: profileArg,
-                  documents: documentsArg,
+                  profile: profileArg || {},
+                  documents: documentsArg || {},
                   runMode: runModeArg || 'fill',
                   options: { runMode: runModeArg || 'fill', preferIndeedApply: preferIndeedApplyArg }
                 });
               }
             }
             if (globalThis.__fillApply && typeof globalThis.__fillApply.run === 'function') {
-              return await globalThis.__fillApply.run(profileArg, {
+              return await globalThis.__fillApply.run(profileArg || {}, {
                 highlightUnmatched: false,
                 runMode: runModeArg || 'fill',
-                documents: documentsArg
+                documents: documentsArg || {}
               });
             }
           } catch (e) {
@@ -2174,9 +2176,46 @@
     return { result: fillResult, tabId: currentTabId };
   }
 
+
+  /** Prefer newest non-hub http(s) tab after Open Application (hub often stays focused). */
+  async function pickEmployerTabAfterHubOpen(hubTabId) {
+    try {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      let best = null;
+      let bestScore = -1;
+      for (let i = 0; i < (tabs || []).length; i++) {
+        const t = tabs[i];
+        if (!t || t.id == null || t.id === hubTabId) continue;
+        const url = String(t.url || t.pendingUrl || '');
+        if (!/^https?:/i.test(url)) continue;
+        if (isJobPoolHubUrl(url)) continue;
+        let score = t.id || 0;
+        if (t.active) score += 500;
+        if (/apply|application|login|candidate|icims|workday|greenhouse|lever|ashby|smartrecruiters/i.test(url)) {
+          score += 200;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          best = t;
+        }
+      }
+      return best;
+    } catch (_e) {
+      return null;
+    }
+  }
+
   function isJobPoolHubUrl(url) {
-    return /zahid-jobpool\.vercel\.app/i.test(String(url || '')) &&
-      /\/fill-apply|\/applications?/i.test(String(url || ''));
+    var u = String(url || '');
+    if (!u) return false;
+    try {
+      if (global.FillApplySynonyms && typeof global.FillApplySynonyms.isJobPoolHubPage === 'function') {
+        if (global.FillApplySynonyms.isJobPoolHubPage(null, u, {})) return true;
+      }
+    } catch (_e) {}
+    if (/\/fill-apply(?:\/|$|\?)/i.test(u)) return true;
+    if (/jobpool/i.test(u) && /\/(fill-apply|applications?)(?:\/|$|\?)/i.test(u)) return true;
+    return false;
   }
 
   function isRestrictedTabUrl(url) {
@@ -2619,7 +2658,7 @@
           // Retry once on JobPool hub if Open Application was not clicked (SPA / stale pending).
           if (
             hubCompanion &&
-            !(startResult && (startResult.jobpoolHubApply || startResult.clickedApplyStart || startResult.externalApply))
+            !(startResult && (startResult.jobpoolHubApply || startResult.jobpoolAlreadyOpened || startResult.clickedApplyStart || startResult.externalApply))
           ) {
             await sleep(800);
             startResult = await injectAndFill(
@@ -2632,16 +2671,41 @@
               { maxAttempts: 2 }
             );
           }
-          if (startResult && (startResult.jobpoolHubApply || startResult.clickedApplyStart || startResult.externalApply)) {
+          if (startResult && (startResult.jobpoolHubApply || startResult.jobpoolAlreadyOpened || startResult.clickedApplyStart || startResult.externalApply)) {
             notifyPagePanel(tabId, {
               state: 'NAVIGATING',
               message: 'Application opened — companion navigate / waiting for Simplify…'
             });
             await sleep(1200);
+            const hubTabId = tabId;
             try {
-              const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-              if (tabs && tabs[0] && tabs[0].id != null) tabId = tabs[0].id;
+              let employer = await pickEmployerTabAfterHubOpen(hubTabId);
+              if (!employer) {
+                await sleep(1500);
+                employer = await pickEmployerTabAfterHubOpen(hubTabId);
+              }
+              if (employer && employer.id != null) {
+                tabId = employer.id;
+                try {
+                  await chrome.tabs.update(tabId, { active: true });
+                } catch (_act) {}
+              } else {
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tabs && tabs[0] && tabs[0].id != null && tabs[0].id !== hubTabId) {
+                  tabId = tabs[0].id;
+                }
+              }
             } catch (_t) {}
+            // Never keep companion looping on the JobPool hub after open.
+            try {
+              const cur = await chrome.tabs.get(tabId);
+              if (cur && isJobPoolHubUrl(cur.url)) {
+                notifyPagePanel(hubTabId, {
+                  state: 'NAVIGATING',
+                  message: 'Open Application done — focus the employer tab to continue companion navigate'
+                });
+              }
+            } catch (_hubStay) {}
           } else if (hubCompanion) {
             const errMsg =
               (startResult && startResult.error) ||

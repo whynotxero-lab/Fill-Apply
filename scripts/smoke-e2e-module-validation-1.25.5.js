@@ -41,8 +41,8 @@ const FILL_LIBS = [
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
   record(
     'manifest.version',
-    manif.version === '1.25.5',
-    'got ' + manif.version
+    (manif.version === '1.25.5' || manif.version === '1.25.6'),
+    'got ' + manif.version + ' (accept 1.25.5+)'
   );
   record(
     'manifest.sidepanel_removed',

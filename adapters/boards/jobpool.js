@@ -172,7 +172,9 @@
           jobId: payload.jobId != null ? String(payload.jobId) : null,
           title: payload.title || null,
           clickedAt: payload.clickedAt || Date.now(),
-          hubUrl: payload.hubUrl || null
+          hubUrl: payload.hubUrl || null,
+          opened: payload.opened !== false,
+          openClickedAt: payload.openClickedAt || payload.clickedAt || Date.now()
         }
       : null;
     return storageSet({ [PENDING_KEY]: next }).then(function () {
@@ -617,45 +619,33 @@
           }
 
           /**
-           * Stale pending on hub with a visible Open Application must NOT block
-           * Start / Companion / Fill — that was leaving Companion stuck on
-           * "Waiting for Simplify…" without opening. Keep pending only for
-           * ready-mode batch revisit when no Open Application CTA is present.
+           * Durable pending: after a successful Open Application click, NEVER
+           * click Open Application again for that job until marked / failed /
+           * cleared. Companion must not loop; Start continues on employer tab.
+           * Return handoff flags so the runner adopts the employer tab.
            */
           var applyBtnEarly = findFirstReadyApply(doc);
-          var forceOpen =
-            runMode === 'companion' ||
-            runMode === 'fill' ||
-            runMode === 'register' ||
-            runMode === 'navigate' ||
-            runMode === 'submit' ||
-            !!(ctx.forceJobPoolApply || (ctx.options && ctx.options.forceJobPoolApply));
 
           if (pending && !shouldMark && !forceMark) {
-            if (applyBtnEarly && forceOpen) {
-              // Clear stale pending and fall through to Open Application click.
-              return clearPendingMark().then(function () {
-                return openApplyAndHandoff(doc, href, applyBtnEarly);
-              });
-            }
-            if (!applyBtnEarly || runMode === 'ready') {
-              return {
-                ok: true,
-                adapterId: 'jobpool',
-                jobpoolPending: true,
-                jobId: pending.jobId,
-                filled: 0,
-                unmatched: 0,
-                total: 0,
-                submitted: false,
-                message:
-                  'JobPool pending mark kept — waiting for employer submit success before Applied Successfully'
-              };
-            }
-            // Open Application visible in other modes → clear + open
-            return clearPendingMark().then(function () {
-              return openApplyAndHandoff(doc, href, applyBtnEarly);
-            });
+            return {
+              ok: true,
+              adapterId: 'jobpool',
+              jobpoolPending: true,
+              jobpoolAlreadyOpened: true,
+              jobpoolHubApply: true,
+              clickedApplyStart: true,
+              externalApply: true,
+              deferToPageAdapter: true,
+              handedOff: true,
+              jobId: pending.jobId,
+              pendingMark: pending,
+              filled: 0,
+              unmatched: 0,
+              total: 0,
+              submitted: false,
+              message:
+                'JobPool Open Application already clicked for pending job — continuing employer tab (no re-open)'
+            };
           }
 
           var applyBtn = applyBtnEarly || findFirstReadyApply(doc);
@@ -682,7 +672,9 @@
       jobId: jobId,
       title: title,
       clickedAt: Date.now(),
-      hubUrl: href
+      hubUrl: href,
+      opened: true,
+      openClickedAt: Date.now()
     }).then(function (saved) {
       var employerUrl = '';
       try {

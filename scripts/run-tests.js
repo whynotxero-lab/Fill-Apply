@@ -58,7 +58,8 @@ const SUITES = [
   'smoke-title-honorific-enquiry.js',
   'smoke-phone-cv-persistence.js',
   'smoke-private-profile-release.js',
-  'smoke-e2e-module-validation-1.25.5.js'
+  'smoke-e2e-module-validation-1.25.5.js',
+  'smoke-e2e-module-validation-1.25.6.js'
 ];
 
 let failed = 0;
