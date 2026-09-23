@@ -58,6 +58,7 @@ const SUITES = [
   'smoke-phone-cv-persistence.js',
   'smoke-private-profile-release.js',
   'smoke-e2e-module-validation-1.26.0.js',
+  'smoke-e2e-module-validation-1.26.1.js',
   'smoke-auto-apply-entries.js'
 ];
 

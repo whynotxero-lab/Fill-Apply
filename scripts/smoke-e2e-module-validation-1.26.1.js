@@ -1,8 +1,8 @@
 /**
- * E2E module validation for 1.26.0 — Companion removed; Auto Apply JobPool/Current page.
+ * E2E module validation for 1.26.1 — Companion removed; NaukriGulf screening intent-safe fill; Auto Apply JobPool/Current page.
  * Preserves JobPool Open-once + Applied Successfully + iCIMS profile||{} fixes.
  *
- * Run: node scripts/smoke-e2e-module-validation-1.26.0.js
+ * Run: node scripts/smoke-e2e-module-validation-1.26.1.js
  */
 'use strict';
 
@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { createPage, createSuite } = require('./test-harness');
 
-const suite = createSuite('smoke-e2e-module-validation-1.26.0');
+const suite = createSuite('smoke-e2e-module-validation-1.26.1');
 const ROOT = path.join(__dirname, '..');
 const matrix = [];
 
@@ -21,7 +21,7 @@ function record(module, ok, detail) {
 
 (async function main() {
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-  record('manifest.version', /^1\.26\./.test(manif.version), 'got ' + manif.version + ' (1.26.x)');
+  record('manifest.version', manif.version === '1.26.1', 'got ' + manif.version);
   record('manifest.sidePanel', manif.permissions.indexOf('sidePanel') !== -1, 'permission');
   record(
     'companion.deleted',
@@ -38,7 +38,27 @@ function record(module, ok, detail) {
   record('panel.jobpool_btn', /data-action=['\"]jobpool['\"]/.test(panelSrc), 'JobPool');
   record('panel.current_btn', /data-action=['\"]current['\"]/.test(panelSrc), 'Current page');
   record('panel.stop_btn', /data-action=['\"]stop['\"]/.test(panelSrc), 'Stop');
-  record('panel.no_companion', !/data-action=['\"]companion['\"]/.test(panelSrc), 'no Companion');
+  record('panel.no_companion', !/data-action=['"]companion['"]/.test(panelSrc), 'no Companion');
+
+  record(
+    'screening.intent_lib',
+    fs.existsSync(path.join(ROOT, 'lib/screening-intent.js')),
+    'lib/screening-intent.js'
+  );
+  const intentSrc = fs.readFileSync(path.join(ROOT, 'lib/screening-intent.js'), 'utf8');
+  record('screening.forbid_city', /looksLikeGeoOnly|isForbiddenValue/.test(intentSrc), 'geo guard');
+  record('screening.forbid_notice', /looksLikeNoticeOnly/.test(intentSrc), 'notice guard');
+  const ngSrc = fs.readFileSync(path.join(ROOT, 'adapters/boards/naukrigulf.js'), 'utf8');
+  record('ng.uses_screening_intent', /FillApplyScreeningIntent/.test(ngSrc), 'adapter wired');
+  const runnerSrc = fs.readFileSync(path.join(ROOT, 'runner/runner.js'), 'utf8');
+  record('runner.injects_screening_intent', /screening-intent\.js/.test(runnerSrc), 'INJECT_FILES');
+  record(
+    'faq.ng_screening_seeds',
+    /ifrsVatTaxExperience|basedInUae|caOnly|soxAuditControlsExperience|bankingFsYearsEmployer/.test(
+      fs.readFileSync(path.join(ROOT, 'lib/ats-faq-seed.js'), 'utf8')
+    ),
+    'FAQ seeds'
+  );
 
   const page = createPage(
     `<main><h1>Job</h1><form><input name="email" type="email" /><button>Apply</button></form></main>`,
@@ -111,7 +131,6 @@ function record(module, ok, detail) {
     'profile||{} present'
   );
 
-  const runnerSrc = fs.readFileSync(path.join(ROOT, 'runner/runner.js'), 'utf8');
   record('runner.no_companion', !/runCompanionOnTab/.test(runnerSrc), 'no companion loop');
   record(
     'runner.jobpool_mark',
@@ -119,7 +138,7 @@ function record(module, ok, detail) {
     'Applied Successfully path intact'
   );
 
-  console.log('\n=== 1.26.0 E2E module validation matrix ===');
+  console.log('\n=== 1.26.1 E2E module validation matrix ===');
   matrix.forEach(function (row) {
     console.log((row.ok ? 'PASS' : 'FAIL') + '  ' + row.module + (row.detail ? ' — ' + row.detail : ''));
   });

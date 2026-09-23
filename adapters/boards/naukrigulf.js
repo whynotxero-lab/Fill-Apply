@@ -556,6 +556,9 @@
     var lab = norm(cleanLabel(label));
     if (!lab) return null;
 
+    var SI = global.FillApplyScreeningIntent;
+    var intent = SI && SI.classify ? SI.classify(label) : null;
+
     var map = profile && profile.customAnswers;
     if (map && typeof map === 'object' && !Array.isArray(map)) {
       var keys = Object.keys(map);
@@ -564,15 +567,31 @@
       for (var i = 0; i < keys.length; i++) {
         var k = norm(keys[i]);
         if (!k) continue;
+        // Geo / notice keys must not substring-match long experience essays
+        var geoOrNoticeKey = /^(city|location|country|state|notice|notice period|notice_period|availability|available|based_in)$/i.test(
+          k
+        );
+        if (geoOrNoticeKey && lab.length > 40) {
+          var essayLab = /experience|ifrs|vat|tax|sox|audit|elaborate|examples|skills|banking|employer|finalization/.test(
+            lab
+          );
+          if (essayLab) continue;
+          if (!(k === lab || lab.indexOf(k) !== -1 || k.indexOf(lab) !== -1)) continue;
+        }
         if (lab.indexOf(k) !== -1 || k.indexOf(lab) !== -1) {
           var score = Math.min(k.length, lab.length);
+          // Prefer longer key overlaps
+          if (k.length >= 12) score += 20;
           if (score > bestScore) {
             bestScore = score;
             best = map[keys[i]];
           }
         }
       }
-      if (best != null && String(best).trim() !== '') return String(best).trim();
+      if (best != null && String(best).trim() !== '') {
+        if (SI && intent && SI.isForbiddenValue(intent, best)) return null;
+        return String(best).trim();
+      }
     }
 
     if (global.FillApplyFieldMap && global.FillApplyFieldMap.matchCustomQA) {
@@ -1072,7 +1091,8 @@
     var ca = profile.customAnswers || {};
     var filled = 0;
     var details = [];
-    if (!modal) return { filled: filled, details: details };
+    var skipped = [];
+    if (!modal) return { filled: filled, details: details, skipped: skipped };
 
     function pick() {
       for (var i = 0; i < arguments.length; i++) {
@@ -1082,25 +1102,35 @@
       return '';
     }
 
+    var SI = global.FillApplyScreeningIntent;
+    var INTENT = SI && SI.INTENT;
+
     var notice = pick(
       ca['What is your notice Period?'],
       ca['Notice period'],
       ca.notice_period,
       ca.noticePeriod,
       ca.available_immediately,
-      profile.noticePeriod,
-      'Immediately available'
+      profile.noticePeriod
     );
-    var remuner = pick(
+    var currentSal = pick(
       ca['What is your current Remuneration?'],
       ca.current_remuneration,
       ca.current_salary_text,
+      ca.current_salary,
+      ca.currentSalary,
+      profile.currentSalary,
       ca.salary_text,
       ca.salary_display,
-      ca.ignite_salary,
-      profile.salaryText,
-      profile.currentSalary,
-      '0 AED / SAR (Currently available for immediate joining)'
+      profile.salaryText
+    );
+    var expectedSal = pick(
+      ca.expected_salary,
+      ca.expectedSalary,
+      ca['Expected salary'],
+      ca['Expected Salary (AED/month)'],
+      profile.expectedSalary,
+      currentSal
     );
     var contracting = pick(
       ca.contracting_finance_experience,
@@ -1114,8 +1144,7 @@
       ca['Primary work location'],
       ca.preferred_locations,
       profile.city,
-      profile.location,
-      'Riyadh'
+      profile.location
     );
     var phone = pick(profile.phoneFull, profile.phoneE164, ca.phone_full, ca.Phone);
 
@@ -1124,46 +1153,118 @@
       var el = controls[i];
       if (!visible(el) || el.disabled) continue;
       var type = String(el.type || '').toLowerCase();
-      if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'radio' || type === 'checkbox' || type === 'file') {
+      if (
+        type === 'hidden' ||
+        type === 'submit' ||
+        type === 'button' ||
+        type === 'radio' ||
+        type === 'checkbox' ||
+        type === 'file'
+      ) {
         continue;
       }
       var lab = cleanLabel(getLabelFor(el, modal) || el.name || el.placeholder || '');
       var nlab = norm(lab);
       if (!nlab) continue;
 
+      var intent = SI && SI.classify ? SI.classify(lab) : null;
       var value = '';
-      if (/notice\s*period|when can you (join|start)|availability|available|immediate/i.test(nlab)) {
-        value = notice;
-      } else if (/remuneration|current\s*(salary|ctc|pay)|salary|compensation|monthly\s*salary/i.test(nlab)) {
-        value = remuner;
-      } else if (/contracting|construction|years of relevant|finance\/accounting within/i.test(nlab)) {
-        value = contracting;
-      } else if (/location|city|based in|work location|where are you/i.test(nlab)) {
-        value = location;
-      } else if (/phone|mobile|telephone|contact number/i.test(nlab)) {
-        value = phone;
-      } else {
-        // generic customAnswers / knowledge lookup
-        value = answerFromCustom(profile, lab) || '';
+
+      // Prefer Question Bank when available (same page session)
+      try {
+        var QB = global.FillApplyQuestionBank;
+        if (QB && typeof QB.resolveLabel === 'function') {
+          var qbHit = QB.resolveLabel(lab);
+          if (qbHit && qbHit.value) value = String(qbHit.value).trim();
+        }
+      } catch (_qb) {}
+
+      if (!value && SI && typeof SI.resolveAnswer === 'function') {
+        var resolved = SI.resolveAnswer(lab, profile, '');
+        if (resolved && resolved.value) value = resolved.value;
+        intent = (resolved && resolved.intent) || intent;
       }
+
+      if (!value) {
+        if (intent && INTENT) {
+          if (intent === INTENT.NOTICE) value = notice;
+          else if (intent === INTENT.SALARY_CURRENT) value = currentSal;
+          else if (intent === INTENT.SALARY_EXPECTED) value = expectedSal;
+          else if (intent === INTENT.SALARY_GENERIC) value = currentSal || expectedSal;
+          else if (intent === INTENT.LOCATION_CITY) value = location;
+          else if (intent === INTENT.UAE_BASED) value = pick(ca.based_in_uae, ca.located_in_uae, 'No');
+          else if (intent === INTENT.CA_ONLY) value = pick(ca.qualified_ca, ca.ca_icai, 'No');
+          else if (/contracting|construction|finance\/accounting within/i.test(nlab)) value = contracting;
+          else if (/phone|mobile|telephone|contact number/i.test(nlab)) value = phone;
+          else value = answerFromCustom(profile, lab) || '';
+        } else {
+          // Legacy fallbacks — tightened so available/based-in cannot hijack essays
+          if (/notice\s*period|when can you (join|start)|serving notice|earliest (join|start)/i.test(nlab)) {
+            value = notice;
+          } else if (
+            /\bcurrent\b/i.test(nlab) &&
+            /remuneration|salary|ctc|compensation/i.test(nlab) &&
+            !/expected|desired/i.test(nlab)
+          ) {
+            value = currentSal;
+          } else if (/expected|desired/i.test(nlab) && /salary|ctc|remuneration|compensation/i.test(nlab)) {
+            value = expectedSal;
+          } else if (/remuneration|\bsalary\b|compensation|monthly\s*salary/i.test(nlab) && !/notice/i.test(nlab)) {
+            value = currentSal || expectedSal;
+          } else if (/contracting|construction|years of relevant|finance\/accounting within/i.test(nlab)) {
+            value = contracting;
+          } else if (
+            /^(location|city|town|current location|work location)\b/i.test(nlab) &&
+            nlab.length < 48 &&
+            !/uae|dubai|difc|ifrs|experience|salary|notice/i.test(nlab)
+          ) {
+            value = location;
+          } else if (/phone|mobile|telephone|contact number/i.test(nlab)) {
+            value = phone;
+          } else {
+            value = answerFromCustom(profile, lab) || '';
+          }
+        }
+      }
+
+      // Hard refuse: geo/notice/salary-alone into essays / UAE / salary boxes
+      if (value && SI && intent && typeof SI.isForbiddenValue === 'function') {
+        if (SI.isForbiddenValue(intent, value)) {
+          skipped.push({ label: lab, value: String(value).slice(0, 60), intent: intent, reason: 'forbidden_token' });
+          value = '';
+        }
+      }
+      if (
+        value &&
+        el.tagName === 'TEXTAREA' &&
+        SI &&
+        (SI.looksLikeGeoOnly(value) || SI.looksLikeNoticeOnly(value)) &&
+        /experience|ifrs|vat|tax|sox|audit|elaborate|examples|skills|employer|banking/i.test(nlab)
+      ) {
+        skipped.push({ label: lab, value: String(value).slice(0, 60), reason: 'essay_geo_or_notice' });
+        value = '';
+      }
+
       if (!value) continue;
       if (el.value && String(el.value).trim() !== '') continue;
 
       try {
         if (el.tagName === 'SELECT') {
-          // try match option
           var opts = el.options || [];
           var matched = false;
           for (var o = 0; o < opts.length; o++) {
             var ot = String(opts[o].text || opts[o].value || '');
-            if (norm(ot) === norm(value) || (norm(ot) && norm(value).indexOf(norm(ot)) !== -1) || (norm(ot) && norm(ot).indexOf(norm(value)) !== -1)) {
+            if (
+              norm(ot) === norm(value) ||
+              (norm(ot) && norm(value).indexOf(norm(ot)) !== -1) ||
+              (norm(ot) && norm(ot).indexOf(norm(value)) !== -1)
+            ) {
               el.selectedIndex = o;
               matched = true;
               break;
             }
           }
-          // Notice period selects often have "Immediate" / "Currently serving"
-          if (!matched && /notice|available/i.test(nlab)) {
+          if (!matched && intent === (INTENT && INTENT.NOTICE)) {
             for (var o2 = 0; o2 < opts.length; o2++) {
               var ot2 = String(opts[o2].text || '');
               if (/immediate|serving notice|0\s*day|available/i.test(ot2)) {
@@ -1183,12 +1284,12 @@
           el.dispatchEvent(new Event('change', { bubbles: true }));
         }
         filled++;
-        details.push({ label: lab, value: value.slice(0, 80) });
+        details.push({ label: lab, value: value.slice(0, 120), intent: intent || '' });
       } catch (_e) {
         /* ignore */
       }
     }
-    return { filled: filled, details: details };
+    return { filled: filled, details: details, skipped: skipped };
   }
 
   function answerModalQuestions(modal, profile, runMode) {
@@ -1636,7 +1737,8 @@
     isCaOnlyQuestion: isCaOnlyQuestion,
     isCaOrAccaQuestion: isCaOrAccaQuestion,
     fillModalFields: fillModalFields,
-    answerModalQuestions: answerModalQuestions
+    answerModalQuestions: answerModalQuestions,
+    answerFromCustom: answerFromCustom
   };
   global.FillApply_naukrigulfAdapter = adapter;
 })(typeof globalThis !== 'undefined' ? globalThis : self);

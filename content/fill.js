@@ -469,6 +469,32 @@
       }
     }
     if (salaryKeys[key] && (type === 'email' || type === 'tel' || type === 'url')) return false;
+
+    // Screening essays must never receive city / notice / salary-alone tokens
+    var SI = global.FillApplyScreeningIntent;
+    if (SI && typeof SI.classify === 'function') {
+      var intent = SI.classify(lab || descriptor.label || '');
+      if (SI.isForbiddenValue(intent, raw)) return false;
+      var essayish =
+        intent === SI.INTENT.IFRS_TAX ||
+        intent === SI.INTENT.SOX_AUDIT ||
+        intent === SI.INTENT.BANKING_FS ||
+        intent === SI.INTENT.EXPERIENCE_ESSAY;
+      if (essayish && (key === 'city' || key === 'location' || key === 'country' || key === 'noticePeriod')) {
+        return false;
+      }
+      if (intent === SI.INTENT.UAE_BASED && (key === 'noticePeriod' || key === 'city' || key === 'location')) {
+        return false;
+      }
+      if (
+        (intent === SI.INTENT.SALARY_CURRENT ||
+          intent === SI.INTENT.SALARY_EXPECTED ||
+          intent === SI.INTENT.SALARY_GENERIC) &&
+        key === 'noticePeriod'
+      ) {
+        return false;
+      }
+    }
     return true;
   }
 

@@ -67,6 +67,7 @@
     'lib/format.js',
     'lib/synonyms.js',
     'lib/pace.js',
+    'lib/screening-intent.js',
     'lib/field-map.js',
     'lib/control-adapter.js',
     'lib/ats-faq-seed.js',
