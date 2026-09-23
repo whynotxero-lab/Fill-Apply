@@ -1339,6 +1339,9 @@
     const results = await chrome.scripting.executeScript({
       target: Object.assign({ tabId: tabId }, INJECT_TARGET),
       func: async function (profileArg, documentsArg, runModeArg, preferIndeedApplyArg, focusHudArg, paceArg) {
+        profileArg = profileArg || {};
+        documentsArg = documentsArg || {};
+        try {
         // Let JobPool hub detect() match configured backend host without a hard-coded secret.
         try {
           globalThis.__fillApplyBackendBaseUrl =
@@ -1464,8 +1467,18 @@
           unmatched: 0,
           total: 0
         };
+        } catch (injectErr) {
+          return {
+            ok: false,
+            error: String((injectErr && injectErr.message) || injectErr),
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            injectException: true
+          };
+        }
       },
-      args: [profile, documents, runMode || 'fill', preferIndeedApply, focusHud, paceCfg]
+      args: [profile || {}, documents || {}, runMode || 'fill', preferIndeedApply, focusHud, paceCfg]
     });
 
     var best = pickBestFrameResult(results);
@@ -1518,7 +1531,7 @@
             total: 0
           };
         },
-        args: [profile, documents, runMode || 'fill', preferIndeedApply, focusHud, paceCfg]
+        args: [profile || {}, documents || {}, runMode || 'fill', preferIndeedApply, focusHud, paceCfg]
       });
       best = pickBestFrameResult(mainResults);
       if (best) {
@@ -2117,6 +2130,11 @@
     return { result: fillResult, tabId: currentTabId };
   }
 
+  function isJobPoolHubUrl(url) {
+    return /zahid-jobpool\.vercel\.app/i.test(String(url || '')) &&
+      /\/fill-apply|\/applications?/i.test(String(url || ''));
+  }
+
   function isRestrictedTabUrl(url) {
     if (!url) return true;
     if (/^chrome-extension:\/\//i.test(url)) return true;
@@ -2508,7 +2526,7 @@
     notifyPagePanel(tabId, { state: 'running', message: 'Starting ' + mode + '…' });
 
     try {
-      // Companion: navigate-only — skip profile/docs/fill entirely.
+      // Companion: clicks to start application + navigate Continues — never fill/upload.
       if (mode === 'companion') {
         const cfgCompanion = await S.getRunConfig();
         const mergedCfg = Object.assign({}, cfgCompanion || {}, {
@@ -2526,6 +2544,46 @@
               ? cfgCompanion.companionGraceMs
               : 4000
         });
+        // Minimal profile for adapters that expect ctx.profile (never throw if empty).
+        let profile = {};
+        try {
+          profile = (P ? await P.getProfile() : await B.getProfile()) || {};
+        } catch (_p) {
+          profile = {};
+        }
+        notifyPagePanel(tabId, {
+          state: 'running',
+          message: 'Companion — opening application (clicks only)…'
+        });
+        // Start application: JobPool Open Application / NaukriGulf Easy Apply / etc.
+        try {
+          const startResult = await injectAndFill(
+            tabId,
+            profile,
+            {},
+            'companion',
+            mergedCfg,
+            job,
+            { maxAttempts: 2 }
+          );
+          if (startResult && (startResult.jobpoolHubApply || startResult.clickedApplyStart || startResult.externalApply)) {
+            notifyPagePanel(tabId, {
+              state: 'NAVIGATING',
+              message: 'Application opened — companion navigate / waiting for Simplify…'
+            });
+            await sleep(1200);
+            try {
+              const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+              if (tabs && tabs[0] && tabs[0].id != null) tabId = tabs[0].id;
+            } catch (_t) {}
+          }
+        } catch (startErr) {
+          notifyPagePanel(tabId, {
+            state: 'error',
+            message: String((startErr && startErr.message) || startErr)
+          });
+          throw startErr;
+        }
         return await runCompanionOnTab(tabId, mergedCfg);
       }
 
@@ -2539,12 +2597,24 @@
         }
       }
 
-      let profile = P ? await P.getProfile() : await B.getProfile();
-      if (!(profile && (profile.email || profile.fullName || profile.firstName))) {
+      let profile = {};
+      try {
+        profile = (P ? await P.getProfile() : await B.getProfile()) || {};
+      } catch (profErr) {
+        profile = {};
+        console.warn('[FillApply] getProfile failed', profErr);
+      }
+      const hubOnly = isJobPoolHubUrl(tab.url);
+      if (
+        !hubOnly &&
+        !(profile && (profile.email || profile.fullName || profile.firstName))
+      ) {
         const err = new Error('Profile is empty. Open App Settings and fill identity first.');
         notifyPagePanel(tabId, { state: 'error', message: err.message });
         throw err;
       }
+      // Hub Open Application does not need identity; keep a plain object so inject never sees undefined.
+      if (!profile || typeof profile !== 'object') profile = {};
       if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.getEffectiveProfile) {
         try {
           profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);

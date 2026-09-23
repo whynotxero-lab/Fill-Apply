@@ -20,6 +20,7 @@ const SUITES = [
   'smoke-phone-full-choose-file.js',
   'smoke-hilton-consent-cv-learn.js',
   'smoke-naukrigulf-apply-fallback.js',
+  'smoke-naukrigulf-serp-easy-apply.js',
   'smoke-naukrigulf-screening.js',
   'smoke-trial-ats-dictionary.js',
   'smoke-michaelpage-fill.js',

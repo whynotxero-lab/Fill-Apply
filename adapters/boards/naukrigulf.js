@@ -359,6 +359,75 @@
     };
   }
 
+
+  /**
+   * Search / listing pages: first job card with Easy Apply (or Apply), skip already-Applied.
+   */
+  function findFirstListingApplyControl(doc) {
+    doc = doc || document;
+    var cards = [];
+    try {
+      var nodes = doc.querySelectorAll(
+        'article, li, [class*="jobCard"], [class*="job-card"], [class*="srp-job"], [class*="list-job"], [data-job-id], [class*="jobTuple"], [class*="tuple"]'
+      );
+      for (var i = 0; i < nodes.length; i++) {
+        var c = nodes[i];
+        if (!visible(c)) continue;
+        var txt = String(c.innerText || c.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!txt || txt.length < 20) continue;
+        if (!/\b(finance|manager|job|apply|dubai|uae|company)\b/i.test(txt) && !/easy\s*apply/i.test(txt)) {
+          continue;
+        }
+        cards.push(c);
+      }
+    } catch (_e) {}
+    // Prefer Easy Apply cards that are not already Applied
+    function cardScore(card) {
+      var t = String(card.innerText || '').replace(/\s+/g, ' ');
+      if (/\bApplied\b/i.test(t) && !/Easy\s*Apply/i.test(t)) return -1;
+      if (/^Applied$/im.test(t.split('\n').pop() || '')) return -1;
+      var s = 0;
+      if (/Easy\s*Apply/i.test(t)) s += 50;
+      if (/\bApply\b/i.test(t)) s += 10;
+      return s;
+    }
+    cards.sort(function (a, b) {
+      return cardScore(b) - cardScore(a);
+    });
+    for (var ci = 0; ci < cards.length; ci++) {
+      var card = cards[ci];
+      if (cardScore(card) < 0) continue;
+      // Prefer explicit Easy Apply / Apply control inside the card
+      var ctls = card.querySelectorAll
+        ? card.querySelectorAll('a, button, [role="button"], span[onclick], div[role="button"]')
+        : [];
+      var easy = null;
+      var apply = null;
+      var titleLink = null;
+      for (var j = 0; j < ctls.length; j++) {
+        var el = ctls[j];
+        if (!visible(el)) continue;
+        var bt = buttonText(el);
+        if (/easy\s*apply/i.test(bt)) {
+          easy = el;
+          break;
+        }
+        if (/^apply(\s*now)?$/i.test(bt) || /\bapply\b/i.test(bt) && bt.length < 24) {
+          if (!apply) apply = el;
+        }
+        if (!titleLink && el.tagName === 'A' && el.href && /job|jd|view/i.test(el.href + bt)) {
+          titleLink = el;
+        }
+      }
+      if (easy) return easy;
+      if (apply) return apply;
+      // Badge-only Easy Apply: open the job (title link) so detail page exposes Apply
+      if (/Easy\s*Apply/i.test(String(card.innerText || '')) && titleLink) return titleLink;
+      if (titleLink && cardScore(card) >= 10) return titleLink;
+    }
+    return null;
+  }
+
   function findEasyApplyButton(doc) {
     doc = doc || document;
     var nodes = doc.querySelectorAll(
@@ -1197,7 +1266,9 @@
     var profile = ctx.profile || {};
     var doc = (ctx && ctx.document) || (typeof document !== 'undefined' ? document : null);
     var runMode = ctx.runMode || (ctx.options && ctx.options.runMode) || 'fill';
-    if (['fill', 'ready', 'submit'].indexOf(runMode) === -1) runMode = 'fill';
+    if (['fill', 'ready', 'submit', 'navigate', 'companion'].indexOf(runMode) === -1) runMode = 'fill';
+    // Companion/navigate still must click Easy Apply / Apply to start — never fill fields below for companion.
+    var companionClicksOnly = runMode === 'companion' || runMode === 'navigate';
 
     var href = '';
     try {
@@ -1246,6 +1317,40 @@
 
       // Open Easy Apply if modal not already present
       if (!modal) {
+        // SERP / search results: click first Easy Apply / Apply listing
+        var listingBtn = findFirstListingApplyControl(doc);
+        if (listingBtn && !findEasyApplyModal(doc)) {
+          try {
+            if (clickApplyControl(listingBtn)) advanced = true;
+            await sleep(humanDelay(900));
+          } catch (_listClick) {}
+          modal = await waitForModal(doc, 5000);
+          // If we opened a job detail (no modal yet), try Easy Apply on the new view
+          if (!modal) {
+            var afterListEasy = findEasyApplyButton(doc);
+            if (afterListEasy) {
+              if (clickApplyControl(afterListEasy)) advanced = true;
+              await sleep(humanDelay(700));
+              modal = await waitForModal(doc, 8000);
+            }
+            if (!modal && advanced) {
+              return {
+                ok: true,
+                adapterId: 'naukrigulf',
+                clickedApplyStart: true,
+                reDetect: true,
+                filled: 0,
+                unmatched: 0,
+                total: 0,
+                advanced: true,
+                submitted: false,
+                step: 'listing_apply_open',
+                message: 'Opened first Easy Apply / Apply listing — continuing on job page',
+                runMode: runMode
+              };
+            }
+          }
+        }
         var applyBtn = findEasyApplyButton(doc);
         if (applyBtn) {
           try {
@@ -1384,6 +1489,27 @@
         };
       }
 
+      // Companion / navigate: clicks only — open Easy Apply / Apply, do not fill or submit.
+      if (companionClicksOnly) {
+        return {
+          ok: true,
+          adapterId: 'naukrigulf',
+          clickedApplyStart: true,
+          companion: runMode === 'companion',
+          navOnly: runMode === 'navigate' || runMode === 'companion',
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          advanced: !!advanced || !!modal,
+          submitted: false,
+          step: 'companion_apply_opened',
+          message: modal
+            ? 'Easy Apply opened — companion will not fill (Simplify / navigate owns fields)'
+            : 'Apply start clicked — companion clicks-only',
+          runMode: runMode
+        };
+      }
+
       var result = answerModalQuestions(modal, profile, runMode);
       totalFilled += result.filled || 0;
 
@@ -1483,6 +1609,7 @@
     detectProfileRedirect: detectProfileRedirect,
     findEasyApplyModal: findEasyApplyModal,
     findEasyApplyButton: findEasyApplyButton,
+    findFirstListingApplyControl: findFirstListingApplyControl,
     findStandardApplyButton: findStandardApplyButton,
     fieldMaps: [],
     submitSelector:
