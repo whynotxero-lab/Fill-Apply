@@ -255,7 +255,9 @@
       documents: documents,
       fileInputHints: fileInputHints,
       progressPlateauMs: options.progressPlateauMs,
-      runMode: runMode
+      runMode: runMode,
+      // Fallback owns Next/Continue — avoid double-click with fill.js nav-first
+      skipAdvance: true
     });
 
     // Apply-start open step: form not open yet — runner / Fill once should wait + re-detect
@@ -314,12 +316,33 @@
       });
     }
 
-    // ready / submit / navigate: click Next/Continue/Review (never Submit unless submit mode)
-    if (runMode === 'ready' || runMode === 'submit' || runMode === 'navigate') {
-      if (global.__fillApply.clickContinueButtons) {
+    // Nav-first (d): after fill, click Next/Continue/Review when present.
+    // Do not stop on filled N/N alone. Never Submit unless submit mode.
+    // fill mode also advances one hop (welcome/login gates + multi-step).
+    if (runMode === 'ready' || runMode === 'submit' || runMode === 'navigate' || runMode === 'fill') {
+      var shouldAdvance =
+        runMode !== 'fill' ||
+        (fillResult && (fillResult.filled > 0 || fillResult.documentStep));
+      if (shouldAdvance && global.__fillApply.clickContinueButtons) {
         const clicked = global.__fillApply.clickContinueButtons();
-        advanced = !!(clicked && clicked.length);
-        if (advanced) navigateSteps += 1;
+        advanced = !!(clicked && clicked.length) || !!(fillResult && fillResult.advanced);
+        if (clicked && clicked.length) navigateSteps += 1;
+      } else {
+        advanced = !!(fillResult && fillResult.advanced);
+      }
+      // If still not advanced but NavFirst says ADVANCE and we filled, force try
+      if (
+        !advanced &&
+        shouldAdvance &&
+        global.FillApplyNavFirst &&
+        typeof global.FillApplyNavFirst.decidePageAction === 'function'
+      ) {
+        var dec = global.FillApplyNavFirst.decidePageAction(document);
+        if (dec && dec.action === 'advance' && global.__fillApply.clickContinueButtons) {
+          const clicked2 = global.__fillApply.clickContinueButtons();
+          advanced = !!(clicked2 && clicked2.length);
+          if (advanced) navigateSteps += 1;
+        }
       }
     }
 
@@ -354,6 +377,7 @@
           documents: documents,
           fileInputHints: fileInputHints,
           skipApplyStart: true,
+          skipAdvance: true,
           progressPlateauMs: plateauMs
         });
         if (again && again.phase === 'TIMEOUT') {
@@ -476,8 +500,17 @@
     } else if (phase === 'READY' || phase === 'BLOCKED' || phase === 'MISSING_INFORMATION') {
       terminal = phase;
     } else if (fillResult.ok && !(missingProfileFields && missingProfileFields.length)) {
-      phase = phase || 'READY';
-      terminal = 'READY';
+      var stillStart =
+        global.FillApplyNavFirst &&
+        global.FillApplyNavFirst.hasClickableApplyStart &&
+        global.FillApplyNavFirst.hasClickableApplyStart(document);
+      if (stillStart && !(fillResult.filled > 0) && !advanced) {
+        phase = phase || 'OPEN';
+        terminal = null;
+      } else {
+        phase = phase || 'READY';
+        terminal = 'READY';
+      }
     }
 
     return {

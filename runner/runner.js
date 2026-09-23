@@ -66,6 +66,7 @@
     'lib/dom-deep.js',
     'lib/format.js',
     'lib/synonyms.js',
+    'lib/nav-first.js',
     'lib/pace.js',
     'lib/screening-intent.js',
     'lib/field-map.js',
@@ -1617,7 +1618,17 @@
                 documents: documentsArg,
                 fileInputHints: adapter.fileInputHints
               });
-              if (generic && generic.filled > 0) {
+              // Prefer generic when it filled OR started/advanced (Apply/Next) —
+              // do not discard clickedApplyStart just because filled === 0.
+              if (
+                generic &&
+                (generic.filled > 0 ||
+                  generic.clickedApplyStart ||
+                  generic.reDetect ||
+                  generic.handedOff ||
+                  generic.advanced ||
+                  generic.externalApply)
+              ) {
                 generic.adapterId = adapter.id;
                 generic.usedGenericFallback = true;
                 generic.adapterMessage = out.error || out.message || null;
@@ -2107,8 +2118,24 @@
     const MAX_HANDOFF_HOPS = 6;
     function needsHandoffHop(r) {
       if (!r || r.ok === false) return false;
-      if (r.filled > 0 || r.submitted || r.needsHuman || r.jobpoolMarkedApplied) return false;
+      if (r.submitted || r.needsHuman || r.jobpoolMarkedApplied) return false;
       if (r.jobpoolReturnSuccess) return false;
+      // Nav-first: after Apply-start OR Next/Continue advance, keep going even if
+      // this hop filled N fields (welcome 2/2 + Next must not Idle).
+      if (
+        r.advanced &&
+        !r.submitted &&
+        (r.clickedApplyStart ||
+          r.reDetect ||
+          r.handedOff ||
+          r.externalApply ||
+          r.deferToPageAdapter ||
+          r.adoptedNewTab ||
+          /icims|teamtailor|workday|successfactors|greenhouse|lever/i.test(String(r.adapterId || '')))
+      ) {
+        return true;
+      }
+      if (r.filled > 0) return false;
       // Board job detail with Apply handoff flags or unused generic empty fill.
       if (
         r.adapterId &&
@@ -2984,6 +3011,7 @@
           }
 
           profile = P ? await P.getProfile() : await B.getProfile();
+          profile = await stampRegistrationPassword(profile || {});
           if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.getEffectiveProfile) {
             try {
               profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);

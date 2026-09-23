@@ -21,7 +21,7 @@ function record(module, ok, detail) {
 
 (async function main() {
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-  record('manifest.version', manif.version === '1.26.2', 'got ' + manif.version);
+  record('manifest.version', /^1\.26\.(2|3|4)$/.test(manif.version), 'got ' + manif.version + ' (1.26.2+)');
   record('manifest.windows', manif.permissions.indexOf('windows') !== -1, 'windows permission');
   record('manifest.sidePanel', manif.permissions.indexOf('sidePanel') !== -1, 'permission');
   record(

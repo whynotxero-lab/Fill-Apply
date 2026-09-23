@@ -1709,7 +1709,8 @@
     if (!syn || typeof syn.tryClickApplyStart !== 'function') return null;
 
     const open = syn.tryClickApplyStart(document, {
-      minFields: options.minOpenFormFields
+      minFields: options.minOpenFormFields,
+      force: !!options.forceApplyStart
     });
     if (!open || !open.clicked) return null;
     if (open.el && global.FillApplyFocusHud && global.FillApplyFocusHud.mark) {
@@ -1881,8 +1882,29 @@
 
     let formSignals = syn && syn.scoreApplicationForm ? syn.scoreApplicationForm(document) : null;
     let applyStart = null;
+    const NavFirst = global.FillApplyNavFirst;
 
-    if (!(formSignals && formSignals.open)) {
+    // Nav-first (a): Apply/start before treating page as fillable / complete
+    if (NavFirst && typeof NavFirst.decidePageAction === 'function') {
+      const decision = NavFirst.decidePageAction(document, {
+        minFields: options.minOpenFormFields
+      });
+      if (decision.action === 'apply_start' && !options.skipApplyStart) {
+        const openResult = await openApplicationAndWait(
+          Object.assign({}, options, { forceApplyStart: true })
+        );
+        if (openResult.clicked) {
+          applyStart = openResult.opened;
+          if (!openResult.formOpen) {
+            return applyStart;
+          }
+          formSignals =
+            syn && syn.scoreApplicationForm ? syn.scoreApplicationForm(document) : formSignals;
+        }
+      }
+    }
+
+    if (!(formSignals && formSignals.open) && !applyStart) {
       const openResult = await openApplicationAndWait(options);
       if (openResult.clicked) {
         applyStart = openResult.opened;
@@ -1914,19 +1936,59 @@
         };
       }
 
+      // Nav-first (a)/(e): never end on 0 fields while Apply/start is clickable
+      if (!options.skipApplyStart && NavFirst && typeof NavFirst.tryNavApplyStart === 'function') {
+        const navOpen = NavFirst.tryNavApplyStart(document, {
+          minFields: options.minOpenFormFields
+        });
+        if (navOpen && navOpen.clicked) {
+          return {
+            ok: true,
+            clickedApplyStart: true,
+            reDetect: true,
+            handedOff: true,
+            deferToPageAdapter: true,
+            filled: 0,
+            unmatched: 0,
+            total: 0,
+            submitted: false,
+            message:
+              'Clicked "' +
+              (navOpen.text || 'Apply') +
+              '" to open the application — waiting to re-detect / fill',
+            applyStartText: navOpen.text || 'Apply',
+            filesAttached: uploadOnly,
+            formSignals: formSignals,
+            inspection: summarizeInspection(inspectForm())
+          };
+        }
+      }
       const startButtons = syn && syn.findApplyStartButtons ? syn.findApplyStartButtons(document) : [];
+      if (startButtons.length) {
+        return {
+          ok: false,
+          error: 'Apply button found but could not click / form did not open — not stopping as filled 0/0',
+          filled: 0,
+          unmatched: 0,
+          total: 0,
+          submitted: false,
+          stopReason: 'apply_cta_unclicked',
+          filesAttached: uploadOnly,
+          formSignals: formSignals,
+          inspection: summarizeInspection(inspectForm())
+        };
+      }
       return {
         ok: false,
-        error: startButtons.length
-          ? 'Apply button found but the application form did not open'
-          : 'No application form fields found on this page',
+        error: 'No application form fields found on this page',
         filled: 0,
         unmatched: 0,
         total: 0,
         submitted: false,
         filesAttached: uploadOnly,
         formSignals: formSignals,
-        inspection: summarizeInspection(inspectForm())
+        inspection: summarizeInspection(inspectForm()),
+        stopReason: 'no_apply_start_no_fields'
       };
     }
 
@@ -2325,6 +2387,26 @@
         blockers.push({ type: 'file', message: u.label || 'Required file', reason: u.reason });
       }
     });
+    // Nav-first (d): after fields filled, click Next/Continue when present (not Submit)
+    let advanced = false;
+    let advanceText = '';
+    if (
+      filled > 0 &&
+      !options.skipAdvance &&
+      !missingRequired.length &&
+      !blockers.length &&
+      !(phase === 'TIMEOUT' || progress.timedOut())
+    ) {
+      try {
+        const cont = clickContinueButtons();
+        if (cont && cont.length) {
+          advanced = true;
+          advanceText = String((cont[0] && (cont[0].text || cont[0])) || 'Continue').slice(0, 80);
+          progress.touch();
+        }
+      } catch (_advErr) {}
+    }
+
     const runPhase =
       phase === 'TIMEOUT' || progress.timedOut()
         ? 'TIMEOUT'
@@ -2332,11 +2414,15 @@
           ? 'BLOCKED'
           : missingRequired.length
             ? 'MISSING_INFORMATION'
-            : 'READY';
+            : advanced
+              ? 'READY'
+              : 'READY';
 
     return {
       ok: true,
       filled: filled,
+      advanced: advanced,
+      advanceText: advanceText || undefined,
       unmatched: unmatched,
       total: fields.length,
       phase: runPhase,

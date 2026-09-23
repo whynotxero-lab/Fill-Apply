@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.26.2",
+  "version": "1.26.3",
   "description": "Job-application autofill: Auto Apply (JobPool / Current page / Stop), adaptive knowledge, profile import, ATS helpers.",
   "permissions": [
     "storage",
