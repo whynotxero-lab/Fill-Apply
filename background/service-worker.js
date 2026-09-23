@@ -23,6 +23,10 @@ importScripts(
   '../runner/runner.js'
 );
 
+/* SLICE 1 tab/popup follow: FillApplyRunner arms chrome.tabs.onCreated +
+ * chrome.windows.onCreated while Apply / Open Application may open a child;
+ * active run target switches to that tab. JobPool hub tab is kept open. */
+
 var SIDE_PANEL_PATH = 'sidepanel/sidepanel.html';
 
 function configureSidePanel() {

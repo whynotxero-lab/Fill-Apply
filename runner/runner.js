@@ -837,6 +837,142 @@
       await waitTabComplete(tabId, 45000);
     } catch (_w) {}
     await sleep(400 + Math.floor(Math.random() * 350));
+    setActiveRunTargetTabId(tabId);
+  }
+
+  /**
+   * Slice 1 — follow newest tab/popup opened from the active run opener.
+   * JobPool /fill-apply hub stays open in the background (never closed here).
+   */
+  let activeRunTargetTabId = null;
+  let openerFollowState = null;
+  let openerFollowTabListener = null;
+  let openerFollowWindowListener = null;
+
+  function getActiveRunTargetTabId() {
+    return activeRunTargetTabId;
+  }
+
+  function setActiveRunTargetTabId(tabId) {
+    if (tabId != null) activeRunTargetTabId = tabId;
+  }
+
+  function getOpenerFollowState() {
+    if (!openerFollowState) return null;
+    return {
+      openerTabId: openerFollowState.openerTabId,
+      childTabId: openerFollowState.childTabId,
+      childOpenerMatch: !!openerFollowState.childOpenerMatch,
+      startedAt: openerFollowState.startedAt
+    };
+  }
+
+  function disarmOpenerTabFollow() {
+    if (openerFollowTabListener && chrome.tabs && chrome.tabs.onCreated) {
+      try {
+        chrome.tabs.onCreated.removeListener(openerFollowTabListener);
+      } catch (_e) {}
+    }
+    if (openerFollowWindowListener && chrome.windows && chrome.windows.onCreated) {
+      try {
+        chrome.windows.onCreated.removeListener(openerFollowWindowListener);
+      } catch (_e2) {}
+    }
+    openerFollowTabListener = null;
+    openerFollowWindowListener = null;
+    openerFollowState = null;
+  }
+
+  function noteFollowedChildTab(tab) {
+    if (!openerFollowState || !tab || tab.id == null) return false;
+    const opener = openerFollowState.openerTabId;
+    const known = openerFollowState.knownIds || {};
+    if (tab.id === opener) return false;
+    if (known[tab.id]) return false;
+    const url = String(tab.url || tab.pendingUrl || '');
+    const openerMatch = tab.openerTabId != null && tab.openerTabId === opener;
+    const blank =
+      !url ||
+      url === 'about:blank' ||
+      /^chrome:\/\//i.test(url) ||
+      /^chrome-extension:\/\//i.test(url) ||
+      /^edge:\/\//i.test(url);
+    if (!openerMatch && blank) {
+      // Still adopt blank tab when chrome sets openerTabId (typical window.open popup).
+      return false;
+    }
+    if (!openerMatch && /\/fill-apply(?:\/|$|\?)/i.test(url)) return false;
+    if (openerFollowState.childTabId != null && openerFollowState.childOpenerMatch && !openerMatch) {
+      return false;
+    }
+    openerFollowState.childTabId = tab.id;
+    openerFollowState.childOpenerMatch = !!openerMatch;
+    openerFollowState.childAt = Date.now();
+    activeRunTargetTabId = tab.id;
+    return true;
+  }
+
+  function armOpenerTabFollow(openerTabId, knownIds) {
+    disarmOpenerTabFollow();
+    if (openerTabId == null) return null;
+    const known = Object.assign({}, knownIds || {});
+    known[openerTabId] = true;
+    openerFollowState = {
+      openerTabId: openerTabId,
+      knownIds: known,
+      childTabId: null,
+      childOpenerMatch: false,
+      startedAt: Date.now()
+    };
+    activeRunTargetTabId = openerTabId;
+
+    openerFollowTabListener = function (tab) {
+      noteFollowedChildTab(tab);
+    };
+    try {
+      if (chrome.tabs && chrome.tabs.onCreated && typeof chrome.tabs.onCreated.addListener === 'function') {
+        chrome.tabs.onCreated.addListener(openerFollowTabListener);
+      }
+    } catch (_e) {}
+
+    openerFollowWindowListener = function (win) {
+      if (!openerFollowState) return;
+      Promise.resolve()
+        .then(async function () {
+          try {
+            const q =
+              win && win.id != null ? { windowId: win.id } : {};
+            const tabs = await chrome.tabs.query(q);
+            for (let i = 0; i < (tabs || []).length; i++) {
+              noteFollowedChildTab(tabs[i]);
+            }
+          } catch (_q) {}
+        })
+        .catch(function () {});
+    };
+    try {
+      if (
+        chrome.windows &&
+        chrome.windows.onCreated &&
+        typeof chrome.windows.onCreated.addListener === 'function'
+      ) {
+        chrome.windows.onCreated.addListener(openerFollowWindowListener);
+      }
+    } catch (_eW) {}
+    return openerFollowState;
+  }
+
+  function consumeFollowedChildTab() {
+    if (!openerFollowState || openerFollowState.childTabId == null) return null;
+    return openerFollowState.childTabId;
+  }
+
+  /**
+   * Pure helper (testable): given pre-click known ids + a live tab list, pick the
+   * child that should become the run target (opener match wins).
+   */
+  function resolveRunTargetAfterOpenerClick(tabs, openerTabId, knownIds) {
+    return pickApplyHandoffTab(tabs, openerTabId, knownIds || {});
   }
 
   async function findGoogleOauthTab(openerTabId) {
@@ -1922,54 +2058,32 @@
   async function fillTabWithApplyStart(tabId, profile, documents, runMode, config, job, opts) {
     opts = opts || {};
     let currentTabId = tabId;
-    function progress(state, message, phase) {
-      const mappedPhase = phase || mapStateToPhase(state, message);
-      notifyPagePanel(currentTabId != null ? currentTabId : tabId, {
-        state: state || 'running',
-        message: message || '',
-        phase: mappedPhase
-      });
-      if (typeof opts.onProgress === 'function') {
-        try {
-          opts.onProgress(state, message, mappedPhase);
-        } catch (_e) {}
-      }
-    }
+    setActiveRunTargetTabId(tabId);
+    const hubTabId = tabId;
+    const progress = function (state, message) {
+      try {
+        notifyPagePanel(currentTabId != null ? currentTabId : tabId, {
+          state: state || 'running',
+          message: message || ''
+        });
+      } catch (_e) {}
+    };
 
-    // Wait for load before Apply-start so Single (JobPool link already open) matches Batch.
     if (!opts.skipInitialSettle) {
       try {
-        progress('running', 'Waiting for page load…', 'DETECTING');
+        progress('running', 'Waiting for page load…');
         await waitTabComplete(currentTabId, 45000);
-      } catch (_eWait) {
-        /* settle below still helps SPAs */
-      }
+      } catch (_eLoad) {}
       try {
         await waitPageSettle(currentTabId, 600, 1200);
       } catch (_eSettle) {}
     }
 
-    function mapStateToPhase(state, message) {
-      const s = String(state || '');
-      const m = String(message || '');
-      if (s === 'done') return RUN_PHASES.COMPLETE;
-      if (s === 'timeout' || /plateau|no progress|timed?\s*out/i.test(m)) return RUN_PHASES.TIMEOUT;
-      if (s === 'paused' || /missing|blocker|blocked|waiting for user/i.test(m)) {
-        if (/captcha|cloudflare|mfa|2fa|otp/i.test(m)) return RUN_PHASES.BLOCKED;
-        if (/\bdocument\b|\bfile\b|\bupload\b|\bresume\b|\bcv\b/i.test(m)) return RUN_PHASES.BLOCKED;
-        if (/auth|sign in|log in|register|login/i.test(m)) return RUN_PHASES.AUTH_REQUIRED;
-        if (/ambiguous/i.test(m)) return RUN_PHASES.AMBIGUOUS;
-        if (/waiting for user|action needed|complete manually/i.test(m)) return RUN_PHASES.WAITING_FOR_USER;
-        return RUN_PHASES.MISSING_INFORMATION;
-      }
-      if (s === 'error') return RUN_PHASES.BLOCKED;
-      if (/register|sign\s*up/i.test(m)) return RUN_PHASES.REGISTERING;
-      if (/navigat|next step|continue/i.test(m) && !/submit/i.test(m)) return RUN_PHASES.NAVIGATING;
-      if (/submit/i.test(m)) return RUN_PHASES.SUBMITTING;
-      if (/depend/i.test(m)) return RUN_PHASES.WAITING_FOR_DEPENDENT_FIELDS;
-      if (/detect|inspect|open/i.test(m)) return RUN_PHASES.DETECTING;
-      if (/fill/i.test(m)) return RUN_PHASES.FILLING;
-      if (/valid|ready/i.test(m)) return RUN_PHASES.READY;
+    function mapProgressPhase(msg) {
+      msg = String(msg || '');
+      if (/detect|inspect|open/i.test(msg)) return RUN_PHASES.DETECTING;
+      if (/fill/i.test(msg)) return RUN_PHASES.FILLING;
+      if (/valid|ready/i.test(msg)) return RUN_PHASES.READY;
       return RUN_PHASES.FILLING;
     }
 
@@ -1980,23 +2094,11 @@
     } catch (_eSnap) {
       knownTabIds = {};
     }
+    if (currentTabId != null) knownTabIds[currentTabId] = true;
     try {
       const preTab = await chrome.tabs.get(currentTabId);
       preHandoffUrl = (preTab && preTab.url) || '';
     } catch (_ePre) {}
-
-    progress('running', 'Detecting adapter / filling…');
-    let packed = await injectAndFill(
-      currentTabId,
-      profile,
-      documents,
-      runMode,
-      config,
-      job,
-      { returnTabId: true, maxAttempts: 4 }
-    );
-    let fillResult = packed.result;
-    if (packed.tabId != null) currentTabId = packed.tabId;
 
     /**
      * Multi-hop: JobPool → board (NaukriGulf) → ATS → application form → …
@@ -2030,147 +2132,237 @@
         r.clickedApplyStart ||
         r.reDetect ||
         r.jobpoolHubApply ||
-        r.jobpoolPending
+        r.jobpoolPending ||
+        r.jobpoolAlreadyOpened ||
+        r.adoptedNewTab
       );
     }
 
-    for (let hop = 0; hop < MAX_HANDOFF_HOPS && needsHandoffHop(fillResult); hop++) {
+    async function adoptIfNew(candidate, fillResultRef, hopLabel) {
+      if (!candidate || candidate.id == null || candidate.id === currentTabId) return false;
+      await adoptTabAsActiveJob(candidate.id, progress);
+      currentTabId = candidate.id;
+      knownTabIds[currentTabId] = true;
+      setActiveRunTargetTabId(currentTabId);
+      if (fillResultRef) {
+        fillResultRef.adoptedNewTab = true;
+        fillResultRef.externalApply = true;
+        fillResultRef.fromTabHandoff = true;
+        if (hopLabel != null) fillResultRef.handoffHop = hopLabel;
+      }
       try {
-        progress(
-          'running',
-          hop === 0
-            ? 'Clicked Apply — waiting for form…'
-            : 'Following redirect hop ' + (hop + 1) + '/' + MAX_HANDOFF_HOPS + '…'
-        );
-        await sleep(500 + Math.floor(Math.random() * 400));
+        notifyPagePanel(hubTabId, {
+          state: 'running',
+          message:
+            'Following Apply to tab ' +
+            currentTabId +
+            (hopLabel != null ? ' (hop ' + hopLabel + ')' : '') +
+            ' — JobPool hub kept in background'
+        });
+      } catch (_eN) {}
+      return true;
+    }
 
+    async function resolveChildAfterClick(openerId) {
+      // Prefer event-armed child (tabs.onCreated / windows.onCreated), then poll.
+      let childId = consumeFollowedChildTab();
+      if (childId != null && childId !== openerId) {
         try {
-          knownTabIds = Object.assign({}, knownTabIds, await snapshotTabIdSet());
-        } catch (_eK) {}
-
-        let handedTab = null;
-        try {
-          handedTab = await waitForApplyHandoffTab(currentTabId, knownTabIds, 8500);
-        } catch (_eHand) {
-          handedTab = null;
+          const t = await chrome.tabs.get(childId);
+          if (t && t.id != null) return t;
+        } catch (_g) {
+          return { id: childId };
         }
-        if (handedTab && handedTab.id != null && handedTab.id !== currentTabId) {
-          await adoptTabAsActiveJob(handedTab.id, progress);
-          currentTabId = handedTab.id;
-          if (fillResult) {
-            fillResult.adoptedNewTab = true;
-            fillResult.externalApply = true;
-            fillResult.fromTabHandoff = true;
-            fillResult.handoffHop = hop + 1;
+      }
+      let handed = null;
+      try {
+        handed = await waitForApplyHandoffTab(openerId, knownTabIds, 8500);
+      } catch (_eHand) {
+        handed = null;
+      }
+      if (handed && handed.id != null && handed.id !== openerId) return handed;
+      // Hub Open Application: newest non-hub across all windows
+      try {
+        if (isJobPoolHubUrl(preHandoffUrl) || openerId === hubTabId) {
+          const employer = await pickEmployerTabAfterHubOpen(hubTabId);
+          if (employer && employer.id != null && employer.id !== openerId) return employer;
+        }
+      } catch (_eEmp) {}
+      return null;
+    }
+
+    let fillResult = null;
+    try {
+      armOpenerTabFollow(currentTabId, knownTabIds);
+      progress('running', 'Detecting adapter / filling…');
+      let packed = await injectAndFill(
+        currentTabId,
+        profile,
+        documents,
+        runMode,
+        config,
+        job,
+        { returnTabId: true, maxAttempts: 4 }
+      );
+      fillResult = packed.result;
+      if (packed.tabId != null) currentTabId = packed.tabId;
+      setActiveRunTargetTabId(currentTabId);
+
+      // After Open Application / Apply click during inject: adopt newest related tab.
+      const childAfterFirst = await resolveChildAfterClick(
+        // Prefer original hub as opener when hub flags set
+        fillResult && (fillResult.jobpoolHubApply || fillResult.jobpoolAlreadyOpened || fillResult.jobpoolPending)
+          ? hubTabId
+          : currentTabId
+      );
+      if (childAfterFirst) {
+        await adoptIfNew(childAfterFirst, fillResult, 0);
+      }
+
+      for (let hop = 0; hop < MAX_HANDOFF_HOPS && needsHandoffHop(fillResult); hop++) {
+        try {
+          progress(
+            'running',
+            hop === 0
+              ? 'Clicked Apply — waiting for form…'
+              : 'Following redirect hop ' + (hop + 1) + '/' + MAX_HANDOFF_HOPS + '…'
+          );
+          await sleep(500 + Math.floor(Math.random() * 400));
+
+          // CRITICAL: do NOT merge a fresh full tab snapshot into knownTabIds here —
+          // that would hide the just-opened child and stall on the opener tab.
+          if (currentTabId != null) knownTabIds[currentTabId] = true;
+
+          let handedTab = await resolveChildAfterClick(currentTabId);
+          if (handedTab && handedTab.id != null && handedTab.id !== currentTabId) {
+            await adoptIfNew(handedTab, fillResult, hop + 1);
+          } else {
+            try {
+              await waitTabComplete(currentTabId, 45000);
+            } catch (_eSame) {}
+            await sleep(400 + Math.floor(Math.random() * 350));
           }
-          try {
-            notifyPagePanel(tabId, {
-              state: 'running',
-              message: 'Apply opened a new tab — continuing there (hop ' + (hop + 1) + ')'
-            });
-          } catch (_eN) {}
-        } else {
-          try {
-            await waitTabComplete(currentTabId, 45000);
-          } catch (_eSame) {}
-          await sleep(400 + Math.floor(Math.random() * 350));
-        }
 
-        let postUrl = '';
-        try {
-          const postTab = await chrome.tabs.get(currentTabId);
-          postUrl = (postTab && postTab.url) || '';
-        } catch (_ePost) {}
+          let postUrl = '';
+          try {
+            const postTab = await chrome.tabs.get(currentTabId);
+            postUrl = (postTab && postTab.url) || '';
+          } catch (_ePost) {}
 
-        // Employer may have redirected back to JobPool after submit mid-hop
-        try {
-          const Syn = global.FillApplySynonyms;
-          if (
-            Syn &&
-            typeof Syn.looksLikeJobPoolReturnUrl === 'function' &&
-            Syn.looksLikeJobPoolReturnUrl(postUrl)
-          ) {
-            if (fillResult) {
-              fillResult.jobpoolReturnSuccess = true;
-              fillResult.handoffHop = hop + 1;
+          // Employer may have redirected back to JobPool after submit mid-hop
+          try {
+            const Syn = global.FillApplySynonyms;
+            if (
+              Syn &&
+              typeof Syn.looksLikeJobPoolReturnUrl === 'function' &&
+              Syn.looksLikeJobPoolReturnUrl(postUrl)
+            ) {
+              if (fillResult) {
+                fillResult.jobpoolReturnSuccess = true;
+                fillResult.handoffHop = hop + 1;
+              }
+              break;
             }
-            break;
-          }
-        } catch (_eRet) {}
+          } catch (_eRet) {}
 
-        let hostChanged = false;
-        try {
-          const a = preHandoffUrl ? new URL(preHandoffUrl).hostname : '';
-          const b = postUrl ? new URL(postUrl).hostname : '';
-          hostChanged = !!(a && b && a !== b);
-        } catch (_eHost) {
-          hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
-        }
-        const sameHostOpen = !!(
-          (fillResult && fillResult.clickedApplyStart) ||
-          (fillResult && fillResult.reDetect) ||
-          (fillResult && fillResult.adoptedNewTab) ||
-          (fillResult && fillResult.jobpoolHubApply)
-        );
-
-        if (!(hostChanged || sameHostOpen || (fillResult && fillResult.adoptedNewTab))) {
-          let late = null;
+          let hostChanged = false;
           try {
-            late = await findApplyHandoffTab(currentTabId, knownTabIds);
-          } catch (_eLate) {}
-          if (late && late.id != null && late.id !== currentTabId) {
-            await adoptTabAsActiveJob(late.id, progress);
-            currentTabId = late.id;
-            fillResult.adoptedNewTab = true;
-            fillResult.externalApply = true;
-            fillResult.fromTabHandoff = true;
-          } else if (hop === MAX_HANDOFF_HOPS - 1 && fillResult) {
-            fillResult.message =
-              (fillResult.message || 'External apply handoff') +
-              ' (hop ' +
-              (hop + 1) +
-              ' — host unchanged; destination may be another tab)';
-            break;
-          } else if (!fillResult.clickedApplyStart && !fillResult.jobpoolHubApply) {
-            break;
+            const a = preHandoffUrl ? new URL(preHandoffUrl).hostname : '';
+            const b = postUrl ? new URL(postUrl).hostname : '';
+            hostChanged = !!(a && b && a !== b);
+          } catch (_eHost) {
+            hostChanged = !!(preHandoffUrl && postUrl && preHandoffUrl !== postUrl);
           }
-        }
+          const sameHostOpen = !!(
+            (fillResult && fillResult.clickedApplyStart) ||
+            (fillResult && fillResult.reDetect) ||
+            (fillResult && fillResult.adoptedNewTab) ||
+            (fillResult && fillResult.jobpoolHubApply) ||
+            (fillResult && fillResult.jobpoolAlreadyOpened)
+          );
 
-        preHandoffUrl = postUrl || preHandoffUrl;
-        progress('running', 'Re-detect / fill after hop ' + (hop + 1) + '…');
-        const handedPack = await injectAndFill(
-          currentTabId,
-          profile,
-          documents,
-          runMode,
-          config,
-          job,
-          { returnTabId: true, maxAttempts: 4 }
-        );
-        const handed = handedPack && handedPack.result;
-        if (handedPack && handedPack.tabId != null) currentTabId = handedPack.tabId;
-        if (handed) {
-          if (hostChanged) handed.externalApply = true;
-          if (fillResult && fillResult.clickedApplyStart) handed.fromApplyStart = true;
-          if (fillResult && fillResult.jobpoolHubApply) handed.fromJobPoolHub = true;
-          handed.fromBoardHandoff =
-            (fillResult && fillResult.adapterId) || (handed && handed.adapterId) || true;
-          handed.handoffHop = hop + 1;
-          if (!handed.message && fillResult && fillResult.message) {
-            handed.message = fillResult.message;
+          if (!(hostChanged || sameHostOpen || (fillResult && fillResult.adoptedNewTab))) {
+            let late = null;
+            try {
+              late = await findApplyHandoffTab(currentTabId, knownTabIds);
+            } catch (_eLate) {}
+            if (!late) {
+              try {
+                late = await pickEmployerTabAfterHubOpen(hubTabId);
+              } catch (_eLate2) {}
+            }
+            if (late && late.id != null && late.id !== currentTabId) {
+              await adoptIfNew(late, fillResult, hop + 1);
+            } else if (hop === MAX_HANDOFF_HOPS - 1 && fillResult) {
+              fillResult.message =
+                (fillResult.message || 'External apply handoff') +
+                ' (hop ' +
+                (hop + 1) +
+                ' — host unchanged; destination may be another tab)';
+              break;
+            } else if (
+              !fillResult.clickedApplyStart &&
+              !fillResult.jobpoolHubApply &&
+              !fillResult.jobpoolAlreadyOpened
+            ) {
+              break;
+            }
           }
-          fillResult = handed;
-        } else {
+
+          preHandoffUrl = postUrl || preHandoffUrl;
+          progress('running', 'Re-detect / fill after hop ' + (hop + 1) + '…');
+
+          // Arm follow before next inject so Apply → new tab is captured.
+          if (currentTabId != null) knownTabIds[currentTabId] = true;
+          armOpenerTabFollow(currentTabId, knownTabIds);
+
+          const handedPack = await injectAndFill(
+            currentTabId,
+            profile,
+            documents,
+            runMode,
+            config,
+            job,
+            { returnTabId: true, maxAttempts: 4 }
+          );
+          const handed = handedPack && handedPack.result;
+          if (handedPack && handedPack.tabId != null) currentTabId = handedPack.tabId;
+          setActiveRunTargetTabId(currentTabId);
+
+          // Mid-hop: Apply inside inject may have opened another tab/popup.
+          const midChild = await resolveChildAfterClick(currentTabId);
+          if (midChild && midChild.id != null && midChild.id !== currentTabId) {
+            await adoptIfNew(midChild, handed || fillResult, hop + 1);
+          }
+
+          if (handed) {
+            if (hostChanged) handed.externalApply = true;
+            if (fillResult && fillResult.clickedApplyStart) handed.fromApplyStart = true;
+            if (fillResult && (fillResult.jobpoolHubApply || fillResult.jobpoolAlreadyOpened)) {
+              handed.fromJobPoolHub = true;
+            }
+            if (fillResult && fillResult.adoptedNewTab) handed.adoptedNewTab = true;
+            handed.fromBoardHandoff =
+              (fillResult && fillResult.adapterId) || (handed && handed.adapterId) || true;
+            handed.handoffHop = hop + 1;
+            if (!handed.message && fillResult && fillResult.message) {
+              handed.message = fillResult.message;
+            }
+            fillResult = handed;
+          } else {
+            break;
+          }
+        } catch (handoffErr) {
+          if (fillResult && !fillResult.error) {
+            fillResult.handoffWaitError = String(
+              (handoffErr && handoffErr.message) || handoffErr || 'handoff wait failed'
+            );
+          }
           break;
         }
-      } catch (handoffErr) {
-        if (fillResult && !fillResult.error) {
-          fillResult.handoffWaitError = String(
-            (handoffErr && handoffErr.message) || handoffErr || 'handoff wait failed'
-          );
-        }
-        break;
       }
+    } finally {
+      disarmOpenerTabFollow();
     }
 
     return { result: fillResult, tabId: currentTabId };
@@ -2180,16 +2372,25 @@
   /** Prefer newest non-hub http(s) tab after Open Application (hub often stays focused). */
   async function pickEmployerTabAfterHubOpen(hubTabId) {
     try {
-      const tabs = await chrome.tabs.query({ currentWindow: true });
+      // Query all windows — Apply often opens a popup window, not only currentWindow.
+      const tabs = await chrome.tabs.query({});
       let best = null;
       let bestScore = -1;
       for (let i = 0; i < (tabs || []).length; i++) {
         const t = tabs[i];
         if (!t || t.id == null || t.id === hubTabId) continue;
         const url = String(t.url || t.pendingUrl || '');
-        if (!/^https?:/i.test(url)) continue;
-        if (isJobPoolHubUrl(url)) continue;
+        const blank =
+          !url ||
+          url === 'about:blank' ||
+          /^chrome:\/\//i.test(url) ||
+          /^chrome-extension:\/\//i.test(url);
+        const openerMatch = t.openerTabId != null && t.openerTabId === hubTabId;
+        if (!openerMatch && blank) continue;
+        if (!blank && !/^https?:/i.test(url) && !openerMatch) continue;
+        if (!blank && isJobPoolHubUrl(url)) continue;
         let score = t.id || 0;
+        if (openerMatch) score += 1000;
         if (t.active) score += 500;
         if (/apply|application|login|candidate|icims|workday|greenhouse|lever|ashby|smartrecruiters/i.test(url)) {
           score += 200;
@@ -3362,6 +3563,14 @@
     pickApplyHandoffTab: pickApplyHandoffTab,
     findApplyHandoffTab: findApplyHandoffTab,
     waitForApplyHandoffTab: waitForApplyHandoffTab,
+    pickEmployerTabAfterHubOpen: pickEmployerTabAfterHubOpen,
+    armOpenerTabFollow: armOpenerTabFollow,
+    disarmOpenerTabFollow: disarmOpenerTabFollow,
+    consumeFollowedChildTab: consumeFollowedChildTab,
+    getOpenerFollowState: getOpenerFollowState,
+    getActiveRunTargetTabId: getActiveRunTargetTabId,
+    setActiveRunTargetTabId: setActiveRunTargetTabId,
+    resolveRunTargetAfterOpenerClick: resolveRunTargetAfterOpenerClick,
     maybeCompleteJobPoolHubMark: maybeCompleteJobPoolHubMark,
     readJobPoolPendingMark: readJobPoolPendingMark,
     INJECT_FILES: INJECT_FILES
