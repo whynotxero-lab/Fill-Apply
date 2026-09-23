@@ -18,6 +18,7 @@ const SUITES = [
   'smoke-identity-autofill.js',
   'smoke-global-fill-fixes.js',
   'smoke-phone-full-choose-file.js',
+  'smoke-phone-combined-split.js',
   'smoke-hilton-consent-cv-learn.js',
   'smoke-naukrigulf-apply-fallback.js',
   'smoke-naukrigulf-serp-easy-apply.js',

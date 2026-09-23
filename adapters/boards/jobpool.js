@@ -295,29 +295,34 @@
     } catch (_e0) {}
 
     // Fill-Apply hub (2026): primary CTA is "Open Application" (button or link).
+    // Soft visibility: list cards may be below the fold; still clickable.
     try {
       var nodesOpen = root.querySelectorAll
-        ? root.querySelectorAll('a, button, input[type="button"], [role="button"]')
+        ? root.querySelectorAll('a, button, input[type="button"], [role="button"], [data-slot="card"] button, [data-slot="card"] a')
         : [];
       for (var oi = 0; oi < nodesOpen.length; oi++) {
         var oel = nodesOpen[oi];
-        if (!visible(oel)) continue;
         var ot = buttonText(oel).replace(/\s+/g, ' ').trim();
         if (!ot) continue;
         if (S && S.isMarkAppliedCta && S.isMarkAppliedCta(ot)) continue;
         if (S && S.isExcludedApplyCta && S.isExcludedApplyCta(ot)) continue;
-        if (S && S.isOpenApplicationCta && S.isOpenApplicationCta(ot)) {
+        var isOpen =
+          (S && S.isOpenApplicationCta && S.isOpenApplicationCta(ot)) ||
+          /^open\s*application$/i.test(ot);
+        if (!isOpen) continue;
+        // Prefer visible; allow first few off-screen Open Application CTAs (SPA lists).
+        if (!visible(oel)) {
+          var rOpen = null;
           try {
-            oel.setAttribute('data-fill-apply', 'jobpool-apply');
-          } catch (_st0) {}
-          return oel;
+            rOpen = oel.getBoundingClientRect();
+          } catch (_rO) {}
+          if (!rOpen || (rOpen.width < 2 && rOpen.height < 2)) continue;
+          if (oi > 8) continue;
         }
-        if (/^open\s*application$/i.test(ot)) {
-          try {
-            oel.setAttribute('data-fill-apply', 'jobpool-apply');
-          } catch (_st1) {}
-          return oel;
-        }
+        try {
+          oel.setAttribute('data-fill-apply', 'jobpool-apply');
+        } catch (_st0) {}
+        return oel;
       }
     } catch (_eo) {}
 
@@ -560,23 +565,49 @@
             });
           }
 
-          // Pending but fill/ready without success — do not re-Apply or Mark
+          /**
+           * Stale pending on hub with a visible Open Application must NOT block
+           * Start / Companion / Fill — that was leaving Companion stuck on
+           * "Waiting for Simplify…" without opening. Keep pending only for
+           * ready-mode batch revisit when no Open Application CTA is present.
+           */
+          var applyBtnEarly = findFirstReadyApply(doc);
+          var forceOpen =
+            runMode === 'companion' ||
+            runMode === 'fill' ||
+            runMode === 'register' ||
+            runMode === 'navigate' ||
+            runMode === 'submit' ||
+            !!(ctx.forceJobPoolApply || (ctx.options && ctx.options.forceJobPoolApply));
+
           if (pending && !shouldMark && !forceMark) {
-            return {
-              ok: true,
-              adapterId: 'jobpool',
-              jobpoolPending: true,
-              jobId: pending.jobId,
-              filled: 0,
-              unmatched: 0,
-              total: 0,
-              submitted: false,
-              message:
-                'JobPool pending mark kept — waiting for employer submit success before Applied Successfully'
-            };
+            if (applyBtnEarly && forceOpen) {
+              // Clear stale pending and fall through to Open Application click.
+              return clearPendingMark().then(function () {
+                return openApplyAndHandoff(doc, href, applyBtnEarly);
+              });
+            }
+            if (!applyBtnEarly || runMode === 'ready') {
+              return {
+                ok: true,
+                adapterId: 'jobpool',
+                jobpoolPending: true,
+                jobId: pending.jobId,
+                filled: 0,
+                unmatched: 0,
+                total: 0,
+                submitted: false,
+                message:
+                  'JobPool pending mark kept — waiting for employer submit success before Applied Successfully'
+              };
+            }
+            // Open Application visible in other modes → clear + open
+            return clearPendingMark().then(function () {
+              return openApplyAndHandoff(doc, href, applyBtnEarly);
+            });
           }
 
-          var applyBtn = findFirstReadyApply(doc);
+          var applyBtn = applyBtnEarly || findFirstReadyApply(doc);
           if (!applyBtn) {
             return {
               ok: false,
@@ -588,57 +619,70 @@
             };
           }
 
-          var jobId = extractJobIdNear(applyBtn, doc);
-          var title = extractTitleNear(applyBtn);
-          return setPendingMark({
-            jobId: jobId,
-            title: title,
-            clickedAt: Date.now(),
-            hubUrl: href
-          }).then(function (saved) {
-            var employerUrl = '';
-            try {
-              employerUrl = String(
-                applyBtn.href || applyBtn.getAttribute('href') || ''
-              ).trim();
-            } catch (_hu) {
-              employerUrl = '';
-            }
-            var opened = false;
-            // Prefer extension tab open so Applications hub is NOT navigated away
-            // (programmatic <a target=_blank>.click() often replaces the hub tab).
-            if (/^https?:\/\//i.test(employerUrl)) {
-              try {
-                if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-                  chrome.runtime.sendMessage({
-                    type: 'FILL_APPLY_OPEN_TAB',
-                    url: employerUrl,
-                    active: true
-                  });
-                  opened = true;
-                }
-              } catch (_msg) {
-                opened = false;
-              }
-            }
-            if (!opened) {
-              opened = clickEl(applyBtn);
-            }
-            return handoffResult({
-              ok: opened,
-              jobId: saved && saved.jobId,
-              title: title,
-              pendingMark: saved,
-              openUrl: /^https?:\/\//i.test(employerUrl) ? employerUrl : null,
-              externalApply: true,
-              message: opened
-                ? 'Opened employer application — Fill-Apply hub kept'
-                : 'Failed to open JobPool Open Application'
-            });
-          });
+          return openApplyAndHandoff(doc, href, applyBtn);
         });
     }
   };
+
+  function openApplyAndHandoff(doc, href, applyBtn) {
+    var jobId = extractJobIdNear(applyBtn, doc);
+    var title = extractTitleNear(applyBtn);
+    return setPendingMark({
+      jobId: jobId,
+      title: title,
+      clickedAt: Date.now(),
+      hubUrl: href
+    }).then(function (saved) {
+      var employerUrl = '';
+      try {
+        employerUrl = String(applyBtn.href || applyBtn.getAttribute('href') || '').trim();
+      } catch (_hu) {
+        employerUrl = '';
+      }
+      var opened = false;
+      var tag = '';
+      try {
+        tag = String(applyBtn.tagName || '').toUpperCase();
+      } catch (_t) {}
+      // Prefer extension tab open for real employer <a href> so hub stays put.
+      // Open Application is often a <button> with no href — must real-click it.
+      if (tag === 'A' && /^https?:\/\//i.test(employerUrl)) {
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({
+              type: 'FILL_APPLY_OPEN_TAB',
+              url: employerUrl,
+              active: true
+            });
+            opened = true;
+          }
+        } catch (_msg) {
+          opened = false;
+        }
+      }
+      // Always attempt DOM click for buttons / when OPEN_TAB unavailable.
+      if (!opened) {
+        opened = clickEl(applyBtn);
+      } else if (tag !== 'A') {
+        opened = clickEl(applyBtn) || opened;
+      }
+      return handoffResult({
+        ok: opened,
+        jobId: saved && saved.jobId,
+        title: title,
+        pendingMark: saved,
+        openUrl: /^https?:\/\//i.test(employerUrl) ? employerUrl : null,
+        externalApply: true,
+        message: opened
+          ? 'Opened employer application — Fill-Apply hub kept'
+          : 'Failed to open JobPool Open Application'
+      });
+    });
+  }
+
+  // Keep openApply available for tests / runner retries
+  adapter.openApplyAndHandoff = openApplyAndHandoff;
+  adapter.findFirstReadyApply = findFirstReadyApply;
 
   if (global.FillApplyRegistry) global.FillApplyRegistry.register(adapter);
   global.FillApplyJobPoolHub = adapter;

@@ -51,6 +51,57 @@ const html = fs.readFileSync(
   suite.ok(shadow.querySelector('[data-action="start"]'), 'Start present');
   suite.ok(shadow.querySelector('[data-action="stop"]'), 'Stop present');
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No multi-mode Register');
+  suite.ok(shadow.querySelector('[data-action="companion"]') || shadow.querySelector('[data-mode="companion"]'), 'Companion present');
+
+  // --- Start + Companion both click Open Application (incl. stale pending) ---
+  async function clickModes() {
+    const modes = ['fill', 'companion'];
+    for (const mode of modes) {
+      const p = createPage(html, [
+        'lib/dom-deep.js',
+        'lib/synonyms.js',
+        'adapters/registry.js',
+        'adapters/fallback.js',
+        'adapters/boards/jobpool.js'
+      ]);
+      const w = p.window;
+      const d = p.document;
+      // Soft-visible for jsdom
+      if (w.FillApplySynonyms) {
+        w.FillApplySynonyms.isVisible = function (el) {
+          return !!(el && !el.hidden);
+        };
+      }
+      let clicks = 0;
+      d.querySelectorAll('button').forEach(function (btn) {
+        if (/open\s*application/i.test(btn.textContent || '')) {
+          btn.addEventListener('click', function () {
+            clicks += 1;
+          });
+        }
+      });
+      // Seed stale pending that previously blocked Open Application
+      const hub = w.FillApplyJobPoolHub;
+      await hub.setPendingMark({
+        jobId: 'indeed:f695eca6770ba2aa',
+        title: 'Stale',
+        clickedAt: Date.now() - 600000,
+        hubUrl: url
+      });
+      // Fake location for adapter
+      try {
+        Object.defineProperty(w, 'location', {
+          value: { href: url },
+          configurable: true
+        });
+      } catch (_e) {}
+      const out = await hub.fill({ runMode: mode });
+      suite.ok(out && (out.jobpoolHubApply || out.clickedApplyStart), mode + ' opens application (got flags)');
+      suite.ok(clicks >= 1, mode + ' clicked Open Application (clicks=' + clicks + ')');
+      suite.ok(!out.jobpoolPending, mode + ' did not keep stale pending without click');
+    }
+  }
+  await clickModes();
 
   suite.finish();
 })().catch((e) => {

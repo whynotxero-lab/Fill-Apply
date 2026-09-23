@@ -39,6 +39,29 @@
 
   const PROGRESS_PLATEAU_MS = (global.FillApplyTypes && global.FillApplyTypes.PROGRESS_PLATEAU_MS) || 10000;
 
+  /**
+   * Stamp Environment.registrationPassword onto the profile so content-script
+   * signup/login can autofill Create Account without a per-platform human gate.
+   * Never logs the password value.
+   */
+  async function stampRegistrationPassword(profile) {
+    profile = profile && typeof profile === 'object' ? Object.assign({}, profile) : {};
+    try {
+      const Env = global.FillApplyEnvironment;
+      if (Env) {
+        if (typeof Env.load === 'function') await Env.load();
+        const env = typeof Env.get === 'function' ? Env.get() : null;
+        const pw = env && env.registrationPassword ? String(env.registrationPassword) : '';
+        if (pw) {
+          profile.__registrationPassword = pw;
+          if (!profile.password) profile.password = pw;
+        }
+      }
+    } catch (_e) {}
+    return profile;
+  }
+
+
   const INJECT_FILES = [
     'lib/dom-deep.js',
     'lib/format.js',
@@ -969,6 +992,18 @@
       return { proceed: true, outcome: inspection };
     }
 
+    // Email+password Create Account / login — proceed to adapter fill (no Google).
+    if (
+      inspection.result === AR.EMAIL_PASSWORD_AVAILABLE ||
+      inspection.result === 'EMAIL_PASSWORD_AVAILABLE' ||
+      inspection.action === 'fill_email_password'
+    ) {
+      await logAuth('Email/password credentials available — skipping Google auth pause', {
+        detail: inspection.detail
+      });
+      return { proceed: true, outcome: Object.assign({}, inspection, { pause: false }) };
+    }
+
     if (inspection.pause && inspection.result !== AR.ACCOUNT_ALREADY_EXISTS) {
       // MFA / unsupported / ambiguous — do not click (CAPTCHA handled above with settle)
       await persistAtsAuthState(job, profile, inspection);
@@ -1371,6 +1406,11 @@
         if (globalThis.FillApplyFocusHud && globalThis.FillApplyFocusHud.setEnabled) {
           globalThis.FillApplyFocusHud.setEnabled(focusHudArg !== false);
         }
+        try {
+          if (globalThis.FillApplyEnvironment && globalThis.FillApplyEnvironment.load) {
+            await globalThis.FillApplyEnvironment.load();
+          }
+        } catch (_envLoad) {}
         const registry = globalThis.FillApplyRegistry;
         if (!registry) {
           return {
@@ -2529,7 +2569,7 @@
       // Companion: clicks to start application + navigate Continues — never fill/upload.
       if (mode === 'companion') {
         const cfgCompanion = await S.getRunConfig();
-        const mergedCfg = Object.assign({}, cfgCompanion || {}, {
+        let mergedCfg = Object.assign({}, cfgCompanion || {}, {
           simplifyCompanion: true,
           companionSettleMs:
             (cfgCompanion && cfgCompanion.companionSettleMs) != null
@@ -2551,21 +2591,43 @@
         } catch (_p) {
           profile = {};
         }
+        profile = await stampRegistrationPassword(profile);
+        const hubCompanion = isJobPoolHubUrl(tab.url);
+        if (hubCompanion) {
+          mergedCfg = Object.assign({}, mergedCfg, { skipAtsAuth: true });
+        }
         notifyPagePanel(tabId, {
           state: 'running',
           message: 'Companion — opening application (clicks only)…'
         });
         // Start application: JobPool Open Application / NaukriGulf Easy Apply / etc.
+        let startResult = null;
         try {
-          const startResult = await injectAndFill(
+          startResult = await injectAndFill(
             tabId,
             profile,
             {},
             'companion',
             mergedCfg,
             job,
-            { maxAttempts: 2 }
+            { maxAttempts: 3 }
           );
+          // Retry once on JobPool hub if Open Application was not clicked (SPA / stale pending).
+          if (
+            hubCompanion &&
+            !(startResult && (startResult.jobpoolHubApply || startResult.clickedApplyStart || startResult.externalApply))
+          ) {
+            await sleep(800);
+            startResult = await injectAndFill(
+              tabId,
+              profile,
+              {},
+              'companion',
+              Object.assign({}, mergedCfg, { skipAtsAuth: true }),
+              job,
+              { maxAttempts: 2 }
+            );
+          }
           if (startResult && (startResult.jobpoolHubApply || startResult.clickedApplyStart || startResult.externalApply)) {
             notifyPagePanel(tabId, {
               state: 'NAVIGATING',
@@ -2576,6 +2638,12 @@
               const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
               if (tabs && tabs[0] && tabs[0].id != null) tabId = tabs[0].id;
             } catch (_t) {}
+          } else if (hubCompanion) {
+            const errMsg =
+              (startResult && startResult.error) ||
+              'Companion could not click Open Application on JobPool Fill-Apply hub';
+            notifyPagePanel(tabId, { state: 'error', message: errMsg });
+            throw new Error(errMsg);
           }
         } catch (startErr) {
           notifyPagePanel(tabId, {
@@ -2615,6 +2683,7 @@
       }
       // Hub Open Application does not need identity; keep a plain object so inject never sees undefined.
       if (!profile || typeof profile !== 'object') profile = {};
+      profile = await stampRegistrationPassword(profile);
       if (global.FillApplySourceProfiles && global.FillApplySourceProfiles.getEffectiveProfile) {
         try {
           profile = await global.FillApplySourceProfiles.getEffectiveProfile(profile);
@@ -3677,6 +3746,7 @@
     runOnceOnTab: runOnceOnTab,
     runCompanionOnTab: runCompanionOnTab,
     attemptAtsGoogleAuthLifecycle: attemptAtsGoogleAuthLifecycle,
+    stampRegistrationPassword: stampRegistrationPassword,
     pickApplyHandoffTab: pickApplyHandoffTab,
     findApplyHandoffTab: findApplyHandoffTab,
     waitForApplyHandoffTab: waitForApplyHandoffTab,

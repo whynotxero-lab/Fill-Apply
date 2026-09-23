@@ -257,7 +257,71 @@ const PROFILE_NO_PW = {
     suite.ok(r && r.accepted === false && r.reason === 'sensitive', 'learn rejects password');
   })();
 
-  suite.finish();
+  
+  // Environment.registrationPassword → autofill Create Account (no manual pause)
+  await (async function envPasswordSignup() {
+    const page = createPage(
+      `<html><body>
+        <h1>Create a login</h1>
+        <form>
+          <label>Email <input id="em" name="email" type="email" /></label>
+          <label>Retype Email <input id="em2" name="confirm_email" type="email" /></label>
+          <label>Choose Password <input id="pw" name="password" type="password" /></label>
+          <label>Retype Password <input id="pw2" name="confirmPassword" type="password" /></label>
+          <button type="submit">Create Account</button>
+        </form>
+      </body></html>`,
+      ['lib/environment-store.js', 'lib/auth-walls.js', 'lib/signup-login.js']
+    );
+    const Env = page.window.FillApplyEnvironment;
+    await Env.save({ registrationPassword: 'EnvTestPass#1' });
+    const profile = { email: 'alex.sample@example.com' };
+    suite.ok(
+      page.window.FillApplySignupLogin.profileHasCredentials(profile),
+      'profileHasCredentials true with Environment password + email'
+    );
+    const gate = page.window.FillApplySignupLogin.shouldPauseForAuth(page.document, profile);
+    suite.ok(!gate.pause, 'shouldPauseForAuth false when Environment password set');
+    suite.ok(gate.autoFill, 'autoFill recommended');
+    const filled = page.window.FillApplySignupLogin.fillCredentials(page.document, profile);
+    suite.ok(filled.ok, 'fillCredentials ok from Environment');
+    suite.equal(page.document.getElementById('em').value, 'alex.sample@example.com', 'email filled');
+    suite.equal(page.document.getElementById('em2').value, 'alex.sample@example.com', 'retype email filled');
+    suite.equal(page.document.getElementById('pw').value, 'EnvTestPass#1', 'password from Environment');
+    suite.equal(page.document.getElementById('pw2').value, 'EnvTestPass#1', 'confirm password from Environment');
+  })();
+
+  // ATS inspect: Create Account without Google + credentials → EMAIL_PASSWORD_AVAILABLE
+  await (async function atsEmailPasswordAvailable() {
+    const page = createPage(
+      `<html><body>
+        <h1>Create a login</h1>
+        <p>Account signup required</p>
+        <form>
+          <label>Email <input name="email" type="email" /></label>
+          <label>Password <input name="password" type="password" /></label>
+          <label>Retype Password <input name="confirmPassword" type="password" /></label>
+        </form>
+      </body></html>`,
+      ['lib/environment-store.js', 'lib/auth-walls.js', 'lib/signup-login.js', 'lib/ats-auth.js']
+    );
+    await page.window.FillApplyEnvironment.save({ registrationPassword: 'EnvTestPass#1' });
+    const A = page.window.FillApplyAtsAuth;
+    const insp = A.inspectAuthPage(
+      page.document,
+      { email: 'alex.sample@example.com' },
+      {}
+    );
+    suite.ok(!insp.pause, 'ATS inspect does not pause for email+password when credentials exist');
+    suite.ok(
+      insp.result === A.AUTH_RESULTS.EMAIL_PASSWORD_AVAILABLE ||
+        insp.result === 'EMAIL_PASSWORD_AVAILABLE' ||
+        insp.action === 'fill_email_password',
+      'EMAIL_PASSWORD_AVAILABLE (got ' + insp.result + ')'
+    );
+  })();
+
+suite.finish();
 })().catch(function (err) {
   console.error(err);
   process.exit(1);
