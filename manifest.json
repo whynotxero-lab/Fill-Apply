@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Fill & Apply",
-  "version": "1.25.6",
-  "description": "Job-application autofill: on-page Auto Apply (Start/Companion/Stop), adaptive knowledge, profile import/export, ATS helpers.",
+  "version": "1.26.0",
+  "description": "Job-application autofill: Auto Apply (JobPool / Current page / Stop), adaptive knowledge, profile import, ATS helpers.",
   "permissions": [
     "storage",
     "activeTab",
     "scripting",
     "tabs",
     "alarms",
+    "sidePanel",
     "notifications",
     "downloads"
   ],
@@ -24,8 +25,10 @@
       "32": "icons/icon32.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    },
-    "default_popup": "popup/popup.html"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
   },
   "options_ui": {
     "page": "options/options.html",

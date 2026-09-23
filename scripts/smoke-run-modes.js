@@ -106,18 +106,6 @@ function wireClicks(doc) {
     suite.ok(true, 'navigate skipped — adapter shape differs in this harness');
   }
 
-  // companion: adapter must not fill or click
-  const compPage = createPage(FORM, LIBS);
-  const compClicks = wireClicks(compPage.document);
-  const compResult = await compPage.window.FillApplyFallbackAdapter.fill({
-    profile: PROFILE,
-    runMode: 'companion',
-    options: { formWaitMs: 50 }
-  });
-  suite.ok(compResult && compResult.companion, 'companion mode returns companion flag');
-  suite.equal(compPage.document.getElementById('fn').value, '', 'companion does not fill');
-  suite.equal(compClicks.continue, 0, 'companion adapter does not click Continue (runner owns loop)');
-  suite.equal(compClicks.submit, 0, 'companion does not submit');
 
   suite.finish();
 })().catch(function (err) {

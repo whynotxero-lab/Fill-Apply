@@ -81,9 +81,11 @@ function fixture(name) {
   suite.equal(P.normalizeRunMode('Auto Navigate'), 'navigate', 'normalize navigate');
   const host = P.mount(panelPage.document);
   const shadow = host.shadowRoot;
-  const start = shadow.querySelector('[data-action="start"]');
+  const jobpool = shadow.querySelector('[data-action="jobpool"]');
+  const current = shadow.querySelector('[data-action="current"]');
   const stop = shadow.querySelector('[data-action="stop"]');
-  suite.ok(start && start.textContent === 'Start', 'Start present');
+  suite.ok(jobpool && jobpool.textContent === 'JobPool', 'JobPool present');
+  suite.ok(current && current.textContent === 'Current page', 'Current page present');
   suite.ok(stop && stop.textContent === 'Stop', 'Stop present');
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No multi-mode Register');
   suite.ok(!shadow.querySelector('.wrap.collapsed'), 'Panel always expanded');

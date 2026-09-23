@@ -1,17 +1,16 @@
-Fill & Apply v1.25.6 — Load unpacked
+Fill & Apply v1.26.0 — Load unpacked
 
 1. Chrome → chrome://extensions
 2. Enable Developer mode
 3. Load unpacked → select this folder
-4. Options / popup Settings → Import Profile / Environments password
-5. Toolbar icon opens the popup (side panel removed). Floating Auto Apply panel prefers LEFT.
+4. Pin the extension — toolbar click opens the **side panel** (Import Profile, queue Start/Stop)
+5. On job / JobPool pages, use the floating **Auto Apply** panel:
+   - **JobPool** — open/focus /fill-apply hub, then run end-to-end Apply
+   - **Current page** — run end-to-end Apply on the active tab
+   - **Stop** — abort the run
 
-Notes — v1.25.6:
-- Critical: iCIMS clickSubmit*/clickSubmitProfile no longer ReferenceError on bare `profile` (Start=submit path).
-- JobPool: durable pending after Open Application — never re-click until marked/failed/cleared (Companion loop fixed).
-- Companion nav: Open Application excluded from navigate CTAs; adopt employer tab after hub open.
-- Start continues past open via handoff flags when pending already opened.
-- iCIMS login: Email + I accept + Next; Create-login fills Environments password without manual pause.
-- Smokes: profile inject, Open-once, companion no-loop, Start past open, iCIMS login/password.
-
-After Load unpacked / Reload extension: refresh open job tabs.
+What changed in 1.26.0
+- Companion / Simplify navigate-only mode removed completely (no Companion button, no companion-nav).
+- Fill-Apply owns the full pipeline: Open Application → Apply → register/login → fill → submit → JobPool Applied Successfully.
+- Side panel restored with profile import.
+- Preserved JobPool open-once + Applied Successfully + iCIMS password/profile||{} fixes from 1.25.3–1.25.6.

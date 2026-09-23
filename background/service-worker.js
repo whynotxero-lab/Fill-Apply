@@ -1,6 +1,6 @@
 /**
  * MV3 service worker — owns the runner state machine and message API.
- * Toolbar action opens the extension popup (side panel removed in 1.25.5).
+ * Toolbar action opens the Chrome side panel (profile import + controls).
  */
 /* global importScripts, FillApplyTypes, FillApplyStorage, FillApplyProfile, FillApplyBackend, FillApplyReport, FillApplyRunner, FillApplyKnowledgeStore, FillApplyKnowledgeLearn */
 
@@ -23,23 +23,29 @@ importScripts(
   '../runner/runner.js'
 );
 
-function disableSidePanelIfPresent() {
+var SIDE_PANEL_PATH = 'sidepanel/sidepanel.html';
+
+function configureSidePanel() {
   if (!chrome.sidePanel) return;
   try {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
-  } catch (_e) {}
+    chrome.sidePanel.setOptions({ enabled: true, path: SIDE_PANEL_PATH });
+  } catch (e) {
+    console.warn('[Fill & Apply] sidePanel.setOptions failed:', e);
+  }
   try {
-    chrome.sidePanel.setOptions({ enabled: false });
-  } catch (_e2) {}
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch (e) {
+    console.warn('[Fill & Apply] sidePanel.setPanelBehavior failed:', e);
+  }
 }
 
-disableSidePanelIfPresent();
+configureSidePanel();
 
 chrome.runtime.onInstalled.addListener(function (details) {
-  disableSidePanelIfPresent();
+  configureSidePanel();
   if (details.reason === 'install') {
     console.log(
-      '[Fill & Apply] Installed. Click the toolbar icon for the popup (Settings → Options). Add https job apply URLs in App Settings (Application queue), then Start.'
+      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Import a profile, then use Auto Apply (JobPool / Current page) on job pages.'
     );
   }
   if (typeof FillApplySourceProfiles !== 'undefined' && FillApplySourceProfiles.ensureSourceProfileShells) {
@@ -145,9 +151,65 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     return reply(FillApplyRunner.getStatus());
   }
 
+  async function ensureJobPoolHubTab() {
+    const Types = globalThis.FillApplyTypes || {};
+    const hubUrl =
+      Types.JOBPOOL_HUB_URL ||
+      Types.JOBPOOL_FILL_APPLY_URL ||
+      'https://zahid-jobpool.vercel.app/fill-apply';
+    let tab = null;
+    const tabs = await chrome.tabs.query({});
+    for (let i = 0; i < tabs.length; i++) {
+      const u = tabs[i] && tabs[i].url ? String(tabs[i].url) : '';
+      if (/zahid-jobpool\.vercel\.app/i.test(u) && /\/fill-apply/i.test(u)) {
+        tab = tabs[i];
+        break;
+      }
+    }
+    if (!tab) {
+      for (let j = 0; j < tabs.length; j++) {
+        const u2 = tabs[j] && tabs[j].url ? String(tabs[j].url) : '';
+        if (/zahid-jobpool\.vercel\.app/i.test(u2) && /applications?/i.test(u2)) {
+          tab = tabs[j];
+          break;
+        }
+      }
+    }
+    if (!tab) {
+      tab = await chrome.tabs.create({ url: hubUrl, active: true });
+      await new Promise(function (r) {
+        setTimeout(r, 2500);
+      });
+    } else {
+      // Prefer Fill-Apply hub path when we only found Applications.
+      const cur = tab.url ? String(tab.url) : '';
+      if (!/\/fill-apply/i.test(cur)) {
+        await chrome.tabs.update(tab.id, { url: hubUrl, active: true });
+        await new Promise(function (r) {
+          setTimeout(r, 2000);
+        });
+      } else {
+        await chrome.tabs.update(tab.id, { active: true });
+        await new Promise(function (r) {
+          setTimeout(r, 600);
+        });
+      }
+    }
+    return tab && tab.id != null ? tab.id : null;
+  }
+
   if (message.type === MSG.FILL_ONCE || message.type === 'FILL_APPLY_FILL_ONCE') {
     return reply(
       (async function () {
+        var entry = String(message.entry || '').toLowerCase();
+        if (entry === 'jobpool' || entry === 'hub') {
+          var hubTabId = await ensureJobPoolHubTab();
+          if (hubTabId == null) {
+            throw new Error('Could not open JobPool /fill-apply hub');
+          }
+          return FillApplyRunner.runOnceOnTab(hubTabId, 'submit');
+        }
+
         var tabId = message.tabId;
         if (tabId == null && sender && sender.tab && sender.tab.id != null) {
           tabId = sender.tab.id;
@@ -158,9 +220,9 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             if (tabs && tabs[0] && tabs[0].id != null) tabId = tabs[0].id;
           } catch (_q) {}
         }
-        var mode = message.runMode || (message.config && message.config.runMode) || 'fill';
-        if (message.companion === true) mode = 'companion';
-        if (['register', 'fill', 'navigate', 'ready', 'submit', 'companion'].indexOf(mode) === -1) mode = 'fill';
+        var mode = message.runMode || (message.config && message.config.runMode) || 'submit';
+        if (message.autoApply === true) mode = 'submit';
+        if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(mode) === -1) mode = 'submit';
         return FillApplyRunner.runOnceOnTab(tabId, mode);
       })()
     );

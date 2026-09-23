@@ -47,7 +47,6 @@ const SUITES = [
   'smoke-docs-local-not-jobpool.js',
   'smoke-jobpool-html-json.js',
   'smoke-page-panel.js',
-  'smoke-companion-nav.js',
   'smoke-ats-auth.js',
   'smoke-challenges.js',
   'smoke-control-adapter.js',
@@ -58,8 +57,8 @@ const SUITES = [
   'smoke-title-honorific-enquiry.js',
   'smoke-phone-cv-persistence.js',
   'smoke-private-profile-release.js',
-  'smoke-e2e-module-validation-1.25.5.js',
-  'smoke-e2e-module-validation-1.25.6.js'
+  'smoke-e2e-module-validation-1.26.0.js',
+  'smoke-auto-apply-entries.js'
 ];
 
 let failed = 0;

@@ -23,50 +23,16 @@
             <select id="profileSelect" aria-label="Select profile"></select>
           </label>
           <p id="summary" class="summary compact">Loading…</p>
+          <div class="btn-row">
+            <button type="button" id="btnImportProfile" class="secondary">Import Profile</button>
+            <input type="file" id="importProfileFile" accept="application/json,.json" hidden />
+          </div>
+          <p id="profileImportStatus" class="hint-mini" hidden></p>
+          <!-- Auto Apply is always end-to-end Submit (floating panel: JobPool / Current page). -->
+          <input type="radio" name="runMode" value="submit" checked hidden />
 
           <fieldset class="mode-fieldset">
-            <legend>Application mode</legend>
-                        <div class="mode-seg" role="radiogroup" aria-label="Application mode">
-              <label class="mode-seg-item">
-                <input type="radio" name="runMode" value="register" />
-                <span class="mode-seg-label">
-                  <strong>Register</strong>
-                  <small>Sign up</small>
-                </span>
-              </label>
-              <label class="mode-seg-item">
-                <input type="radio" name="runMode" value="fill" checked />
-                <span class="mode-seg-label">
-                  <strong>Fill</strong>
-                  <small>Fields</small>
-                </span>
-              </label>
-              <label class="mode-seg-item">
-                <input type="radio" name="runMode" value="navigate" />
-                <span class="mode-seg-label">
-                  <strong>Navigate</strong>
-                  <small>Steps</small>
-                </span>
-              </label>
-              <label class="mode-seg-item">
-                <input type="radio" name="runMode" value="ready" />
-                <span class="mode-seg-label">
-                  <strong>Ready</strong>
-                  <small>+ Next</small>
-                </span>
-              </label>
-              <label class="mode-seg-item">
-                <input type="radio" name="runMode" value="submit" />
-                <span class="mode-seg-label">
-                  <strong>Submit</strong>
-                  <small>E2E</small>
-                </span>
-              </label>
-            </div>
-</fieldset>
-
-          <fieldset class="mode-fieldset">
-            <legend>Runner mode</legend>
+            <legend>Runner</legend>
             <div class="mode-seg" role="radiogroup" aria-label="Runner mode">
               <label class="mode-seg-item">
                 <input type="radio" name="runnerMode" value="single" checked />
@@ -84,6 +50,7 @@
               </label>
             </div>
           </fieldset>
+          <p class="hint-mini">On job pages use the floating <strong>Auto Apply</strong> panel: <strong>JobPool</strong>, <strong>Current page</strong>, or <strong>Stop</strong>.</p>
 
           <div id="sourceGateBanner" class="source-gate-banner" hidden>
             <p id="sourceGateMessage" class="source-gate-message">Complete source profile in App Settings</p>

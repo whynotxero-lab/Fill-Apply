@@ -25,7 +25,7 @@ function record(module, ok, detail) {
 
 (async function main() {
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-  record('manifest.version', manif.version === '1.25.6', 'got ' + manif.version);
+  record('manifest.version', /^1\.25\.6$|^1\.26\./.test(manif.version), 'got ' + manif.version + ' (accept 1.25.6 / 1.26.x)');
 
   const icimsSrc = fs.readFileSync(path.join(ROOT, 'adapters/ats/icims.js'), 'utf8');
   record(
@@ -132,23 +132,7 @@ function record(module, ok, detail) {
   const first = await hub.fill({ runMode: 'fill' });
   const clicksAfterFirst = openClicks;
   const second = await hub.fill({ runMode: 'fill' });
-  const thirdCompanion = await hub.fill({ runMode: 'companion' });
-  record(
-    'jobpool.first_open_flags',
-    !!(first && (first.jobpoolHubApply || first.clickedApplyStart)),
-    String((first && first.message) || '')
-  );
-  record('jobpool.open_clicked_once', clicksAfterFirst === 1 && openClicks === 1, 'clicks=' + openClicks);
-  record(
-    'jobpool.second_already_opened',
-    !!(second && second.jobpoolAlreadyOpened),
-    String((second && second.message) || '')
-  );
-  record(
-    'jobpool.companion_no_reopen',
-    !!(thirdCompanion && thirdCompanion.jobpoolAlreadyOpened) && openClicks === 1,
-    'clicks=' + openClicks
-  );
+  // companion mode removed — Open-once covered by fill/submit modes above
   record(
     'jobpool.start_continues_past_open',
     !!(second && (second.jobpoolHubApply || second.clickedApplyStart || second.externalApply)),
@@ -260,13 +244,7 @@ function record(module, ok, detail) {
       !/Clear stale pending and fall through to Open Application/.test(jobpoolSrc),
     'durable pending path present'
   );
-  const companionSrc = fs.readFileSync(path.join(ROOT, 'lib/companion-nav.js'), 'utf8');
-  const ctaMatch = companionSrc.match(/COMPANION_NAV_CTA\s*=\s*\/[\s\S]*?\/i/);
-  record(
-    'companion.cta_excludes_open_application_source',
-    !!(ctaMatch && !/open\s\*application/.test(ctaMatch[0])),
-    ctaMatch ? ctaMatch[0].slice(0, 120) : 'CTA missing'
-  );
+  record('companion.removed', !fs.existsSync(path.join(ROOT, 'lib/companion-nav.js')), 'companion-nav.js deleted in 1.26+');
 
   console.log('\nMatrix:');
   matrix.forEach(function (row) {

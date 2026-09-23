@@ -90,19 +90,21 @@ const html = fs.readFileSync(
   const P = panelPage.window.FillApplyPagePanel;
   suite.ok(P.isRelevantPage(url, panelPage.document), 'page panel relevant on /fill-apply');
 
-  // Mount Start/Stop only
+  // Mount JobPool / Current page / Stop
   P.mount(panelPage.document);
   const host = panelPage.document.getElementById(P.HOST_ID);
   const shadow = host.shadowRoot;
-  suite.ok(shadow.querySelector('[data-action="start"]'), 'Start present');
+  suite.ok(shadow.querySelector('[data-action="jobpool"]'), 'JobPool button present');
+  suite.ok(shadow.querySelector('[data-action="current"]'), 'Current page button present');
   suite.ok(shadow.querySelector('[data-action="stop"]'), 'Stop present');
+  suite.ok(!shadow.querySelector('[data-action="start"]'), 'Start removed');
+  suite.ok(!shadow.querySelector('[data-action="companion"]'), 'Companion removed');
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No multi-mode Register');
-  suite.ok(shadow.querySelector('[data-action="companion"]') || shadow.querySelector('[data-mode="companion"]'), 'Companion present');
 
-  // --- Without pending: Start/Companion/Submit click Open Application once; never nav ---
+  // --- Without pending: fill/submit click Open Application once; never nav ---
   // --- With durable pending: NEVER re-click Open Application; return handoff flags ---
   async function clickModes() {
-    const modes = ['fill', 'companion', 'submit'];
+    const modes = ['fill', 'submit'];
     for (const mode of modes) {
       // Fresh hub — no pending → open once
       const p = createPage(html, [

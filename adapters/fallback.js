@@ -1,6 +1,6 @@
 /**
  * Generic heuristic fill adapter — wraps content/fill.js (__fillApply) + file attach.
- * Supports runMode: register | fill | navigate | ready | submit | companion.
+ * Supports runMode: register | fill | navigate | ready | submit.
  */
 (function (global) {
   'use strict';
@@ -22,23 +22,7 @@
     if (!runMode) {
       runMode = ctx.autoSubmit || options.autoSubmit ? 'submit' : 'fill';
     }
-    if (['register', 'fill', 'navigate', 'ready', 'submit', 'companion'].indexOf(runMode) === -1) runMode = 'fill';
-
-    // Companion is runner-owned settle→nav; adapter must never fill/upload.
-    if (runMode === 'companion') {
-      return {
-        ok: true,
-        adapterId: ctx.adapterId || 'fallback',
-        runMode: 'companion',
-        companion: true,
-        filled: 0,
-        unmatched: 0,
-        total: 0,
-        submitted: false,
-        advanced: false,
-        message: 'Companion mode does not fill — runner owns navigate-only loop'
-      };
-    }
+    if (['register', 'fill', 'navigate', 'ready', 'submit'].indexOf(runMode) === -1) runMode = 'fill';
 
     if (!global.__fillApply || typeof global.__fillApply.run !== 'function') {
       return {

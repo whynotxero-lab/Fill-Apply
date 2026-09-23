@@ -39,6 +39,9 @@
   const pauseMessageEl = document.getElementById('pauseMessage');
   const btnResume = document.getElementById('btnResume');
   const profileSelectEl = document.getElementById('profileSelect');
+  const btnImportProfile = document.getElementById('btnImportProfile');
+  const importProfileFile = document.getElementById('importProfileFile');
+  const profileImportStatusEl = document.getElementById('profileImportStatus');
   const emptyQueuePromptEl = document.getElementById('emptyQueuePrompt');
   const btnEmptyYes = document.getElementById('btnEmptyYes');
   const btnEmptyNo = document.getElementById('btnEmptyNo');
@@ -205,11 +208,11 @@
 
   function getSelectedRunMode() {
     const el = document.querySelector('input[name="runMode"]:checked');
-    return el && el.value ? el.value : 'fill';
+    return el && el.value ? el.value : 'submit';
   }
 
   function setSelectedRunMode(mode) {
-    const m = mode === 'ready' || mode === 'submit' ? mode : 'fill';
+    const m = mode === 'submit' || mode === 'ready' ? mode : (mode === 'fill' || mode === 'navigate' || mode === 'register' ? mode : 'submit');
     const el = document.querySelector('input[name="runMode"][value="' + m + '"]');
     if (el) el.checked = true;
   }
@@ -1717,6 +1720,63 @@
         );
       } catch (e) {
         setStatus('Reports: ' + e.message, 'err');
+      }
+    });
+  }
+
+
+  if (btnImportProfile && importProfileFile) {
+    btnImportProfile.addEventListener('click', function () {
+      importProfileFile.value = '';
+      importProfileFile.click();
+    });
+    importProfileFile.addEventListener('change', async function () {
+      var file = importProfileFile.files && importProfileFile.files[0];
+      if (!file) return;
+      function setImportStatus(msg, kind) {
+        if (profileImportStatusEl) {
+          profileImportStatusEl.hidden = false;
+          profileImportStatusEl.textContent = msg;
+          profileImportStatusEl.className = 'hint-mini' + (kind === 'err' ? ' err-line' : '');
+        }
+        setStatus(msg, kind === 'err' ? 'err' : 'ok');
+      }
+      try {
+        if (!globalThis.FillApplyProfileIO) {
+          setImportStatus('Profile import module not loaded.', 'err');
+          return;
+        }
+        var text = await file.text();
+        var checked = FillApplyProfileIO.validateImportPayload(text);
+        if (!checked.ok) {
+          setImportStatus(
+            'Import blocked: ' + (checked.errors || []).join(' '),
+            'err'
+          );
+          return;
+        }
+        var result = await FillApplyProfileIO.importPayload(text, { activate: true });
+        if (!result.ok) {
+          setImportStatus(
+            'Import failed: ' + (result.errors || []).join(' '),
+            'err'
+          );
+          return;
+        }
+        await refreshProfileSelect();
+        await refreshSummary();
+        setImportStatus(
+          'Imported "' +
+            (result.profileName || 'profile') +
+            '" — ' +
+            (result.fieldsRestored || 0) +
+            ' fields, ' +
+            (result.knowledgeImported || 0) +
+            ' knowledge fact(s).',
+          'ok'
+        );
+      } catch (e) {
+        setImportStatus(e.message || String(e), 'err');
       }
     });
   }

@@ -1,19 +1,21 @@
 /**
- * On-page floating control panel — Auto Apply (Start / Companion / Stop). Always expanded.
- * Companion = Simplify navigate-only (settle → Continue/Next; never fill/upload).
+ * On-page floating control panel — Auto Apply (JobPool / Current page / Stop).
+ * Always expanded. Fill-Apply owns the full e2e submission pipeline
+ * (Open Application → Apply → register → fill → submit → JobPool mark).
  *
  * Injected as a top-frame content script on http(s) job/application pages.
  * Isolated via Shadow DOM + `all: initial` on the host so page CSS cannot
  * restyle the panel and panel CSS cannot leak into the host.
  *
  * Positioning: compact fixed box, never a full-page overlay. Candidate
- * slots prefer LEFT (Simplify covers the right). Four corners plus mid-left / mid-right. The slot with the
- * least overlap against job titles, Apply/Start/Submit CTAs, and form
- * fields wins (ties prefer bottom-left). pointer-events stay on the
- * panel only, so scrolling and page clicks are unaffected.
+ * slots prefer LEFT (Simplify may still cover the right). Four corners plus
+ * mid-left / mid-right. The slot with the least overlap against job titles,
+ * Apply/Start/Submit CTAs, and form fields wins (ties prefer bottom-left).
+ * pointer-events stay on the panel only, so scrolling and page clicks are unaffected.
  *
- * Buttons message the service worker (FILL_APPLY_FILL_ONCE) which runs
- * injectAndFill on sender.tab.id — the page this panel is sitting on.
+ * - JobPool: open/focus JobPool /fill-apply hub, then run e2e submit.
+ * - Current page: run e2e submit on the active tab.
+ * - Stop: abort the current-tab / Auto Apply run.
  *
  * Attaches globalThis.FillApplyPagePanel (layout + mount helpers for tests).
  */
@@ -29,7 +31,7 @@
   var HOST_ID = 'fill-apply-page-panel-host';
   var ATTR = 'data-fill-apply-page-panel';
   var PANEL_WIDTH = 200;
-  var PANEL_HEIGHT = 158;
+  var PANEL_HEIGHT = 168;
   var COLLAPSED_WIDTH = 156;
   var COLLAPSED_HEIGHT = 36;
   var MARGIN = 16;
@@ -94,8 +96,7 @@
     if (m === 'register' || m === 'autoregister' || m === 'signup') return 'register';
     if (m === 'navigate' || m === 'autonavigate' || m === 'nav') return 'navigate';
     if (m === 'ready' || m === 'autoready') return 'ready';
-    if (m === 'submit' || m === 'autosubmit') return 'submit';
-    if (m === 'companion' || m === 'simplifycompanion' || m === 'simplify') return 'companion';
+    if (m === 'submit' || m === 'autosubmit' || m === 'autoapply' || m === 'jobpool' || m === 'current' || m === 'currentpage') return 'submit';
     if (m === 'fill' || m === 'autofill') return 'fill';
     return 'fill';
   }
@@ -375,12 +376,9 @@
       'button.act{all:unset;display:block;width:100%;text-align:center;font-size:12px;font-weight:650;line-height:1.2;padding:7px 8px;border-radius:7px;cursor:pointer;border:1px solid #1f2937;}',
       'button.act:hover:not(:disabled){filter:brightness(1.08);}',
       'button.act:disabled{opacity:.55;cursor:default;}',
-      'button[data-mode="register"]{background:#6d28d9;color:#fff;}',
-      'button[data-mode="fill"]{background:#1d4ed8;color:#fff;}',
-      'button[data-mode="navigate"]{background:#0369a1;color:#fff;}',
-      'button[data-mode="ready"]{background:#0f766e;color:#fff;}',
-      'button[data-mode="submit"]{background:#b45309;color:#fff;}',
-      'button[data-mode="companion"]{background:#0e7490;color:#fff;}',
+      'button[data-mode="jobpool"]{background:#b45309;color:#fff;}',
+      'button[data-mode="current"]{background:#1d4ed8;color:#fff;}',
+      'button[data-action="stop"]{background:#7f1d1d;color:#fecaca;border-color:#991b1b;}',
       '.btns-row{display:flex;gap:4px;}',
       '.btns-row button.act{flex:1;}',
       '.status{margin-top:6px;font-size:11px;line-height:1.3;color:#94a3b8;min-height:2.6em;}',
@@ -416,7 +414,7 @@
     busy = !!on;
     Object.keys(buttons).forEach(function (k) {
       if (!buttons[k]) return;
-      // Stop must always work during companion / Auto Apply.
+      // Stop must always work during Auto Apply.
       if (k === 'stop') {
         buttons[k].disabled = false;
         return;
@@ -484,60 +482,39 @@
     return 'Idle — current tab';
   }
 
-  function startAutoApply() {
-    setStatus(STATUS.SUBMITTING, 'Auto Apply — Starting…');
-    if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
-      setStatus(STATUS.error, 'Extension background unavailable');
+  function handleAutoApplyResponse(res) {
+    busy = false;
+    if (!res || res.ok === false) {
+      var err = (res && res.error) || 'Request failed';
+      if (/stopped/i.test(err)) {
+        setStatus(STATUS.idle, 'Stopped — Auto Apply idle');
+        return;
+      }
+      if (/captcha|cloudflare/i.test(err)) {
+        setStatus(STATUS.BLOCKED, 'Blocked — CAPTCHA…');
+      } else if (/auth|sign in|log in|register/i.test(err)) {
+        setStatus(STATUS.AUTH_REQUIRED, err);
+      } else if (/paused|missing profile|action needed|waiting for user/i.test(err)) {
+        setStatus(STATUS.WAITING_FOR_USER, err);
+      } else if (/timeout|no progress|plateau/i.test(err)) {
+        setStatus(STATUS.TIMEOUT, err);
+      } else if (/ambiguous/i.test(err)) {
+        setStatus(STATUS.AMBIGUOUS, err);
+      } else {
+        setStatus(STATUS.error, err);
+      }
       return;
     }
-    busy = true;
-    try {
-      chrome.runtime.sendMessage(
-        { type: 'FILL_APPLY_FILL_ONCE', runMode: 'submit', autoApply: true },
-        function (res) {
-          if (chrome.runtime.lastError) {
-            busy = false;
-            var errMsg = chrome.runtime.lastError.message || 'Message failed';
-            if (isContextDeadError(errMsg)) {
-              setStatus(
-                STATUS.error,
-                'Extension was reloaded — refresh this tab, then try again (Load unpacked / Update).'
-              );
-              return;
-            }
-            setStatus(STATUS.error, errMsg);
-            return;
-          }
-          busy = false;
-          if (!res || res.ok === false) {
-            var err = (res && res.error) || 'Request failed';
-            if (/captcha|cloudflare/i.test(err)) {
-              setStatus(STATUS.BLOCKED, 'Blocked — CAPTCHA…');
-            } else if (/auth|sign in|log in|register/i.test(err)) {
-              setStatus(STATUS.AUTH_REQUIRED, err);
-            } else if (/paused|missing profile|action needed|waiting for user/i.test(err)) {
-              setStatus(STATUS.WAITING_FOR_USER, err);
-            } else if (/timeout|no progress|plateau/i.test(err)) {
-              setStatus(STATUS.TIMEOUT, err);
-            } else if (/ambiguous/i.test(err)) {
-              setStatus(STATUS.AMBIGUOUS, err);
-            } else {
-              setStatus(STATUS.error, err);
-            }
-            return;
-          }
-          applyResult(res.data || res);
-        }
-      );
-    } catch (e) {
-      busy = false;
-      setStatus(STATUS.error, String((e && e.message) || e));
-    }
+    applyResult(res.data || res);
   }
 
-
-  function startCompanion() {
-    setStatus(STATUS.NAVIGATING, 'Waiting for Simplify…');
+  function startAutoApply(entry) {
+    entry = entry === 'jobpool' ? 'jobpool' : 'current';
+    var startMsg =
+      entry === 'jobpool'
+        ? 'Auto Apply — JobPool hub…'
+        : 'Auto Apply — Current page…';
+    setStatus(STATUS.SUBMITTING, startMsg);
     if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
       setStatus(STATUS.error, 'Extension background unavailable');
       return;
@@ -547,9 +524,9 @@
       chrome.runtime.sendMessage(
         {
           type: 'FILL_APPLY_FILL_ONCE',
-          runMode: 'companion',
-          companion: true,
-          autoApply: false
+          runMode: 'submit',
+          autoApply: true,
+          entry: entry
         },
         function (res) {
           if (chrome.runtime.lastError) {
@@ -565,23 +542,21 @@
             setStatus(STATUS.error, errMsg);
             return;
           }
-          busy = false;
-          if (!res || res.ok === false) {
-            var err = (res && res.error) || 'Companion failed';
-            if (/stopped/i.test(err)) {
-              setStatus(STATUS.idle, 'Stopped — Companion idle');
-              return;
-            }
-            setStatus(STATUS.error, err);
-            return;
-          }
-          applyResult(res.data || res);
+          handleAutoApplyResponse(res);
         }
       );
     } catch (e) {
       busy = false;
       setStatus(STATUS.error, String((e && e.message) || e));
     }
+  }
+
+  function startJobPool() {
+    startAutoApply('jobpool');
+  }
+
+  function startCurrentPage() {
+    startAutoApply('current');
   }
 
   function stopAutoApply() {
@@ -639,8 +614,8 @@
       shadowRoot = existing.shadowRoot;
       if (shadowRoot) {
         statusEl = shadowRoot.querySelector('.status');
-        buttons.start = shadowRoot.querySelector('[data-action="start"]');
-        buttons.companion = shadowRoot.querySelector('[data-action="companion"]');
+        buttons.jobpool = shadowRoot.querySelector('[data-action="jobpool"]');
+        buttons.current = shadowRoot.querySelector('[data-action="current"]');
         buttons.stop = shadowRoot.querySelector('[data-action="stop"]');
       }
       existing.hidden = false;
@@ -697,36 +672,37 @@
     var btns = doc.createElement('div');
     btns.className = 'btns';
 
-    var startBtn = doc.createElement('button');
-    startBtn.type = 'button';
-    startBtn.className = 'act';
-    startBtn.setAttribute('data-action', 'start');
-    startBtn.setAttribute('data-mode', 'submit');
-    startBtn.textContent = 'Start';
-    startBtn.addEventListener('click', function (ev) {
+    var jobpoolBtn = doc.createElement('button');
+    jobpoolBtn.type = 'button';
+    jobpoolBtn.className = 'act';
+    jobpoolBtn.setAttribute('data-action', 'jobpool');
+    jobpoolBtn.setAttribute('data-mode', 'jobpool');
+    jobpoolBtn.setAttribute('title', 'Open/focus JobPool /fill-apply, then run end-to-end Apply');
+    jobpoolBtn.textContent = 'JobPool';
+    jobpoolBtn.addEventListener('click', function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
       if (busy) return;
-      startAutoApply();
+      startJobPool();
     });
-    buttons.start = startBtn;
-    btns.appendChild(startBtn);
+    buttons.jobpool = jobpoolBtn;
+    btns.appendChild(jobpoolBtn);
 
-    var companionBtn = doc.createElement('button');
-    companionBtn.type = 'button';
-    companionBtn.className = 'act';
-    companionBtn.setAttribute('data-action', 'companion');
-    companionBtn.setAttribute('data-mode', 'companion');
-    companionBtn.setAttribute('title', 'Simplify companion: navigate-only (no fill/upload)');
-    companionBtn.textContent = 'Companion';
-    companionBtn.addEventListener('click', function (ev) {
+    var currentBtn = doc.createElement('button');
+    currentBtn.type = 'button';
+    currentBtn.className = 'act';
+    currentBtn.setAttribute('data-action', 'current');
+    currentBtn.setAttribute('data-mode', 'current');
+    currentBtn.setAttribute('title', 'Run end-to-end Apply on the active tab');
+    currentBtn.textContent = 'Current page';
+    currentBtn.addEventListener('click', function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
       if (busy) return;
-      startCompanion();
+      startCurrentPage();
     });
-    buttons.companion = companionBtn;
-    btns.appendChild(companionBtn);
+    buttons.current = currentBtn;
+    btns.appendChild(currentBtn);
 
     var stopBtn = doc.createElement('button');
     stopBtn.type = 'button';
@@ -875,7 +851,8 @@
     hide: hide,
     maybeShow: maybeShow,
     setStatus: setStatus,
-    startCompanion: startCompanion,
+    startJobPool: startJobPool,
+    startCurrentPage: startCurrentPage,
     startAutoApply: startAutoApply,
     setCollapsed: setCollapsed,
     reposition: reposition,

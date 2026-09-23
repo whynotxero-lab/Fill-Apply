@@ -621,7 +621,7 @@
           /**
            * Durable pending: after a successful Open Application click, NEVER
            * click Open Application again for that job until marked / failed /
-           * cleared. Companion must not loop; Start continues on employer tab.
+           * cleared. Start continues on employer tab.
            * Return handoff flags so the runner adopts the employer tab.
            */
           var applyBtnEarly = findFirstReadyApply(doc);

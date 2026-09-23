@@ -33,8 +33,8 @@ const JOB_FORM = `
   suite.equal(P.normalizeRunMode('Auto Navigate'), 'navigate', 'Auto Navigate maps to navigate');
   suite.equal(P.normalizeRunMode('Auto Ready'), 'ready', 'Auto Ready maps to ready');
   suite.equal(P.normalizeRunMode('Auto Submit'), 'submit', 'Auto Submit maps to submit');
-  suite.equal(P.normalizeRunMode('companion'), 'companion', 'companion stays companion');
-  suite.equal(P.normalizeRunMode('Simplify Companion'), 'companion', 'Simplify Companion maps');
+  suite.equal(P.normalizeRunMode('jobpool'), 'submit', 'jobpool maps to submit');
+  suite.equal(P.normalizeRunMode('Current page'), 'submit', 'Current page maps to submit');
   suite.equal(P.normalizeRunMode('ready'), 'ready', 'ready stays ready');
   suite.equal(P.normalizeRunMode('nope'), 'fill', 'unknown mode falls back to fill');
 
@@ -91,7 +91,7 @@ const JOB_FORM = `
   suite.ok(midLeft.top > 200 && midLeft.top < 500, 'mid-left is vertically centered');
 })();
 
-(function mountsFiveButtonsInShadow() {
+(function mountsJobPoolCurrentStop() {
   const page = createPage(JOB_FORM, LIBS);
   const P = page.window.FillApplyPagePanel;
   const host = page.document.getElementById(P.HOST_ID) || P.mount(page.document);
@@ -100,12 +100,14 @@ const JOB_FORM = `
   suite.ok(host.style.position === 'fixed', 'host is position:fixed (not a page overlay)');
 
   const shadow = host.shadowRoot;
-  const start = shadow.querySelector('[data-action="start"]');
+  const jobpool = shadow.querySelector('[data-action="jobpool"]');
+  const current = shadow.querySelector('[data-action="current"]');
   const stop = shadow.querySelector('[data-action="stop"]');
-  suite.ok(start && start.textContent === 'Start', 'Start button');
-  const companion = shadow.querySelector('[data-action="companion"]');
-  suite.ok(companion && companion.textContent === 'Companion', 'Companion button');
+  suite.ok(jobpool && jobpool.textContent === 'JobPool', 'JobPool button');
+  suite.ok(current && current.textContent === 'Current page', 'Current page button');
   suite.ok(stop && stop.textContent === 'Stop', 'Stop button');
+  suite.ok(!shadow.querySelector('[data-action="companion"]'), 'No Companion button');
+  suite.ok(!shadow.querySelector('[data-action="start"]'), 'No Start button');
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No Auto Register mode button');
   suite.ok(!shadow.querySelector('[data-mode="fill"]'), 'No Auto Fill mode button');
   const wrap = shadow.querySelector('.wrap');

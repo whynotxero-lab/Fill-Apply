@@ -1266,9 +1266,9 @@
     var profile = ctx.profile || {};
     var doc = (ctx && ctx.document) || (typeof document !== 'undefined' ? document : null);
     var runMode = ctx.runMode || (ctx.options && ctx.options.runMode) || 'fill';
-    if (['fill', 'ready', 'submit', 'navigate', 'companion'].indexOf(runMode) === -1) runMode = 'fill';
-    // Companion/navigate still must click Easy Apply / Apply to start — never fill fields below for companion.
-    var companionClicksOnly = runMode === 'companion' || runMode === 'navigate';
+    if (['fill', 'ready', 'submit', 'navigate'].indexOf(runMode) === -1) runMode = 'fill';
+    // Navigate-only: still click Easy Apply / Apply to start — never fill fields below.
+    var navClicksOnly = runMode === 'navigate';
 
     var href = '';
     try {
@@ -1489,23 +1489,23 @@
         };
       }
 
-      // Companion / navigate: clicks only — open Easy Apply / Apply, do not fill or submit.
-      if (companionClicksOnly) {
+      // Navigate-only: clicks only — open Easy Apply / Apply, do not fill or submit.
+      if (navClicksOnly) {
         return {
           ok: true,
           adapterId: 'naukrigulf',
           clickedApplyStart: true,
-          companion: runMode === 'companion',
-          navOnly: runMode === 'navigate' || runMode === 'companion',
+          companion: false,
+          navOnly: runMode === 'navigate',
           filled: 0,
           unmatched: 0,
           total: 0,
           advanced: !!advanced || !!modal,
           submitted: false,
-          step: 'companion_apply_opened',
+          step: 'navigate_apply_opened',
           message: modal
-            ? 'Easy Apply opened — companion will not fill (Simplify / navigate owns fields)'
-            : 'Apply start clicked — companion clicks-only',
+            ? 'Easy Apply opened — navigate-only (no fill)'
+            : 'Apply start clicked — navigate-only',
           runMode: runMode
         };
       }
