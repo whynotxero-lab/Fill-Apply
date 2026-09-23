@@ -22,8 +22,8 @@ function record(module, ok, detail) {
 (async function main() {
   const manif = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  record('manifest.version', manif.version === '1.26.3', 'got ' + manif.version);
-  record('package.version', pkg.version === '1.26.3', 'got ' + pkg.version);
+  record('manifest.version', /^1\.26\.(3|4)$/.test(manif.version), 'got ' + manif.version + ' (1.26.3+)');
+  record('package.version', /^1\.26\.(3|4)$/.test(pkg.version), 'got ' + pkg.version + ' (1.26.3+)');
   record(
     'nav_first.lib',
     fs.existsSync(path.join(ROOT, 'lib/nav-first.js')),
@@ -87,12 +87,18 @@ function record(module, ok, detail) {
   const open = N.tryNavApplyStart(jobPage.document);
   record('nav.click_apply', !!(open && open.clicked && clicked === 1), 'clicks=' + clicked);
 
-  // Panel still JobPool / Current / Stop
+  // Panel: 1.26.4 Start/Pause/Cancel (accept legacy JobPool/Current/Stop)
   const panelSrc = fs.readFileSync(path.join(ROOT, 'content/page-panel.js'), 'utf8');
-  record('panel.jobpool', /data-action=['\"]jobpool['\"]/.test(panelSrc), 'JobPool');
-  record('panel.current', /data-action=['\"]current['\"]/.test(panelSrc), 'Current');
-  record('panel.stop', /data-action=['\"]stop['\"]/.test(panelSrc), 'Stop');
-  record('panel.no_companion', !/data-action=['"]companion['"]/.test(panelSrc), 'no Companion');
+  const hasStartTrio =
+    /data-action=['\"]start['\"]/.test(panelSrc) &&
+    /data-action=['\"]pause-toggle['\"]/.test(panelSrc) &&
+    /data-action=['\"]cancel['\"]/.test(panelSrc);
+  const hasLegacyTrio =
+    /data-action=['\"]jobpool['\"]/.test(panelSrc) &&
+    /data-action=['\"]current['\"]/.test(panelSrc) &&
+    /data-action=['\"]stop['\"]/.test(panelSrc);
+  record('panel.auto_apply_trio', hasStartTrio || hasLegacyTrio, hasStartTrio ? 'Start/Pause/Cancel' : 'JobPool/Current/Stop');
+  record('panel.no_companion', !/data-action=['\"]companion['\"]/.test(panelSrc), 'no Companion');
 
 
   record('icims.resolveEducationCountry', /function resolveEducationCountry/.test(icims), 'edu Pakistan helper');

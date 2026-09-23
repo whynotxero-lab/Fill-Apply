@@ -31,9 +31,9 @@ function record(module, ok, detail) {
   );
 
   const panelSrc = fs.readFileSync(path.join(ROOT, 'content/page-panel.js'), 'utf8');
-  record('panel.jobpool_btn', /data-action=['\"]jobpool['\"]/.test(panelSrc), 'JobPool');
-  record('panel.current_btn', /data-action=['\"]current['\"]/.test(panelSrc), 'Current page');
-  record('panel.stop_btn', /data-action=['\"]stop['\"]/.test(panelSrc), 'Stop');
+  record('panel.start_or_jobpool', /data-action=['\"]start['\"]/.test(panelSrc) || /data-action=['\"]jobpool['\"]/.test(panelSrc), 'Start or JobPool');
+  record('panel.pause_or_current', /data-action=['\"]pause-toggle['\"]/.test(panelSrc) || /data-action=['\"]current['\"]/.test(panelSrc), 'Pause or Current');
+  record('panel.cancel_or_stop', /data-action=['\"]cancel['\"]/.test(panelSrc) || /data-action=['\"]stop['\"]/.test(panelSrc), 'Cancel or Stop');
   record('panel.no_companion', !/data-action=['"]companion['"]/.test(panelSrc), 'no Companion');
 
   const runnerSrc = fs.readFileSync(path.join(ROOT, 'runner/runner.js'), 'utf8');
@@ -128,11 +128,14 @@ function record(module, ok, detail) {
   record(
     'panel.mount_three',
     !!(
-      shadow.querySelector('[data-action="jobpool"]') &&
-      shadow.querySelector('[data-action="current"]') &&
-      shadow.querySelector('[data-action="stop"]')
+      (shadow.querySelector('[data-action="start"]') &&
+        shadow.querySelector('[data-action="pause-toggle"]') &&
+        shadow.querySelector('[data-action="cancel"]')) ||
+      (shadow.querySelector('[data-action="jobpool"]') &&
+        shadow.querySelector('[data-action="current"]') &&
+        shadow.querySelector('[data-action="stop"]'))
     ),
-    'JobPool + Current page + Stop'
+    'Start/Pause/Cancel or JobPool/Current/Stop'
   );
 
   console.log('\n=== 1.26.2 E2E module validation matrix (SLICE 1) ===');

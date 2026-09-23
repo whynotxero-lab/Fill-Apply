@@ -49,7 +49,7 @@ chrome.runtime.onInstalled.addListener(function (details) {
   configureSidePanel();
   if (details.reason === 'install') {
     console.log(
-      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Import a profile, then use Auto Apply (JobPool / Current page) on job pages.'
+      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Import a profile, then use Auto Apply (Start / Pause·Resume / Cancel) on job pages.'
     );
   }
   if (typeof FillApplySourceProfiles !== 'undefined' && FillApplySourceProfiles.ensureSourceProfileShells) {
@@ -145,6 +145,10 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
   if (message.type === MSG.STOP) {
     return reply(FillApplyRunner.stop());
+  }
+
+  if (message.type === MSG.PAUSE || message.type === 'FILL_APPLY_PAUSE') {
+    return reply(FillApplyRunner.pause());
   }
 
   if (message.type === MSG.RESUME || message.type === 'FILL_APPLY_RESUME') {

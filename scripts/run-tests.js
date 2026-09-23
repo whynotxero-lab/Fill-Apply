@@ -61,9 +61,11 @@ const SUITES = [
   'smoke-e2e-module-validation-1.26.1.js',
   'smoke-e2e-module-validation-1.26.2.js',
   'smoke-e2e-module-validation-1.26.3.js',
+  'smoke-e2e-module-validation-1.26.4.js',
   'smoke-nav-first-icims.js',
   'smoke-icims-profile-fill.js',
-  'smoke-auto-apply-entries.js'
+  'smoke-auto-apply-entries.js',
+  'smoke-panel-start-pause.js'
 ];
 
 let failed = 0;

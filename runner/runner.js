@@ -2646,7 +2646,7 @@
           looksLikeMissingProfile(fillResult.error, missingFields);
         const msg = isMissingProfile
           ? fillResult.error ||
-            'Missing profile field — fill in App Settings or on the page, then retry'
+            'Paused — unknown/unfilled field(s). Fill highlighted field(s), then Resume'
           : fillResult.pauseReason === 'structure_drift'
             ? fillResult.error || 'Form changed — review required'
             : fillResult.error || 'Paused — verify Cloudflare/CAPTCHA';
@@ -3532,24 +3532,203 @@
   }
 
   /**
-   * Resume after human verified Cloudflare/CAPTCHA / reviewed Indeed form.
-   * Clears pause flag and continues the queue (job remains queued with needsAttention cleared on next success).
+   * Learn answers the human typed into highlighted unmatched fields on the tab.
+   * Uses existing FillApplyKnowledgeLearn path (adaptive dictionary / Question Bank).
+   * Does not invent a second knowledge store.
+   */
+  async function learnUnmatchedFieldsInTab(tabId) {
+    if (tabId == null) return { learned: 0, attempted: 0 };
+    var collected = [];
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: function () {
+          var ATTR = 'data-fill-apply-unmatched';
+          var nodes = [];
+          try {
+            nodes = Array.prototype.slice.call(document.querySelectorAll('[' + ATTR + ']'));
+          } catch (_e) {
+            nodes = [];
+          }
+          if (!nodes.length) {
+            try {
+              var all = document.querySelectorAll('input, textarea, select, [contenteditable="true"]');
+              for (var i = 0; i < all.length; i++) {
+                var el = all[i];
+                var outline = (el.style && el.style.outline) || '';
+                if (/f59e0b|rgb\(245,\s*158,\s*11\)/i.test(outline)) nodes.push(el);
+              }
+            } catch (_e2) {}
+          }
+          function readVal(el) {
+            if (!el) return '';
+            var type = String(el.type || '').toLowerCase();
+            if (type === 'checkbox') return el.checked ? 'Yes' : '';
+            if (type === 'radio') return el.checked ? (el.value && el.value !== 'on' ? el.value : 'Yes') : '';
+            if (el.tagName === 'SELECT') {
+              var opt = el.options && el.options[el.selectedIndex];
+              var t = opt ? String(opt.textContent || '').trim() : '';
+              if (/^(select|choose|please select|--)/i.test(t)) return '';
+              return t || String(el.value || '').trim();
+            }
+            if (el.getAttribute && el.getAttribute('contenteditable') === 'true') {
+              return String(el.textContent || '').trim();
+            }
+            return String(el.value || '').trim();
+          }
+          function labelOf(el) {
+            try {
+              if (globalThis.__fillApply && __fillApply.getLabelText) return __fillApply.getLabelText(el);
+            } catch (_l) {}
+            try {
+              if (globalThis.FillApplyDom && FillApplyDom.labelFor) return FillApplyDom.labelFor(el);
+            } catch (_l2) {}
+            return (
+              (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('name') || el.id)) ||
+              ''
+            );
+          }
+          var rows = [];
+          for (var n = 0; n < nodes.length; n++) {
+            var field = nodes[n];
+            var value = readVal(field);
+            if (!value) continue;
+            rows.push({
+              label: labelOf(field),
+              value: value,
+              name: field.getAttribute && field.getAttribute('name'),
+              id: field.id || '',
+              host: location.hostname,
+              url: location.href
+            });
+          }
+          return rows;
+        }
+      });
+      collected = (results && results[0] && results[0].result) || [];
+    } catch (e) {
+      return { learned: 0, attempted: 0, error: String((e && e.message) || e) };
+    }
+    if (!Array.isArray(collected)) collected = [];
+    var learned = 0;
+    var Learn = global.FillApplyKnowledgeLearn;
+    for (var i = 0; i < collected.length; i++) {
+      var row = collected[i];
+      if (!row || !row.value) continue;
+      try {
+        if (Learn && typeof Learn.learn === 'function') {
+          await Learn.learn({
+            label: row.label || '',
+            value: row.value,
+            name: row.name || '',
+            id: row.id || '',
+            kind: 'resume_human',
+            host: row.host || '',
+            url: row.url || ''
+          });
+          learned += 1;
+        }
+      } catch (_learnOne) {
+        /* continue other fields */
+      }
+    }
+    return { learned: learned, attempted: collected.length };
+  }
+
+  /**
+   * Soft-pause current Auto Apply (panel Pause). Keeps tab; does not cancel job.
+   * Unknown-field auto-pause already uses pauseForHuman; this covers manual Pause.
+   */
+  async function pauseRunner() {
+    const S = global.FillApplyStorage;
+    currentTabAbort = true;
+    let tabId = null;
+    try {
+      if (typeof getActiveRunTargetTabId === 'function') {
+        tabId = getActiveRunTargetTabId();
+      }
+    } catch (_g) {}
+    if (tabId == null) tabId = pausedTabId;
+    if (tabId == null) {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs && tabs[0] && tabs[0].id != null) tabId = tabs[0].id;
+      } catch (_q) {}
+    }
+    let job = { title: 'Current page', url: '' };
+    try {
+      if (tabId != null) {
+        const t = await chrome.tabs.get(tabId);
+        if (t) job = { title: t.title || 'Current page', url: t.url || '' };
+      }
+    } catch (_t) {}
+    const msg = 'Paused — fill highlighted fields, then Resume';
+    await pauseForHuman(job, tabId, 'user_pause', {
+      message: msg,
+      skipQueue: true,
+      mode: 'single'
+    });
+    return {
+      pausedForHuman: true,
+      state: 'paused',
+      message: msg,
+      result: { ok: true, needsHuman: true, pauseReason: 'user_pause' }
+    };
+  }
+
+  /**
+   * Resume after human verified Cloudflare/CAPTCHA / filled unknown fields.
+   * Single-tab Auto Apply (mode=single): learn highlighted answers, then
+   * re-run fill on the same tab (no new tab / no queue hop).
+   * Batch pause: clear flag and continue the queue.
    */
   async function resumeRunner() {
     const S = global.FillApplyStorage;
     const paused = S.isPausedForHuman ? await S.isPausedForHuman() : null;
-    if (paused && paused.tabId != null) {
-      resumeTabId = paused.tabId;
-      await focusTab(paused.tabId);
-    } else if (pausedTabId != null) {
-      resumeTabId = pausedTabId;
-      await focusTab(pausedTabId);
+    let pauseState = null;
+    try {
+      if (S.getPauseState) pauseState = await S.getPauseState();
+    } catch (_ps) {}
+    const tabId =
+      (paused && paused.tabId != null && paused.tabId) ||
+      (pauseState && pauseState.tabId != null && pauseState.tabId) ||
+      pausedTabId;
+    const modeHint =
+      (paused && paused.mode) ||
+      (pauseState && pauseState.mode) ||
+      (paused && paused.skipQueue ? 'single' : null);
+    const isSingle =
+      modeHint === 'single' ||
+      !!(paused && paused.skipQueue) ||
+      !!(pauseState && pauseState.mode === 'single');
+
+    if (tabId != null) {
+      resumeTabId = tabId;
+      await focusTab(tabId);
     }
+
+    // Learn human answers on the paused page before continuing fill.
+    let learnResult = null;
+    if (tabId != null) {
+      try {
+        learnResult = await learnUnmatchedFieldsInTab(tabId);
+        await S.appendSessionLog({
+          type: 'resume_learn',
+          learned: (learnResult && learnResult.learned) || 0,
+          attempted: (learnResult && learnResult.attempted) || 0,
+          tabId: tabId
+        });
+      } catch (_learnErr) {
+        learnResult = { error: String((_learnErr && _learnErr.message) || _learnErr) };
+      }
+    }
+
     if (S.clearPausedForHuman) await S.clearPausedForHuman();
     await clearMissingFieldsPauseState();
     await S.setQueueStatus({ pausedForHuman: false, lastError: null });
-    await S.appendSessionLog({ type: 'resume_human' });
+    await S.appendSessionLog({ type: 'resume_human', mode: isSingle ? 'single' : 'batch' });
     pausedTabId = null;
+    currentTabAbort = false;
 
     // Clear needsAttention on queued jobs (best-effort)
     const B = global.FillApplyBackend;
@@ -3574,6 +3753,12 @@
       }
     }
 
+    if (isSingle && tabId != null) {
+      // Stay on the same tab — do not open another tab or hop jobs.
+      const once = await runOnceOnTab(tabId, 'submit');
+      return Object.assign({}, once, { resumeLearn: learnResult || null });
+    }
+
     return startRunner();
   }
 
@@ -3581,7 +3766,9 @@
     RUN_PHASES: RUN_PHASES,
     start: startRunner,
     stop: stopRunner,
+    pause: pauseRunner,
     resume: resumeRunner,
+    learnUnmatchedFieldsInTab: learnUnmatchedFieldsInTab,
     getStatus: getStatusSnapshot,
     injectAndFill: injectAndFill,
     fillTabWithApplyStart: fillTabWithApplyStart,

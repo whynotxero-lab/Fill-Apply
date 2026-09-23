@@ -26,19 +26,26 @@ const JOB_FORM = `
   const P = page.window.FillApplyPagePanel;
   const host = P.mount(page.document);
   const shadow = host.shadowRoot;
-  suite.ok(!!shadow.querySelector('[data-action="jobpool"]'), 'JobPool entry button');
-  suite.ok(!!shadow.querySelector('[data-action="current"]'), 'Current page entry button');
-  suite.ok(!!shadow.querySelector('[data-action="stop"]'), 'Stop button');
+  suite.ok(!!shadow.querySelector('[data-action="start"]'), 'Start entry button');
+  suite.ok(!!shadow.querySelector('[data-action="pause-toggle"]'), 'Pause/Resume toggle');
+  suite.ok(!!shadow.querySelector('[data-action="cancel"]'), 'Cancel button');
   suite.ok(!shadow.querySelector('[data-action="companion"]'), 'Companion gone');
-  suite.ok(!shadow.querySelector('[data-action="start"]'), 'legacy Start gone');
+  suite.ok(!shadow.querySelector('[data-action="jobpool"]'), 'separate JobPool gone (smart Start)');
+  suite.ok(!shadow.querySelector('[data-action="stop"]'), 'Stop renamed to Cancel');
   suite.equal(P.normalizeRunMode('jobpool'), 'submit', 'jobpool → submit');
   suite.equal(P.normalizeRunMode('current'), 'submit', 'current → submit');
+  suite.equal(P.normalizeRunMode('start'), 'fill', 'start alone falls back to fill normalize');
+  suite.ok(typeof P.startSmart === 'function', 'startSmart exported');
+  suite.ok(typeof P.pauseAutoApply === 'function', 'pauseAutoApply exported');
+  suite.ok(typeof P.resumeAutoApply === 'function', 'resumeAutoApply exported');
+  suite.ok(typeof P.cancelAutoApply === 'function', 'cancelAutoApply exported');
 })();
 
 (function serviceWorkerEntryContract() {
   const sw = fs.readFileSync(path.join(ROOT, 'background/service-worker.js'), 'utf8');
   suite.ok(/ensureJobPoolHubTab/.test(sw), 'SW has ensureJobPoolHubTab');
   suite.ok(/entry === 'jobpool'/.test(sw) || /entry === \"jobpool\"/.test(sw), 'SW handles entry=jobpool');
+  suite.ok(/FILL_APPLY_PAUSE/.test(sw) || /MSG\.PAUSE/.test(sw), 'SW handles PAUSE');
   suite.ok(/configureSidePanel/.test(sw), 'SW restores configureSidePanel');
   suite.ok(!/disableSidePanelIfPresent/.test(sw), 'SW no longer disables side panel');
   suite.ok(!/runMode: 'companion'/.test(sw) && !/mode = 'companion'/.test(sw), 'SW has no companion mode');
@@ -49,6 +56,9 @@ const JOB_FORM = `
   suite.ok(!/runCompanionOnTab/.test(runner), 'runner has no runCompanionOnTab');
   suite.ok(!/companion-nav\.js/.test(runner), 'runner does not inject companion-nav');
   suite.ok(!fs.existsSync(path.join(ROOT, 'lib/companion-nav.js')), 'companion-nav.js deleted');
+  suite.ok(/pause:\s*pauseRunner/.test(runner) || /pause:\s*pauseRunner/.test(runner), 'runner exports pause');
+  suite.ok(/learnUnmatchedFieldsInTab/.test(runner), 'runner has resume learn hook');
+  suite.ok(/mode === 'single'/.test(runner) || /modeHint === 'single'/.test(runner), 'single-tab resume path');
 })();
 
 (function sidepanelProfileImport() {

@@ -72,7 +72,7 @@ function fixture(name) {
   });
   suite.ok(/PROGRESS_PLATEAU_MS\s*=\s*10000/.test(typesSrc), 'plateau 10000ms');
 
-  // B) Page panel Auto Apply Start / Stop (always open)
+  // B) Page panel Auto Apply Start / Pause·Resume / Cancel (always open)
   const flowHtml = fixture('application-flow.html').replace(/<script>[\s\S]*?<\/script>/g, '');
   const panelPage = createPage(flowHtml, ['content/page-panel.js']);
   const P = panelPage.window.FillApplyPagePanel;
@@ -81,12 +81,20 @@ function fixture(name) {
   suite.equal(P.normalizeRunMode('Auto Navigate'), 'navigate', 'normalize navigate');
   const host = P.mount(panelPage.document);
   const shadow = host.shadowRoot;
+  const start = shadow.querySelector('[data-action="start"]');
+  const pauseToggle = shadow.querySelector('[data-action="pause-toggle"]');
+  const cancel = shadow.querySelector('[data-action="cancel"]');
   const jobpool = shadow.querySelector('[data-action="jobpool"]');
   const current = shadow.querySelector('[data-action="current"]');
   const stop = shadow.querySelector('[data-action="stop"]');
-  suite.ok(jobpool && jobpool.textContent === 'JobPool', 'JobPool present');
-  suite.ok(current && current.textContent === 'Current page', 'Current page present');
-  suite.ok(stop && stop.textContent === 'Stop', 'Stop present');
+  const hasNew = !!(start && pauseToggle && cancel);
+  const hasLegacy = !!(jobpool && current && stop);
+  suite.ok(hasNew || hasLegacy, 'Auto Apply trio present (Start/Pause/Cancel or JobPool/Current/Stop)');
+  if (hasNew) {
+    suite.equal(start.textContent, 'Start', 'Start present');
+    suite.ok(/Pause|Resume/.test(pauseToggle.textContent), 'Pause/Resume present');
+    suite.equal(cancel.textContent, 'Cancel', 'Cancel present');
+  }
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No multi-mode Register');
   suite.ok(!shadow.querySelector('.wrap.collapsed'), 'Panel always expanded');
 

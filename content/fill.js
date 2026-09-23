@@ -751,12 +751,21 @@
     if (kind === 'unmatched') {
       el.setAttribute(HIGHLIGHT_ATTR, '1');
       el.style.outline = '2px solid #f59e0b';
+      el.style.outlineOffset = '2px';
+      el.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.35)';
+      try {
+        if (!el.getAttribute('data-fill-apply-prev-bg')) {
+          el.setAttribute('data-fill-apply-prev-bg', el.style.backgroundColor || '');
+        }
+        el.style.backgroundColor = '#fef3c7';
+      } catch (_bg) {}
       if (global.FillApplyFocusHud && global.FillApplyFocusHud.markStatus) {
         global.FillApplyFocusHud.markStatus(el, 'unfilled', 'Needs info');
       }
     } else {
       el.setAttribute(FILLED_ATTR, '1');
       el.style.outline = '2px solid #22c55e';
+      el.style.boxShadow = '';
       if (global.FillApplyFocusHud && global.FillApplyFocusHud.markStatus) {
         global.FillApplyFocusHud.markStatus(el, 'filled', 'Filled');
       }
@@ -2418,6 +2427,11 @@
               ? 'READY'
               : 'READY';
 
+    const needsHumanPause =
+      runPhase === 'MISSING_INFORMATION' ||
+      (missingRequired && missingRequired.length > 0) ||
+      (blockers && blockers.length > 0);
+
     return {
       ok: true,
       filled: filled,
@@ -2426,6 +2440,12 @@
       unmatched: unmatched,
       total: fields.length,
       phase: runPhase,
+      needsHuman: !!needsHumanPause,
+      pauseReason: needsHumanPause
+        ? blockers && blockers.length
+          ? 'documents'
+          : 'missing_profile_field'
+        : undefined,
       dependentPasses: dependentPasses,
       blockers: blockers,
       cvImportClicked: !!(cvImport && cvImport.clicked),

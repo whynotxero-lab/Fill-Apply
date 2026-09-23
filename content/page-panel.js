@@ -1,5 +1,5 @@
 /**
- * On-page floating control panel — Auto Apply (JobPool / Current page / Stop).
+ * On-page floating control panel — Auto Apply (Start / Pause·Resume / Cancel).
  * Always expanded. Fill-Apply owns the full e2e submission pipeline
  * (Open Application → Apply → register → fill → submit → JobPool mark).
  *
@@ -13,9 +13,9 @@
  * Apply/Start/Submit CTAs, and form fields wins (ties prefer bottom-left).
  * pointer-events stay on the panel only, so scrolling and page clicks are unaffected.
  *
- * - JobPool: open/focus JobPool /fill-apply hub, then run e2e submit.
- * - Current page: run e2e submit on the active tab.
- * - Stop: abort the current-tab / Auto Apply run.
+ * - Start: smart entry — JobPool /fill-apply hub → JobPool e2e; else current-page e2e.
+ * - Pause / Resume: toggle; auto-pause on unknown fields; Resume learns + continues.
+ * - Cancel: abort the current-tab / Auto Apply run (same as legacy Stop).
  *
  * Attaches globalThis.FillApplyPagePanel (layout + mount helpers for tests).
  */
@@ -31,7 +31,7 @@
   var HOST_ID = 'fill-apply-page-panel-host';
   var ATTR = 'data-fill-apply-page-panel';
   var PANEL_WIDTH = 200;
-  var PANEL_HEIGHT = 168;
+  var PANEL_HEIGHT = 176;
   var COLLAPSED_WIDTH = 156;
   var COLLAPSED_HEIGHT = 36;
   var MARGIN = 16;
@@ -81,6 +81,7 @@
   var collapsed = false;
   var currentState = STATUS.idle;
   var busy = false;
+  var panelPhase = 'idle'; // idle | running | paused
   var lastHref = '';
   var repositionTimer = null;
   var spaTimer = null;
@@ -376,9 +377,10 @@
       'button.act{all:unset;display:block;width:100%;text-align:center;font-size:12px;font-weight:650;line-height:1.2;padding:7px 8px;border-radius:7px;cursor:pointer;border:1px solid #1f2937;}',
       'button.act:hover:not(:disabled){filter:brightness(1.08);}',
       'button.act:disabled{opacity:.55;cursor:default;}',
-      'button[data-mode="jobpool"]{background:#b45309;color:#fff;}',
-      'button[data-mode="current"]{background:#1d4ed8;color:#fff;}',
-      'button[data-action="stop"]{background:#7f1d1d;color:#fecaca;border-color:#991b1b;}',
+      'button[data-action="start"]{background:#1d4ed8;color:#fff;}',
+      'button[data-action="pause-toggle"]{background:#b45309;color:#fff;}',
+      'button[data-action="pause-toggle"][data-mode="resume"]{background:#15803d;color:#fff;}',
+      'button[data-action="cancel"]{background:#7f1d1d;color:#fecaca;border-color:#991b1b;}',
       '.btns-row{display:flex;gap:4px;}',
       '.btns-row button.act{flex:1;}',
       '.status{margin-top:6px;font-size:11px;line-height:1.3;color:#94a3b8;min-height:2.6em;}',
@@ -410,17 +412,47 @@
   }
 
 
+  function syncActionButtons() {
+    var startBtn = buttons.start;
+    var toggleBtn = buttons.pauseToggle;
+    var cancelBtn = buttons.cancel;
+    if (startBtn) {
+      startBtn.disabled = panelPhase === 'running' || panelPhase === 'paused' || busy;
+    }
+    if (toggleBtn) {
+      if (panelPhase === 'paused') {
+        toggleBtn.setAttribute('data-mode', 'resume');
+        toggleBtn.textContent = 'Resume';
+        toggleBtn.setAttribute('title', 'Continue autofill after filling highlighted fields');
+        toggleBtn.disabled = false;
+      } else if (panelPhase === 'running') {
+        toggleBtn.setAttribute('data-mode', 'pause');
+        toggleBtn.textContent = 'Pause';
+        toggleBtn.setAttribute('title', 'Pause Auto Apply for human input');
+        toggleBtn.disabled = false;
+      } else {
+        toggleBtn.setAttribute('data-mode', 'pause');
+        toggleBtn.textContent = 'Pause';
+        toggleBtn.setAttribute('title', 'Pause Auto Apply');
+        toggleBtn.disabled = true;
+      }
+    }
+    if (cancelBtn) {
+      // Cancel always works while running or paused (same abort as legacy Stop).
+      cancelBtn.disabled = false;
+    }
+  }
+
   function setBusy(on) {
     busy = !!on;
-    Object.keys(buttons).forEach(function (k) {
-      if (!buttons[k]) return;
-      // Stop must always work during Auto Apply.
-      if (k === 'stop') {
-        buttons[k].disabled = false;
-        return;
-      }
-      buttons[k].disabled = busy;
-    });
+    syncActionButtons();
+  }
+
+  function setPanelPhase(phase) {
+    if (phase === 'running' || phase === 'paused' || phase === 'idle') {
+      panelPhase = phase;
+    }
+    syncActionButtons();
   }
 
   function setStatus(state, message) {
@@ -439,22 +471,29 @@
       state === STATUS.VALIDATING ||
       state === STATUS.SUBMITTING
     ) {
+      setPanelPhase('running');
       setBusy(true);
+    }
+    if (
+      state === STATUS.paused ||
+      state === STATUS.MISSING_INFORMATION ||
+      state === STATUS.WAITING_FOR_USER ||
+      state === STATUS.BLOCKED ||
+      state === STATUS.AUTH_REQUIRED
+    ) {
+      setPanelPhase('paused');
+      setBusy(false);
     }
     if (
       state === STATUS.idle ||
       state === STATUS.done ||
       state === STATUS.error ||
-      state === STATUS.paused ||
       state === STATUS.READY ||
       state === STATUS.COMPLETE ||
-      state === STATUS.BLOCKED ||
-      state === STATUS.MISSING_INFORMATION ||
-      state === STATUS.WAITING_FOR_USER ||
-      state === STATUS.AUTH_REQUIRED ||
       state === STATUS.AMBIGUOUS ||
       state === STATUS.TIMEOUT
     ) {
+      setPanelPhase('idle');
       setBusy(false);
     }
   }
@@ -482,19 +521,37 @@
     return 'Idle — current tab';
   }
 
+  function isJobPoolHubUrl(url) {
+    url = String(url || '');
+    try {
+      if (global.FillApplySynonyms && typeof global.FillApplySynonyms.isJobPoolHubPage === 'function') {
+        if (global.FillApplySynonyms.isJobPoolHubPage(null, url, {})) return true;
+      }
+    } catch (_e) {}
+    if (/\/fill-apply(?:\/|$|\?)/i.test(url)) {
+      if (/zahid-jobpool\.vercel\.app/i.test(url) || /jobpool/i.test(url)) return true;
+    }
+    return false;
+  }
+
+  function detectSmartEntry() {
+    var url = typeof location !== 'undefined' ? location.href : '';
+    return isJobPoolHubUrl(url) ? 'jobpool' : 'current';
+  }
+
   function handleAutoApplyResponse(res) {
     busy = false;
     if (!res || res.ok === false) {
       var err = (res && res.error) || 'Request failed';
-      if (/stopped/i.test(err)) {
-        setStatus(STATUS.idle, 'Stopped — Auto Apply idle');
+      if (/stopped|cancelled|canceled/i.test(err)) {
+        setStatus(STATUS.idle, 'Cancelled — Auto Apply idle');
         return;
       }
       if (/captcha|cloudflare/i.test(err)) {
         setStatus(STATUS.BLOCKED, 'Blocked — CAPTCHA…');
       } else if (/auth|sign in|log in|register/i.test(err)) {
         setStatus(STATUS.AUTH_REQUIRED, err);
-      } else if (/paused|missing profile|action needed|waiting for user/i.test(err)) {
+      } else if (/paused|missing profile|action needed|waiting for user|unknown field/i.test(err)) {
         setStatus(STATUS.WAITING_FOR_USER, err);
       } else if (/timeout|no progress|plateau/i.test(err)) {
         setStatus(STATUS.TIMEOUT, err);
@@ -520,6 +577,7 @@
       return;
     }
     busy = true;
+    setPanelPhase('running');
     try {
       chrome.runtime.sendMessage(
         {
@@ -551,6 +609,11 @@
     }
   }
 
+  function startSmart() {
+    var entry = detectSmartEntry();
+    startAutoApply(entry);
+  }
+
   function startJobPool() {
     startAutoApply('jobpool');
   }
@@ -559,7 +622,62 @@
     startAutoApply('current');
   }
 
-  function stopAutoApply() {
+  function pauseAutoApply() {
+    if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      setStatus(STATUS.error, 'Extension background unavailable');
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({ type: 'FILL_APPLY_PAUSE' }, function (res) {
+        busy = false;
+        if (chrome.runtime.lastError) {
+          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Pause failed');
+          return;
+        }
+        var msg =
+          (res && res.data && res.data.message) ||
+          (res && res.message) ||
+          'Paused — fill highlighted fields, then Resume';
+        setStatus(STATUS.paused, msg);
+      });
+    } catch (e) {
+      busy = false;
+      setStatus(STATUS.error, String((e && e.message) || e));
+    }
+  }
+
+  function resumeAutoApply() {
+    if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      setStatus(STATUS.error, 'Extension background unavailable');
+      return;
+    }
+    setStatus(STATUS.SUBMITTING, 'Resuming — learning answers, continuing fill…');
+    busy = true;
+    setPanelPhase('running');
+    try {
+      chrome.runtime.sendMessage({ type: 'FILL_APPLY_RESUME' }, function (res) {
+        if (chrome.runtime.lastError) {
+          busy = false;
+          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Resume failed');
+          return;
+        }
+        handleAutoApplyResponse(res);
+      });
+    } catch (e) {
+      busy = false;
+      setStatus(STATUS.error, String((e && e.message) || e));
+    }
+  }
+
+  function togglePauseResume() {
+    if (panelPhase === 'paused') {
+      resumeAutoApply();
+    } else if (panelPhase === 'running') {
+      pauseAutoApply();
+    }
+  }
+
+  function cancelAutoApply() {
     if (!global.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
       setStatus(STATUS.error, 'Extension background unavailable');
       return;
@@ -568,10 +686,10 @@
       chrome.runtime.sendMessage({ type: 'FILL_APPLY_STOP' }, function (res) {
         busy = false;
         if (chrome.runtime.lastError) {
-          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Stop failed');
+          setStatus(STATUS.error, chrome.runtime.lastError.message || 'Cancel failed');
           return;
         }
-        setStatus(STATUS.idle, 'Stopped — Auto Apply idle');
+        setStatus(STATUS.idle, 'Cancelled — Auto Apply idle');
       });
     } catch (e) {
       busy = false;
@@ -579,9 +697,23 @@
     }
   }
 
+  // Legacy alias
+  function stopAutoApply() {
+    cancelAutoApply();
+  }
+
   function applyResult(data) {
     if (!data) {
       setStatus(STATUS.done, 'Done');
+      return;
+    }
+    if (data.pausedForHuman || data.state === 'paused' || data.state === STATUS.paused) {
+      setStatus(
+        STATUS.paused,
+        data.message ||
+          (data.result && data.result.error) ||
+          'Paused — fill highlighted fields, then Resume'
+      );
       return;
     }
     if (data.state && STATUS[data.state]) {
@@ -590,7 +722,10 @@
     }
     var result = data.result || data;
     if (result.needsHuman || data.pausedForHuman) {
-      setStatus(STATUS.paused, result.error || data.message || 'Paused — action needed');
+      setStatus(
+        STATUS.paused,
+        result.error || data.message || 'Paused — fill highlighted fields, then Resume'
+      );
       return;
     }
     if (result.ok === false) {
@@ -614,9 +749,10 @@
       shadowRoot = existing.shadowRoot;
       if (shadowRoot) {
         statusEl = shadowRoot.querySelector('.status');
-        buttons.jobpool = shadowRoot.querySelector('[data-action="jobpool"]');
-        buttons.current = shadowRoot.querySelector('[data-action="current"]');
-        buttons.stop = shadowRoot.querySelector('[data-action="stop"]');
+        buttons.start = shadowRoot.querySelector('[data-action="start"]');
+        buttons.pauseToggle = shadowRoot.querySelector('[data-action="pause-toggle"]');
+        buttons.cancel = shadowRoot.querySelector('[data-action="cancel"]');
+        syncActionButtons();
       }
       existing.hidden = false;
       setCollapsed(false);
@@ -672,56 +808,60 @@
     var btns = doc.createElement('div');
     btns.className = 'btns';
 
-    var jobpoolBtn = doc.createElement('button');
-    jobpoolBtn.type = 'button';
-    jobpoolBtn.className = 'act';
-    jobpoolBtn.setAttribute('data-action', 'jobpool');
-    jobpoolBtn.setAttribute('data-mode', 'jobpool');
-    jobpoolBtn.setAttribute('title', 'Open/focus JobPool /fill-apply, then run end-to-end Apply');
-    jobpoolBtn.textContent = 'JobPool';
-    jobpoolBtn.addEventListener('click', function (ev) {
+    var startBtn = doc.createElement('button');
+    startBtn.type = 'button';
+    startBtn.className = 'act';
+    startBtn.setAttribute('data-action', 'start');
+    startBtn.setAttribute(
+      'title',
+      'Smart start: JobPool /fill-apply hub → JobPool e2e; otherwise run on this page'
+    );
+    startBtn.textContent = 'Start';
+    startBtn.addEventListener('click', function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
-      if (busy) return;
-      startJobPool();
+      if (busy || panelPhase === 'running' || panelPhase === 'paused') return;
+      startSmart();
     });
-    buttons.jobpool = jobpoolBtn;
-    btns.appendChild(jobpoolBtn);
+    buttons.start = startBtn;
+    btns.appendChild(startBtn);
 
-    var currentBtn = doc.createElement('button');
-    currentBtn.type = 'button';
-    currentBtn.className = 'act';
-    currentBtn.setAttribute('data-action', 'current');
-    currentBtn.setAttribute('data-mode', 'current');
-    currentBtn.setAttribute('title', 'Run end-to-end Apply on the active tab');
-    currentBtn.textContent = 'Current page';
-    currentBtn.addEventListener('click', function (ev) {
+    var pauseBtn = doc.createElement('button');
+    pauseBtn.type = 'button';
+    pauseBtn.className = 'act';
+    pauseBtn.setAttribute('data-action', 'pause-toggle');
+    pauseBtn.setAttribute('data-mode', 'pause');
+    pauseBtn.setAttribute('title', 'Pause Auto Apply');
+    pauseBtn.textContent = 'Pause';
+    pauseBtn.disabled = true;
+    pauseBtn.addEventListener('click', function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
-      if (busy) return;
-      startCurrentPage();
+      togglePauseResume();
     });
-    buttons.current = currentBtn;
-    btns.appendChild(currentBtn);
+    buttons.pauseToggle = pauseBtn;
+    btns.appendChild(pauseBtn);
 
-    var stopBtn = doc.createElement('button');
-    stopBtn.type = 'button';
-    stopBtn.className = 'act';
-    stopBtn.setAttribute('data-action', 'stop');
-    stopBtn.textContent = 'Stop';
-    stopBtn.addEventListener('click', function (ev) {
+    var cancelBtn = doc.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'act';
+    cancelBtn.setAttribute('data-action', 'cancel');
+    cancelBtn.setAttribute('title', 'Cancel Auto Apply (abort)');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
-      stopAutoApply();
+      cancelAutoApply();
     });
-    buttons.stop = stopBtn;
-    btns.appendChild(stopBtn);
+    buttons.cancel = cancelBtn;
+    btns.appendChild(cancelBtn);
 
     wrap.appendChild(btns);
+    syncActionButtons();
 
     var st = doc.createElement('div');
     st.className = 'status idle';
-    st.textContent = 'Idle — Auto Apply';
+    st.textContent = 'Idle — Start (JobPool or page)';
     wrap.appendChild(st);
     shadow.appendChild(wrap);
 
@@ -853,7 +993,17 @@
     setStatus: setStatus,
     startJobPool: startJobPool,
     startCurrentPage: startCurrentPage,
+    startSmart: startSmart,
     startAutoApply: startAutoApply,
+    pauseAutoApply: pauseAutoApply,
+    resumeAutoApply: resumeAutoApply,
+    togglePauseResume: togglePauseResume,
+    cancelAutoApply: cancelAutoApply,
+    stopAutoApply: stopAutoApply,
+    detectSmartEntry: detectSmartEntry,
+    isJobPoolHubUrl: isJobPoolHubUrl,
+    setPanelPhase: setPanelPhase,
+    syncActionButtons: syncActionButtons,
     setCollapsed: setCollapsed,
     reposition: reposition,
     boot: boot

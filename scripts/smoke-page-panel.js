@@ -1,5 +1,5 @@
 /**
- * On-page floating panel: relevance gating, corner positioning, three buttons.
+ * On-page floating panel: relevance gating, corner positioning, Start/Pause/Cancel.
  *
  * Run: node scripts/smoke-page-panel.js
  */
@@ -91,7 +91,7 @@ const JOB_FORM = `
   suite.ok(midLeft.top > 200 && midLeft.top < 500, 'mid-left is vertically centered');
 })();
 
-(function mountsJobPoolCurrentStop() {
+(function mountsStartPauseCancel() {
   const page = createPage(JOB_FORM, LIBS);
   const P = page.window.FillApplyPagePanel;
   const host = page.document.getElementById(P.HOST_ID) || P.mount(page.document);
@@ -100,14 +100,16 @@ const JOB_FORM = `
   suite.ok(host.style.position === 'fixed', 'host is position:fixed (not a page overlay)');
 
   const shadow = host.shadowRoot;
-  const jobpool = shadow.querySelector('[data-action="jobpool"]');
-  const current = shadow.querySelector('[data-action="current"]');
-  const stop = shadow.querySelector('[data-action="stop"]');
-  suite.ok(jobpool && jobpool.textContent === 'JobPool', 'JobPool button');
-  suite.ok(current && current.textContent === 'Current page', 'Current page button');
-  suite.ok(stop && stop.textContent === 'Stop', 'Stop button');
+  const start = shadow.querySelector('[data-action="start"]');
+  const pauseToggle = shadow.querySelector('[data-action="pause-toggle"]');
+  const cancel = shadow.querySelector('[data-action="cancel"]');
+  suite.ok(start && start.textContent === 'Start', 'Start button');
+  suite.ok(pauseToggle && /Pause|Resume/.test(pauseToggle.textContent), 'Pause/Resume toggle');
+  suite.ok(cancel && cancel.textContent === 'Cancel', 'Cancel button');
   suite.ok(!shadow.querySelector('[data-action="companion"]'), 'No Companion button');
-  suite.ok(!shadow.querySelector('[data-action="start"]'), 'No Start button');
+  suite.ok(!shadow.querySelector('[data-action="jobpool"]'), 'No separate JobPool button');
+  suite.ok(!shadow.querySelector('[data-action="current"]'), 'No separate Current page button');
+  suite.ok(!shadow.querySelector('[data-action="stop"]'), 'No Stop button (renamed Cancel)');
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No Auto Register mode button');
   suite.ok(!shadow.querySelector('[data-mode="fill"]'), 'No Auto Fill mode button');
   const wrap = shadow.querySelector('.wrap');
@@ -116,6 +118,34 @@ const JOB_FORM = `
 
   const style = shadow.querySelector('style');
   suite.ok(style && /pointer-events:\s*auto/.test(style.textContent), 'panel CSS isolates pointer-events to itself');
+
+  // Smart entry: JobPool hub vs page
+  suite.equal(
+    P.detectSmartEntry && P.isJobPoolHubUrl
+      ? P.isJobPoolHubUrl('https://zahid-jobpool.vercel.app/fill-apply')
+        ? 'jobpool'
+        : 'current'
+      : 'missing',
+    'jobpool',
+    'hub URL detects jobpool entry'
+  );
+  suite.ok(
+    P.isJobPoolHubUrl && !P.isJobPoolHubUrl('https://boards.greenhouse.io/x/jobs/1'),
+    'employer page is not JobPool hub'
+  );
+
+  // Pause/Resume toggle labels
+  P.setPanelPhase('running');
+  P.syncActionButtons();
+  suite.equal(pauseToggle.textContent, 'Pause', 'running shows Pause');
+  suite.equal(pauseToggle.getAttribute('data-mode'), 'pause', 'data-mode=pause while running');
+  P.setPanelPhase('paused');
+  P.syncActionButtons();
+  suite.equal(pauseToggle.textContent, 'Resume', 'paused shows Resume');
+  suite.equal(pauseToggle.getAttribute('data-mode'), 'resume', 'data-mode=resume while paused');
+  P.setPanelPhase('idle');
+  P.syncActionButtons();
+  suite.ok(pauseToggle.disabled, 'Pause disabled when idle');
 })();
 
 (function jobPoolApplicationsPanel() {

@@ -1,20 +1,24 @@
-Fill & Apply v1.26.3 — Load unpacked
+Fill & Apply v1.26.4 — Load unpacked
 
 1. chrome://extensions
 2. Enable Developer mode
 3. Load unpacked → select this folder
 
-What changed in 1.26.3 (SLICE 2 — Nav-first + iCIMS profile accuracy)
-- Nav-first: Apply/start on job page before Idle 0/0; Next/Continue after fill (welcome Email+I accept).
-- iCIMS Candidate Profile:
-  - Nationality = Pakistan / Pakistani (not residence)
-  - Education Country = Pakistan (NOT Saudi Arabia)
-  - Residence / phone country = Saudi Arabia / +966 (never American Samoa / blank)
-  - Employment Country = Saudi Arabia when role in Riyadh/KSA
-  - Qualification Title = real degree string (never [object Object])
-  - Create-login Password + Re-enter from Environments/profile — no manual pause when password set
-- Preserves 1.26.2 tab/popup follow, JobPool / Current page / Stop, open-once, pending mark.
+What changed in 1.26.4 (floating Auto Apply panel)
+- Primary controls: Start / Pause·Resume / Cancel (replaces JobPool / Current page / Stop).
+- Start is smart: on JobPool /fill-apply hub → JobPool e2e (Open Application once → follow apply tab → nav/fill); otherwise runs on the current page. Both behaviors preserved.
+- Pause / Resume toggle: while running shows Pause; while paused shows Resume.
+- Unknown fields: highlight (yellow/outline), auto-pause on the same tab (no new tab / no job hop). User fills highlighted field(s); Resume learns via existing adaptive dictionary / Question Bank path, then continues fill on the same tab.
+- Cancel aborts (same as legacy Stop).
 
-Manual test: JobPool → Open Application → Apply on JD → welcome Next → profile countries/password/CV correct.
+Preserves 1.26.3 nav-first Apply/Next, iCIMS geography/password, JobPool open-once + tab follow, Environments password, side panel Import Profile. No Companion.
 
-Do not merge until live Riyadh Air iCIMS verify passes.
+Out of scope this slice: NaukriGulf Applied Successfully, Michael Page/Ashby/Workable specifics, document upload side panel, Manual Applied button.
+
+Manual test:
+1. Load unpacked @ 1.26.4.
+2. On a normal apply form: Start → fills known fields → pauses on unknown with yellow highlight → fill field → Resume → continues (no new tab).
+3. On JobPool /fill-apply: Start → Open Application once → follows employer tab → fill/pause/resume as above.
+4. Cancel aborts; Pause mid-run soft-pauses for human.
+
+Do not merge until live verify passes.

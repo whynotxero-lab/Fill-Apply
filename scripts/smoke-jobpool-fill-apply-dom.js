@@ -90,16 +90,17 @@ const html = fs.readFileSync(
   const P = panelPage.window.FillApplyPagePanel;
   suite.ok(P.isRelevantPage(url, panelPage.document), 'page panel relevant on /fill-apply');
 
-  // Mount JobPool / Current page / Stop
+  // Mount Start / Pause·Resume / Cancel (smart Start covers JobPool hub)
   P.mount(panelPage.document);
   const host = panelPage.document.getElementById(P.HOST_ID);
   const shadow = host.shadowRoot;
-  suite.ok(shadow.querySelector('[data-action="jobpool"]'), 'JobPool button present');
-  suite.ok(shadow.querySelector('[data-action="current"]'), 'Current page button present');
-  suite.ok(shadow.querySelector('[data-action="stop"]'), 'Stop present');
-  suite.ok(!shadow.querySelector('[data-action="start"]'), 'Start removed');
+  suite.ok(shadow.querySelector('[data-action="start"]'), 'Start button present');
+  suite.ok(shadow.querySelector('[data-action="pause-toggle"]'), 'Pause/Resume present');
+  suite.ok(shadow.querySelector('[data-action="cancel"]'), 'Cancel present');
+  suite.ok(!shadow.querySelector('[data-action="jobpool"]'), 'separate JobPool button gone');
   suite.ok(!shadow.querySelector('[data-action="companion"]'), 'Companion removed');
   suite.ok(!shadow.querySelector('[data-mode="register"]'), 'No multi-mode Register');
+  suite.ok(P.isJobPoolHubUrl(url), 'smart Start would pick JobPool entry on hub');
 
   // --- Without pending: fill/submit click Open Application once; never nav ---
   // --- With durable pending: NEVER re-click Open Application; return handoff flags ---
