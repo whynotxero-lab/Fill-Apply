@@ -1,38 +1,17 @@
-Fill & Apply v1.22.5 — Load unpacked
-
-Notes — v1.22.5 (JobPool Applications hub Apply → Mark as applied):
-- adapters/boards/jobpool.js: hub detect by page text / data attrs / backendBaseUrl host.
-- Single on hub: Apply first Ready card → employer fill → Mark as applied only after submit/return.
-- Stamps: data-fill-apply=jobpool-apply | jobpool-mark-applied; data-job-id.
-
-
-Fill & Apply v1.22.0 — Load unpacked
+Fill & Apply v1.25.5 — Load unpacked
 
 1. Chrome → chrome://extensions
 2. Enable Developer mode
-3. Load unpacked → select this folder (Fill-Apply-1.22.0-clean)
-4. Options → Import Profile → choose private zahid-profile.json
-   (deliverables/zahid-profile.json or private-profiles copy)
-5. Default profile remains Mock (demo). Applicant data is import-only.
+3. Load unpacked → select this folder
+4. Options / popup Settings → Import Profile / Environments password
+5. Toolbar icon opens the popup (side panel removed). Floating Auto Apply panel prefers LEFT.
 
-Notes — v1.22.0 (reliability / control-adapter sprint):
-- lib/control-adapter.js: detect → adapt → fill → verify per DOM control type
-  (text/email/tel/number/date/radio/checkbox/select/multiselect/combobox/file…).
-- Dependent-field re-scan (WAITING_FOR_DEPENDENT_FIELDS) after fills that reveal
-  follow-ups. Runner/panel surface phases through COMPLETE.
-- Built-in Universal ATS FAQ seed (generic semantics + strategies — no PII).
-- Salary current/expected stay UNKNOWN when blank (never invent).
-- File inputs without a configured local document → clear BLOCKER message.
+Notes — v1.25.5 (Riyadh Air / iCIMS fill accuracy):
+- Create a login: fill Email/Password/Re-enter from Environments/profile password; do not pause when password available (hCaptcha may still pause after fill).
+- Country/phone: never select American Samoa for Saudi +966 / SA (ISO SA vs AS substring fix).
+- Qualification Title → degree (MBA…); bare Title → Mr.; Year rejects degree strings.
+- Apply-start synonyms: Apply, Easy Apply, Start Apply, Start Application, Begin Application, Continue Application.
+- Companion: shorter settle; click Start Application / Continue on nav-only pages — no indefinite "Waiting for Simplify…".
+- Floating panel LEFT; side panel removed; popup Settings → Options.
 
-Also from v1.19.5:
-- Built-in aliases resolve trial ATS questions (CA/ACCA, B.Com, ME visa, etc.).
-
-Also from v1.19.4:
-- Chrome Web Store manifest description shortened to ≤132 characters.
-
-After Load unpacked / Reload extension: refresh any open job tabs (old content
-scripts die — otherwise "Receiving end does not exist" / context invalidated).
-
-Notes — v1.22.0 (universal workflow):
-- Auto Register / Fill / Navigate / Ready / Submit
-- ~10s no-progress plateau; terminals COMPLETE|READY|WAITING_FOR_USER|MISSING_INFORMATION|BLOCKED|AUTH_REQUIRED|AMBIGUOUS|TIMEOUT
+After Load unpacked / Reload extension: refresh open job tabs.

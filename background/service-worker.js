@@ -1,6 +1,6 @@
 /**
  * MV3 service worker — owns the runner state machine and message API.
- * Also configures chrome.sidePanel so the toolbar action opens the right sidebar.
+ * Toolbar action opens the extension popup (side panel removed in 1.25.5).
  */
 /* global importScripts, FillApplyTypes, FillApplyStorage, FillApplyProfile, FillApplyBackend, FillApplyReport, FillApplyRunner, FillApplyKnowledgeStore, FillApplyKnowledgeLearn */
 
@@ -23,30 +23,23 @@ importScripts(
   '../runner/runner.js'
 );
 
-var SIDE_PANEL_PATH = 'sidepanel/sidepanel.html';
-
-function configureSidePanel() {
+function disableSidePanelIfPresent() {
   if (!chrome.sidePanel) return;
   try {
-    chrome.sidePanel.setOptions({ enabled: true, path: SIDE_PANEL_PATH });
-  } catch (e) {
-    console.warn('[Fill & Apply] sidePanel.setOptions failed:', e);
-  }
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+  } catch (_e) {}
   try {
-    // Toolbar click opens the Chrome right sidebar (no tiny popup).
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-  } catch (e) {
-    console.warn('[Fill & Apply] sidePanel.setPanelBehavior failed:', e);
-  }
+    chrome.sidePanel.setOptions({ enabled: false });
+  } catch (_e2) {}
 }
 
-configureSidePanel();
+disableSidePanelIfPresent();
 
 chrome.runtime.onInstalled.addListener(function (details) {
-  configureSidePanel();
+  disableSidePanelIfPresent();
   if (details.reason === 'install') {
     console.log(
-      '[Fill & Apply] Installed. Click the toolbar icon to open the side panel. Add https job apply URLs in App Settings (Application queue), then Start.'
+      '[Fill & Apply] Installed. Click the toolbar icon for the popup (Settings → Options). Add https job apply URLs in App Settings (Application queue), then Start.'
     );
   }
   if (typeof FillApplySourceProfiles !== 'undefined' && FillApplySourceProfiles.ensureSourceProfileShells) {

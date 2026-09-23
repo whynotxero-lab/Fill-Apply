@@ -212,7 +212,7 @@
     return {
       challenged: true,
       kind: 'auth_wall',
-      detail: 'iCIMS account required — sign in/register manually, then Resume',
+      detail: 'iCIMS account required — sign in/register manually, then Resume (no profile password)',
       markers: ['local fallback'],
       passwordFields: visiblePw
     };
@@ -735,13 +735,27 @@
         if (m[5]) start = m[4];
         if (m[5]) end = m[5];
       } else {
-        var m2 = line.match(/^(.+?),\s*(.+?)(?:\s*\((\d{4})\))?$/);
-        if (m2) {
-          title = m2[1].trim();
-          institution = m2[2].trim();
-          end = (m2[3] || '').trim();
+        // "MBA Executive Finance, Virtual University of Pakistan, 2018"
+        var m3 = line.match(/^(.+?),\s*(.+?),\s*(\d{4})\s*$/);
+        if (m3) {
+          title = m3[1].trim();
+          institution = m3[2].trim();
+          end = m3[3].trim();
+          if (/\b(mba|emba|bachelor|master|ph\.?d|diploma|certificate)\b/i.test(title)) {
+            qualificationType = (title.match(/\b(MBA(?:\s+Executive(?:\s+Finance)?)?|EMBA|Bachelor[^,]*|Master[^,]*|Ph\.?D\.?)\b/i) || [
+              '',
+              title
+            ])[1];
+          }
         } else {
-          title = line;
+          var m2 = line.match(/^(.+?),\s*(.+?)(?:\s*\((\d{4})\))?$/);
+          if (m2) {
+            title = m2[1].trim();
+            institution = m2[2].trim();
+            end = (m2[3] || '').trim();
+          } else {
+            title = line;
+          }
         }
       }
       out.push({
@@ -859,12 +873,22 @@
     var roots = findSectionRoots(doc, /education|qualification|academic/i);
     var pairs = [
       { re: /qualification\s*type|degree\s*type|level of (study|education)|education level/i, val: edu.qualificationType },
-      { re: /qualification\s*title|degree\s*title|field of study|major|course\s*title|^title$/i, val: edu.title },
+      // Qualification Title gets degree title — NEVER bare honorific Title / Mr.
+      {
+        re: /qualification\s*title|degree\s*title|field of study|major|course\s*title/i,
+        val: edu.title || edu.qualificationType
+      },
       { re: /institution|university|college|school\s*name|^school$/i, val: edu.institution },
       { re: /start\s*date|from\s*date|date\s*from|attendance start/i, val: edu.start },
-      { re: /end\s*date|to\s*date|date\s*to|graduation|year (of )?(grad|complet)/i, val: edu.end },
+      {
+        re: /end\s*date|to\s*date|date\s*to|graduation|year (of )?(grad|complet)|^year$/i,
+        val: edu.end
+      },
       { re: /^city$|institution city|school city/i, val: edu.city || profileVal(profile, 'city') },
-      { re: /^country$|country\/?region|institution country|school country/i, val: edu.country || profileVal(profile, 'country') },
+      {
+        re: /^(education\s*)?country$|institution country|school country|education country/i,
+        val: edu.country || profileVal(profile, 'country')
+      },
       { re: /full.?time|study\s*mode|mode of study|attendance/i, val: edu.fullTime || 'Full-time' }
     ];
     var targets = roots.length ? roots : [doc];
@@ -875,7 +899,7 @@
   }
 
   /**
-   * Map Candidate Profile fields from active profile. Never touches password / login fields.
+   * Map Candidate Profile fields from active profile. Password/login filled separately via FillApplySignupLogin when credentials exist.
    * Riyadh Air-richer: CV label, passport names, nationality, gender, notice period,
    * employment/education blocks, marketing consent prefer No.
    */
@@ -1493,28 +1517,58 @@
           var pauseProf = challengePause(doc, totalFilled);
           if (pauseProf) return pauseProf;
 
-          // Create-login → auth pause; SSO Connected/Disconnect → skip pause
+          // Create-login: fill Email/Password from Environments/profile when available.
+          // Only pause when password is missing (or true SSO-only wall with no password fields filled).
+          var Signup = global.FillApplySignupLogin;
+          var credsFilled = 0;
+          if (Signup && typeof Signup.prepareSignupOrLogin === 'function') {
+            try {
+              var prep = await Signup.prepareSignupOrLogin(doc, profile, { waitMs: 200 });
+              if (prep && prep.credentialsFill && prep.credentialsFill.filled) {
+                credsFilled = prep.credentialsFill.filled;
+                totalFilled += credsFilled;
+              }
+              if (prep && prep.pause) {
+                var pauseMsg =
+                  prep.detail ||
+                  'Sign in / register required — complete manually (no profile/Environments password)';
+                return {
+                  ok: false,
+                  adapterId: 'icims',
+                  needsHuman: true,
+                  pauseReason: 'auth_wall',
+                  error: pauseMsg,
+                  message: pauseMsg,
+                  filled: totalFilled,
+                  unmatched: 0,
+                  total: totalFilled,
+                  submitted: false,
+                  resumeAttached: resumeAttached,
+                  signupLogin: prep
+                };
+              }
+            } catch (_prepErr) { /* continue */ }
+          } else if (Signup && typeof Signup.fillCredentials === 'function') {
+            try {
+              var cf = Signup.fillCredentials(doc, profile);
+              if (cf && cf.filled) {
+                credsFilled = cf.filled;
+                totalFilled += credsFilled;
+              }
+            } catch (_cfErr) {}
+          }
+
           if (needsAuthPause(doc, profile)) {
             var authPause = authWallPause(doc, totalFilled, profile);
             if (authPause) {
               authPause.filled = totalFilled;
               authPause.resumeAttached = resumeAttached;
               authPause.message =
-                'iCIMS account required — sign in/register manually, then Resume (profile fields/resume filled when possible; passwords never auto-filled). If SSO shows Connected/Disconnect, Resume to continue.';
+                authPause.message ||
+                'iCIMS account required — sign in/register manually, then Resume (no profile/Environments password)';
               return authPause;
             }
-            return {
-              ok: false,
-              adapterId: 'icims',
-              needsHuman: true,
-              pauseReason: 'auth_wall',
-              error: 'iCIMS account required — sign in/register manually, then Resume',
-              filled: totalFilled,
-              unmatched: 0,
-              total: totalFilled,
-              submitted: false,
-              resumeAttached: resumeAttached
-            };
+            // needsAuthPause true but authWallPause null (credentials present) → continue
           }
 
           // Auth cleared — Submit Profile only in submit mode

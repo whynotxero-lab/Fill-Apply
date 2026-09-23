@@ -353,10 +353,7 @@
       }
     } catch (_e2) {}
     try {
-      if (state.tabId != null && chrome.sidePanel && chrome.sidePanel.open) {
-        const tab = await chrome.tabs.get(state.tabId);
-        if (tab && tab.windowId != null) await chrome.sidePanel.open({ windowId: tab.windowId });
-      }
+      /* side panel removed in 1.25.5 — pause state still stored; user uses popup/Options */
     } catch (_e3) {}
     return state;
   }
@@ -2202,9 +2199,9 @@
     const settleMs =
       config.companionSettleMs != null
         ? config.companionSettleMs
-        : (config.settleMs != null ? config.settleMs : 12000);
+        : (config.settleMs != null ? config.settleMs : 3500);
     const maxWaitMs =
-      config.companionMaxWaitMs != null ? config.companionMaxWaitMs : 12 * 60 * 1000;
+      config.companionMaxWaitMs != null ? config.companionMaxWaitMs : 45 * 1000;
     const graceMs = config.companionGraceMs != null ? config.companionGraceMs : 4000;
     const maxSteps = config.companionMaxSteps != null ? config.companionMaxSteps : 40;
 

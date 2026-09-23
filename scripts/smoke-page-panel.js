@@ -70,19 +70,20 @@ const JOB_FORM = `
   const viewport = { width: 1280, height: 800 };
   const panel = { width: P.PANEL_WIDTH, height: P.PANEL_HEIGHT };
 
+  // Keep-outs on the right (Simplify-like) — panel should prefer LEFT.
   const titleAndCta = [
-    { left: 40, top: 24, right: 640, bottom: 80 },
-    { left: 40, top: 520, right: 220, bottom: 564 }
+    { left: 640, top: 24, right: 1240, bottom: 80 },
+    { left: 1040, top: 520, right: 1260, bottom: 564 }
   ];
-  const br = P.pickAnchor(viewport, panel, titleAndCta);
-  suite.equal(br.id, 'bottom-right', 'default empty corner is bottom-right');
-  suite.ok(br.overlap === 0, 'bottom-right does not overlap title/CTA keep-outs');
+  const bl = P.pickAnchor(viewport, panel, titleAndCta);
+  suite.ok(/left/.test(bl.id), 'default prefers a left slot (got ' + bl.id + ')');
+  suite.ok(bl.overlap === 0, 'left slot does not overlap keep-outs');
 
-  const bottomRightBlocked = titleAndCta.concat([
-    { left: 1040, top: 620, right: 1264, bottom: 784 }
+  const bottomLeftBlocked = titleAndCta.concat([
+    { left: 16, top: 620, right: 240, bottom: 784 }
   ]);
-  const next = P.pickAnchor(viewport, panel, bottomRightBlocked);
-  suite.ok(next.id !== 'bottom-right', 'blocked bottom-right yields another slot (' + next.id + ')');
+  const next = P.pickAnchor(viewport, panel, bottomLeftBlocked);
+  suite.ok(next.id !== 'bottom-left' || next.overlap === 0, 'blocked bottom-left yields usable slot (' + next.id + ')');
   suite.ok(next.overlap === 0, 'fallback slot still avoids keep-outs');
 
   const midLeft = P.slotRect({ id: 'mid-left', v: 'mid', h: 'left' }, viewport, panel, 16);

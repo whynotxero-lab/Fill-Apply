@@ -7,9 +7,9 @@
  * restyle the panel and panel CSS cannot leak into the host.
  *
  * Positioning: compact fixed box, never a full-page overlay. Candidate
- * slots are the four corners plus mid-left / mid-right. The slot with the
+ * slots prefer LEFT (Simplify covers the right). Four corners plus mid-left / mid-right. The slot with the
  * least overlap against job titles, Apply/Start/Submit CTAs, and form
- * fields wins (ties prefer bottom-right). pointer-events stay on the
+ * fields wins (ties prefer bottom-left). pointer-events stay on the
  * panel only, so scrolling and page clicks are unaffected.
  *
  * Buttons message the service worker (FILL_APPLY_FILL_ONCE) which runs
@@ -68,12 +68,12 @@
   };
 
   var SLOTS = [
-    { id: 'bottom-right', v: 'bottom', h: 'right' },
     { id: 'bottom-left', v: 'bottom', h: 'left' },
-    { id: 'top-right', v: 'top', h: 'right' },
     { id: 'top-left', v: 'top', h: 'left' },
-    { id: 'mid-right', v: 'mid', h: 'right' },
-    { id: 'mid-left', v: 'mid', h: 'left' }
+    { id: 'mid-left', v: 'mid', h: 'left' },
+    { id: 'bottom-right', v: 'bottom', h: 'right' },
+    { id: 'top-right', v: 'top', h: 'right' },
+    { id: 'mid-right', v: 'mid', h: 'right' }
   ];
 
   var collapsed = false;
@@ -216,7 +216,7 @@
 
   /**
    * Pick the least-overlapping corner/edge. Ties keep SLOTS order
-   * (bottom-right first) so the default stays out of typical title/CTA columns.
+   * (bottom-left first) so the default stays clear of Simplify on the right.
    */
   function pickAnchor(viewport, panel, keepOuts, margin) {
     viewport = viewport || { width: 1280, height: 800 };
@@ -659,8 +659,8 @@
       'position: fixed',
       'z-index: 2147483646',
       'top: auto',
-      'left: auto',
-      'right: ' + MARGIN + 'px',
+      'right: auto',
+      'left: ' + MARGIN + 'px',
       'bottom: ' + MARGIN + 'px',
       'width: auto',
       'height: auto',

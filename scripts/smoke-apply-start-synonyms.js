@@ -21,6 +21,8 @@ const expectTrue = [
   'Apply Now',
   'Start Apply',
   'Start Application',
+  'Begin Application',
+  'Continue Application',
   'Apply for this Job',
   'Apply for this Role',
   'Apply here',

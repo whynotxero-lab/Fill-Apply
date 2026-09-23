@@ -452,6 +452,22 @@
       if (raw.length > 24) return false;
       if (/financial|planning|manager|analyst|engineer|director/i.test(raw)) return false;
     }
+    // Qualification Title must not receive salutation Mr/Ms
+    if (/qualification\s*title|degree\s*title|title\s*of\s*(degree|qualification)/i.test(lab)) {
+      if (/^(mr|mrs|ms|miss|dr|sir)\.?$/i.test(raw.trim())) return false;
+      if (honorificKeys[key]) return false;
+    }
+    // Year / graduation fields reject degree strings (MBA, Bachelor, …)
+    if (
+      /\b(year|graduation|grad year|completion year|end year)\b/i.test(lab) ||
+      key === 'graduationYear' ||
+      key === 'birthYear'
+    ) {
+      if (/[a-zA-Z]{2,}/.test(raw) && !/^\d{4}$/.test(raw.trim())) {
+        if (/\b(mba|bachelor|master|doctor|diploma|certificate|phd|degree)\b/i.test(raw)) return false;
+        if (!/\d{4}/.test(raw)) return false;
+      }
+    }
     if (salaryKeys[key] && (type === 'email' || type === 'tel' || type === 'url')) return false;
     return true;
   }
@@ -1195,7 +1211,47 @@
           key = resolveValue(profile, 'salutation') ? 'salutation' : 'title';
         }
       }
+      // Qualification Title → degree (never Mr./salutation)
+      if (/qualification\s*title|degree\s*title|title\s*of\s*(the\s*)?(degree|qualification)/i.test(labExact)) {
+        key = resolveValue(profile, 'degree')
+          ? 'degree'
+          : resolveValue(profile, 'highestEducation')
+            ? 'highestEducation'
+            : 'degree';
+      }
+      // Residence / employment / education country never phone dial
+      if (
+        /of\s*residence|residence\s*country|employment\s*country|education\s*country/i.test(labExact) ||
+        labExact === 'country / region' ||
+        labExact === 'country/region'
+      ) {
+        if (key === 'phoneCountry') {
+          key = resolveValue(profile, 'country') ? 'country' : 'countryOfResidence';
+        }
+      }
       let value = resolveValue(profile, key);
+      // Nationality fallback: Pakistani when profile/nationality blank but known from answers
+      if ((key === 'nationality' || /nationality|citizenship/i.test(labExact)) && !value) {
+        var caN =
+          (profile.customAnswers &&
+            (profile.customAnswers.nationality || profile.customAnswers.citizenship)) ||
+          '';
+        value = caN || profile.nationality || '';
+      }
+      // Degree from education text when key is degree and blank
+      if ((key === 'degree' || key === 'highestEducation') && !value && profile.education) {
+        var eduStr = String(profile.education).split(/\n/)[0] || '';
+        var degM = eduStr.match(
+          /\b(MBA(?:\s+Executive)?(?:\s+Finance)?|EMBA|Bachelor[^,]*|Master[^,]*|Ph\.?D\.?)\b/i
+        );
+        if (degM) value = degM[1];
+        else if (/qualification\s*title/i.test(labExact)) value = eduStr.split(',')[0].trim();
+      }
+      // Graduation year from education "(2018)" when blank
+      if ((key === 'graduationYear' || labExact === 'year' || labExact === 'year *') && !value && profile.education) {
+        var yM = String(profile.education).match(/\b(19|20)\d{2}\b/);
+        if (yM) value = yM[0];
+      }
       if (key === 'title' && !value) value = resolveValue(profile, 'salutation');
       if (key === 'salutation' && !value) value = resolveValue(profile, 'title');
       if (key === 'phone' && !value) {
@@ -1324,7 +1380,17 @@
     const dataValue = normalizeText(optionEl.getAttribute && optionEl.getAttribute('data-value'));
     const target = normalizeText(want);
     if (!target) return 0;
+    // Never let ISO "SA" / short tokens pick American Samoa for Saudi Arabia.
+    if (/american\s*samoa|\b1684\b/.test(text) && /^(sa|sau|saudi|966|\+966|ksa)$/i.test(target)) {
+      return 0;
+    }
     if (text === target || dataValue === target) return 100;
+    // Short ISO / dial codes: token-boundary only (not "sa" inside "samoa").
+    if (target.length <= 3) {
+      var re = new RegExp('(^|[^a-z0-9])' + target.replace(/[+]/g, '\\+') + '([^a-z0-9]|$)', 'i');
+      if (re.test(text) || re.test(dataValue || '')) return 95;
+      return 0;
+    }
     if (text.indexOf(target) !== -1) return 80;
     if (target.indexOf(text) !== -1 && text.length > 2) return 70;
     if (dataValue && dataValue.indexOf(target) !== -1) return 60;

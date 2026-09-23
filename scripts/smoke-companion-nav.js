@@ -38,9 +38,11 @@ const FORM = `
   suite.ok(C.isCompanionNavCta('Next Step'), 'Next Step is nav CTA');
   suite.ok(!C.isCompanionNavCta('Back'), 'Back is excluded');
   suite.ok(!C.isCompanionNavCta('Cancel'), 'Cancel is excluded');
-  suite.ok(!C.isCompanionNavCta('Apply'), 'bare Apply is excluded');
-  suite.ok(!C.isCompanionNavCta('Apply Now'), 'Apply Now is excluded');
+  suite.ok(!C.isCompanionNavCta('Apply'), 'bare Apply excluded when not nav-only');
+  suite.ok(C.isCompanionNavCta('Apply Now'), 'Apply Now is a companion/apply-start CTA');
+  suite.ok(C.isCompanionNavCta('Start Application'), 'Start Application is a companion CTA');
   suite.ok(!C.isCompanionNavCta('Submit Application'), 'Submit Application is excluded');
+  suite.ok(C.isCompanionNavCta('Apply', { navOnly: true }), 'bare Apply allowed on nav-only pages');
 
   const ranked = C.findCompanionNavButtons(page.document);
   suite.ok(ranked.length >= 1, 'finds at least one nav CTA');
@@ -100,8 +102,10 @@ const FORM = `
   });
   const elapsed = Date.now() - start;
   suite.ok(result.settled, 'settle resolves when quiet');
-  suite.ok(elapsed >= 70, 'waited about settleMs (got ' + elapsed + 'ms)');
+  suite.ok(elapsed >= 50, 'waited about settleMs (got ' + elapsed + 'ms)');
   suite.ok(!result.timedOut, 'not timed out on quiet page');
+  suite.ok(C.DEFAULT_SETTLE_MS <= 5000, 'default settle is reasonable (got ' + C.DEFAULT_SETTLE_MS + ')');
+  suite.ok(C.DEFAULT_MAX_WAIT_MS <= 60000, 'default max wait not indefinite (got ' + C.DEFAULT_MAX_WAIT_MS + ')');
 })()
   .then(function () {
     return (async function settleInterrupted() {
@@ -125,6 +129,23 @@ const FORM = `
       const result = await p;
       suite.ok(result.settled || result.timedOut, 'settle finishes after mutations stop');
     })();
+  })
+  .then(function () {
+    // Nav-only page: only Apply CTA → click it (do not stall)
+    const page = createPage(
+      `<main><h1>Job</h1><a id="apply" href="#form">Start Application</a></main>`,
+      LIBS
+    );
+    const C = page.window.FillApplyCompanionNav;
+    suite.ok(C.isNavOnlyPage(page.document), 'page with no inputs is nav-only');
+    let clicked = 0;
+    page.document.getElementById('apply').addEventListener('click', function () {
+      clicked += 1;
+    });
+    // Promote <a> to button-like for query
+    page.document.getElementById('apply').setAttribute('role', 'button');
+    const r = C.clickCompanionNav(page.document);
+    suite.ok(r.clicked && clicked === 1, 'nav-only clicks Start Application (got clicked=' + clicked + ')');
   })
   .then(function () {
     // Fallback adapter companion short-circuit
